@@ -1,6 +1,7 @@
 const Trip = require('./trip.model');
 
-const getAll = async ({ page = 1, limit = 10, search, status } = {}) => {
+const getAll = async (params = {}) => {
+  const { page = 1, limit = 10, search, status, rovId, fromDate, toDate } = params
   const query = {};
   if (search) {
     query.$or = [
@@ -9,6 +10,12 @@ const getAll = async ({ page = 1, limit = 10, search, status } = {}) => {
     ];
   }
   if (status) query.status = status;
+  if (rovId) query.rov = rovId;
+  if (fromDate || toDate) {
+    query.startTime = {};
+    if (fromDate) query.startTime.$gte = new Date(fromDate);
+    if (toDate)   query.startTime.$lte = new Date(toDate + 'T23:59:59');
+  }
 
   const skip = (Number(page) - 1) * Number(limit);
   const [trips, total] = await Promise.all([

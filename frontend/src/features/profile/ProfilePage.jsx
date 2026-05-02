@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useMutation } from '@tanstack/react-query'
-import { User, KeyRound, Settings, Save, Eye, EyeOff } from 'lucide-react'
+import { User, KeyRound, Settings, Save, Eye, EyeOff, Camera } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/axios'
 import { useAuthStore } from '@/store/auth.store'
@@ -18,24 +18,78 @@ const ROLE_STYLE = {
   viewer:   'bg-gray-100 text-gray-600'
 }
 
+function AvatarUpload({ user, onUploaded }) {
+  const fileRef = useRef()
+  const [uploading, setUploading] = useState(false)
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) { toast.error('Only image files allowed'); return }
+    if (file.size > 5 * 1024 * 1024) { toast.error('File too large (max 5MB)'); return }
+
+    setUploading(true)
+    try {
+      const { data } = await api.post('/auth/me/avatar/presigned', {
+        fileName: file.name,
+        mimeType: file.type
+      })
+      const { uploadUrl, viewUrl } = data
+
+      await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } })
+      await api.patch('/auth/me', { avatar: viewUrl })
+      onUploaded(viewUrl)
+      toast.success('Avatar updated')
+    } catch {
+      toast.error('Upload failed')
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
+  }
+
+  const initials = user?.fullName?.split(' ').map(w => w[0]).slice(-2).join('').toUpperCase()
+
+  return (
+    <button
+      type="button"
+      onClick={() => fileRef.current?.click()}
+      disabled={uploading}
+      className="relative w-16 h-16 rounded-full shrink-0 group"
+    >
+      {user?.avatar
+        ? <img src={user.avatar} alt="avatar" className="w-16 h-16 rounded-full object-cover" />
+        : <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center">
+            <span className="text-white text-xl font-bold">{initials}</span>
+          </div>
+      }
+      <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+        {uploading
+          ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          : <Camera size={16} className="text-white" />
+        }
+      </div>
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+    </button>
+  )
+}
+
 function ProfileTab({ user, updateUser }) {
   const [form, setForm] = useState({ fullName: user?.fullName || '' })
+  const { updateUser: updateStore } = useAuthStore()
 
   return (
     <div className="space-y-6">
       {/* Avatar */}
       <div className="flex items-center gap-4">
-        <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
-          <span className="text-white text-xl font-bold">
-            {user?.fullName?.split(' ').map(w => w[0]).slice(-2).join('').toUpperCase()}
-          </span>
-        </div>
+        <AvatarUpload user={user} onUploaded={(url) => updateStore({ avatar: url })} />
         <div>
           <p className="font-semibold text-gray-800">{user?.fullName}</p>
           <p className="text-sm text-gray-500">{user?.email}</p>
           <span className={`text-xs px-2 py-0.5 rounded font-medium mt-1 inline-block ${ROLE_STYLE[user?.role]}`}>
             {user?.role}
           </span>
+          <p className="text-xs text-gray-400 mt-1">Click avatar to change photo</p>
         </div>
       </div>
 
@@ -204,6 +258,8 @@ export default function ProfilePage() {
   const { user, updateUser } = useAuthStore()
 
   const activeTab = searchParams.get('tab') || 'profile'
+  const isGoogleUser = user?.authProvider === 'google'
+  const visibleTabs = TABS.filter(t => !(t.id === 'password' && isGoogleUser))
 
   const updateMutation = useMutation({
     mutationFn: (data) => api.patch('/auth/me', data),
@@ -220,7 +276,7 @@ export default function ProfilePage() {
 
       {/* Tab bar */}
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-6 w-fit">
-        {TABS.map(({ id, label, icon: Icon }) => (
+        {visibleTabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => setSearchParams(id === 'profile' ? {} : { tab: id })}

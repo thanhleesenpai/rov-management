@@ -4,12 +4,16 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
 const { errorHandler } = require('./middleware/error.middleware');
+const passport = require('./config/passport');
 
 const authRoutes = require('./modules/auth/auth.routes');
 const userRoutes = require('./modules/users/user.routes');
 const rovRoutes = require('./modules/rovs/rov.routes');
 const tripRoutes = require('./modules/trips/trip.routes');
 const jobRoutes = require('./modules/jobs/job.routes');
+const mediaRoutes = require('./modules/media/media.routes');
+const statsRoutes = require('./modules/stats/stats.routes');
+const notificationRoutes = require('./modules/notifications/notification.routes');
 
 const app = express();
 
@@ -41,6 +45,9 @@ if (process.env.NODE_ENV === 'production') {
 // Logging
 app.use(morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev'));
 
+// Passport (Google OAuth — session: false, chỉ dùng JWT)
+app.use(passport.initialize());
+
 // Body parsing
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -51,6 +58,9 @@ app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/rovs', rovRoutes);
 app.use('/api/v1/trips', tripRoutes);
 app.use('/api/v1/jobs', jobRoutes);
+app.use('/api/v1/media', mediaRoutes);
+app.use('/api/v1/stats', statsRoutes);
+app.use('/api/v1/notifications', notificationRoutes);
 
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date() }));

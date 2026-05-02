@@ -39,7 +39,8 @@ const refresh = async (req, res, next) => {
 
 const logout = async (req, res, next) => {
   try {
-    await authService.logout(req.user._id);
+    const token = req.headers.authorization?.split(' ')[1];
+    await authService.logout(req.user._id, token);
     return success(res, null, 'Logged out successfully');
   } catch (err) {
     next(err);
@@ -55,8 +56,35 @@ const updateMe = async (req, res, next) => {
     const User = require('../users/user.model');
     const allowed = {};
     if (req.body.fullName) allowed.fullName = req.body.fullName.trim();
+    if (req.body.avatar !== undefined) allowed.avatar = req.body.avatar;
     const updated = await User.findByIdAndUpdate(req.user._id, allowed, { new: true }).select('-password -refreshToken');
     return success(res, updated, 'Profile updated successfully');
+  } catch (err) {
+    next(err);
+  }
+};
+
+const avatarPresigned = async (req, res, next) => {
+  try {
+    const { PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
+    const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+    const { v4: uuidv4 } = require('uuid');
+    const s3 = require('../../config/s3');
+
+    const { fileName, mimeType } = req.body;
+    if (!fileName || !mimeType || !mimeType.startsWith('image/')) {
+      return res.status(400).json({ message: 'fileName and image mimeType required' });
+    }
+
+    const ext = fileName.split('.').pop();
+    const s3Key = `avatars/${req.user._id}/${uuidv4()}.${ext}`;
+    const BUCKET = process.env.S3_BUCKET;
+
+    const uploadUrl = await getSignedUrl(s3, new PutObjectCommand({ Bucket: BUCKET, Key: s3Key, ContentType: mimeType }), { expiresIn: 300 });
+    // Presigned GET URL để xem ảnh — 7 ngày
+    const viewUrl = await getSignedUrl(s3, new GetObjectCommand({ Bucket: BUCKET, Key: s3Key }), { expiresIn: 7 * 24 * 3600 });
+
+    return success(res, { uploadUrl, viewUrl, s3Key });
   } catch (err) {
     next(err);
   }
@@ -75,4 +103,25 @@ const changePassword = async (req, res, next) => {
   }
 };
 
-module.exports = { register, login, refresh, logout, me, updateMe, changePassword };
+const { generateAccessToken, generateRefreshToken } = require('../../utils/jwt.util');
+
+const googleCallback = async (req, res) => {
+  try {
+    const user = req.user;
+    const accessToken  = generateAccessToken(user._id);
+    const refreshToken = generateRefreshToken(user._id);
+
+    user.refreshToken = refreshToken;
+    user.lastLoginAt  = new Date();
+    await user.save();
+
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const params = new URLSearchParams({ accessToken, refreshToken });
+    res.redirect(`${clientUrl}/auth/callback?${params}`);
+  } catch (err) {
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    res.redirect(`${clientUrl}/login?error=oauth_failed`);
+  }
+};
+
+module.exports = { register, login, refresh, logout, me, updateMe, changePassword, googleCallback, avatarPresigned };

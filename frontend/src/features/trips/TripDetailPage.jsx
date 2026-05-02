@@ -22,18 +22,19 @@ export default function TripDetailPage() {
 
   const { data: trip, isLoading, isError } = useQuery({
     queryKey: ['trips', id],
-    queryFn: () => api.get(`/trips/${id}`).then(r => r.data)
+    queryFn: () => api.get(`/trips/${id}`).then(r => r.data),
+    refetchInterval: 30000,
   })
 
   const canEdit = ['admin', 'operator'].includes(user?.role)
 
-  if (isLoading) return <div className="p-6 text-gray-500">Loading...</div>
-  if (isError || !trip) return <div className="p-6 text-red-500">Trip not found.</div>
+  if (isLoading) return <div className="text-gray-500">Loading...</div>
+  if (isError || !trip) return <div className="text-red-500">Trip not found.</div>
 
   const { text, cls } = STATUS[trip.status] || STATUS.planned
 
   return (
-    <div className="p-6 max-w-2xl">
+    <div className="max-w-2xl">
       <button onClick={() => navigate('/trips')}
         className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-800 mb-6">
         <ArrowLeft size={16} /> Back to Trips
@@ -56,7 +57,7 @@ export default function TripDetailPage() {
           )}
         </div>
 
-        <div className="grid grid-cols-2 gap-4 text-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
           <div className="bg-gray-50 rounded-lg p-4 flex gap-3">
             <Anchor size={16} className="text-blue-400 mt-0.5 shrink-0" />
             <div>

@@ -1,10 +1,15 @@
 const Job = require('./job.model');
 
-const getAll = async ({ page = 1, limit = 10, search, status, tripId } = {}) => {
+const getAll = async ({ page = 1, limit = 10, search, status, tripId, fromDate, toDate } = {}) => {
   const query = {};
   if (search) query.title = new RegExp(search, 'i');
   if (status) query.status = status;
   if (tripId) query.trip = tripId;
+  if (fromDate || toDate) {
+    query.createdAt = {};
+    if (fromDate) query.createdAt.$gte = new Date(fromDate);
+    if (toDate)   query.createdAt.$lte = new Date(toDate + 'T23:59:59');
+  }
 
   const skip = (Number(page) - 1) * Number(limit);
   const [jobs, total] = await Promise.all([

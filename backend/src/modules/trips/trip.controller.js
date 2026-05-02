@@ -1,5 +1,6 @@
 const tripService = require('./trip.service');
 const { success, error } = require('../../utils/response.util');
+const notifService = require('../notifications/notification.service');
 
 const getAll = async (req, res, next) => {
   try {
@@ -31,8 +32,24 @@ const create = async (req, res, next) => {
 
 const update = async (req, res, next) => {
   try {
+    const prev = await tripService.getById(req.params.id);
     const trip = await tripService.update(req.params.id, req.body);
     if (!trip) return error(res, 'Trip not found', 404);
+
+    // Notify trip creator khi status chuyển sang completed
+    if (req.body.status === 'completed' && prev?.status !== 'completed') {
+      const recipientId = trip.createdBy?._id || trip.createdBy;
+      if (recipientId) {
+        notifService.create(
+          recipientId,
+          'trip_completed',
+          `Trip "${trip.name}" completed`,
+          'The trip has been marked as completed.',
+          `/trips/${trip._id}`
+        ).catch(() => {});
+      }
+    }
+
     success(res, trip, 'Trip updated');
   } catch (err) {
     next(err);

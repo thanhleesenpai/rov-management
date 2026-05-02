@@ -11,9 +11,17 @@ const userSchema = new mongoose.Schema({
   },
   password: {
     type: String,
-    required: [true, 'Password is required'],
     minlength: 6,
-    select: false  // không trả về password khi query
+    select: false
+  },
+  googleId: {
+    type: String,
+    default: null
+  },
+  authProvider: {
+    type: String,
+    enum: ['local', 'google'],
+    default: 'local'
   },
   fullName: {
     type: String,
@@ -44,15 +52,14 @@ const userSchema = new mongoose.Schema({
   }
 }, { timestamps: true });
 
-// Hash password trước khi save
 userSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
+  if (!this.isModified('password') || !this.password) return next();
   this.password = await bcrypt.hash(this.password, 12);
   next();
 });
 
-// So sánh password
 userSchema.methods.comparePassword = async function (candidatePassword) {
+  if (!this.password) throw { statusCode: 400, message: 'This account uses Google login' };
   return bcrypt.compare(candidatePassword, this.password);
 };
 

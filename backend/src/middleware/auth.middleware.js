@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../modules/users/user.model');
+const redis = require('../config/redis');
 
 const authenticate = async (req, res, next) => {
   try {
@@ -10,6 +11,13 @@ const authenticate = async (req, res, next) => {
 
     const token = authHeader.split(' ')[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    // Check blacklist (token đã logout) — bỏ qua nếu Redis chưa kết nối
+    try {
+      const isBlacklisted = await redis.get(`blacklist:${token}`);
+      if (isBlacklisted) return res.status(401).json({ message: 'Token has been revoked' });
+    } catch { /* Redis unavailable — fail open in dev */ }
+
     const user = await User.findById(decoded.id).select('-password -refreshToken');
 
     if (!user) return res.status(401).json({ message: 'User not found' });

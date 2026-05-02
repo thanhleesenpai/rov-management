@@ -1,5 +1,6 @@
 const jobService = require('./job.service');
 const { success, error } = require('../../utils/response.util');
+const notifService = require('../notifications/notification.service');
 
 const getAll = async (req, res, next) => {
   try {
@@ -49,8 +50,27 @@ const create = async (req, res, next) => {
 
 const update = async (req, res, next) => {
   try {
+    const prev = await jobService.getById(req.params.id);
     const job = await jobService.update(req.params.id, req.body);
     if (!job) return error(res, 'Job not found', 404);
+
+    // Notify job creator khi status chuyển sang done/failed
+    if (req.body.status && req.body.status !== prev?.status) {
+      if (req.body.status === 'done' || req.body.status === 'failed') {
+        const recipientId = job.createdBy?._id || job.createdBy;
+        if (recipientId) {
+          const label = req.body.status === 'done' ? 'completed' : 'failed';
+          notifService.create(
+            recipientId,
+            `job_${req.body.status}`,
+            `Job "${job.title}" ${label}`,
+            `The job status has changed to ${req.body.status}.`,
+            job.trip ? `/trips/${job.trip}` : '/jobs'
+          ).catch(() => {});
+        }
+      }
+    }
+
     success(res, job, 'Job updated');
   } catch (err) {
     next(err);

@@ -1,8 +1,10 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
+import NotFoundPage from '@/features/errors/NotFoundPage'
 import ProtectedRoute from '@/components/shared/ProtectedRoute'
 import Layout from '@/components/shared/Layout'
 import LoginPage from '@/features/auth/LoginPage'
 import RegisterPage from '@/features/auth/RegisterPage'
+import AuthCallback from '@/features/auth/AuthCallback'
 import DashboardPage from '@/features/dashboard/DashboardPage'
 import RovsPage from '@/features/rovs/RovsPage'
 import RovDetailPage from '@/features/rovs/RovDetailPage'
@@ -20,6 +22,10 @@ export const router = createBrowserRouter([
   {
     path: '/register',
     element: <RegisterPage />
+  },
+  {
+    path: '/auth/callback',
+    element: <AuthCallback />
   },
   {
     path: '/',
@@ -69,6 +75,6 @@ export const router = createBrowserRouter([
   },
   {
     path: '*',
-    element: <Navigate to="/dashboard" replace />
+    element: <NotFoundPage />
   }
 ])

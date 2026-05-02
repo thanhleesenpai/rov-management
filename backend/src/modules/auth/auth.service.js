@@ -63,8 +63,25 @@ const refresh = async (token) => {
   return { accessToken };
 };
 
-const logout = async (userId) => {
-  await User.findByIdAndUpdate(userId, { refreshToken: null });
+const logout = async (userId, accessToken) => {
+  const user = await User.findById(userId).select('+refreshToken');
+  if (user) {
+    // Blacklist access token còn hạn
+    if (accessToken) {
+      try {
+        const decoded = jwt.decode(accessToken);
+        if (decoded?.exp) {
+          const ttl = decoded.exp - Math.floor(Date.now() / 1000);
+          if (ttl > 0) {
+            const redis = require('../../config/redis');
+            await redis.set(`blacklist:${accessToken}`, '1', 'EX', ttl);
+          }
+        }
+      } catch { /* ignore */ }
+    }
+    user.refreshToken = null;
+    await user.save();
+  }
 };
 
 const changePassword = async (userId, { currentPassword, newPassword }) => {

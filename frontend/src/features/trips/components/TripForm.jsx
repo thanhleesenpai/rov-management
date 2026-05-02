@@ -19,10 +19,11 @@ export default function TripForm({ tripData, onClose }) {
   })
   const [error, setError] = useState('')
 
-  const { data: rovs } = useQuery({
-    queryKey: ['rovs'],
-    queryFn: () => api.get('/rovs').then(r => r.data)
+  const { data: rovsRes } = useQuery({
+    queryKey: ['rovs', 'active'],
+    queryFn: () => api.get('/rovs', { params: { limit: 100, status: 'active' } }).then(r => r.data)
   })
+  const rovs = rovsRes?.data || []
 
   const mutation = useMutation({
     mutationFn: (data) =>
@@ -66,7 +67,7 @@ export default function TripForm({ tripData, onClose }) {
             <select required value={form.rov} className={inputCls}
               onChange={e => setForm(f => ({ ...f, rov: e.target.value }))}>
               <option value="">-- Select ROV --</option>
-              {rovs?.filter(r => r.status === 'active').map(r => (
+              {rovs.map(r => (
                 <option key={r._id} value={r._id}>{r.name} ({r.model})</option>
               ))}
             </select>

@@ -25,11 +25,14 @@ const getAllUsers = async ({ page = 1, limit = 10, search, role } = {}) => {
   };
 };
 
-const updateUser = async (id, data) => {
+const updateUser = async (id, data, requesterId) => {
   const allowed = ['fullName', 'role', 'avatar'];
   const updates = Object.fromEntries(
     Object.entries(data).filter(([k]) => allowed.includes(k))
   );
+  if (requesterId && id === requesterId.toString() && updates.role) {
+    throw { statusCode: 400, message: 'Cannot change your own role' };
+  }
   const user = await User.findByIdAndUpdate(id, updates, { new: true, runValidators: true });
   if (!user) throw { statusCode: 404, message: 'User not found' };
   return user;
@@ -46,4 +49,16 @@ const toggleStatus = async (id, requesterId) => {
   return user;
 };
 
-module.exports = { getAllUsers, updateUser, toggleStatus };
+const bulkSetStatus = async (ids, isActive, requesterId) => {
+  const filtered = ids.filter(id => id !== requesterId.toString());
+  await User.updateMany({ _id: { $in: filtered } }, { isActive });
+  return filtered.length;
+};
+
+const bulkSetRole = async (ids, role, requesterId) => {
+  const filtered = ids.filter(id => id !== requesterId.toString());
+  await User.updateMany({ _id: { $in: filtered } }, { role });
+  return filtered.length;
+};
+
+module.exports = { getAllUsers, updateUser, toggleStatus, bulkSetStatus, bulkSetRole };

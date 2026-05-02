@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Menu, PanelLeftClose, PanelLeftOpen, Bell, User, Settings, KeyRound, LogOut, ChevronDown, Waves } from 'lucide-react'
+import { Menu, PanelLeftClose, PanelLeftOpen, User, Settings, KeyRound, LogOut, ChevronDown, Waves } from 'lucide-react'
 import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/axios'
+import NotificationBell from './NotificationBell'
+import { useSSE } from '@/hooks/useSSE'
 
 const ROLE_STYLE = {
   admin:    'bg-purple-100 text-purple-700',
@@ -15,6 +17,7 @@ export default function Navbar({ collapsed, onToggleCollapse, onOpenMobile }) {
   const navigate = useNavigate()
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const dropdownRef = useRef(null)
+  useSSE()
 
   // Đóng dropdown khi click ngoài
   useEffect(() => {
@@ -84,12 +87,7 @@ export default function Navbar({ collapsed, onToggleCollapse, onOpenMobile }) {
 
       {/* Right: notification + avatar */}
       <div className="flex items-center gap-2">
-        {/* Notification bell (placeholder) */}
-        <button className="relative w-9 h-9 rounded-lg text-gray-500 hover:bg-gray-100 flex items-center justify-center transition-colors">
-          <Bell size={18} />
-          {/* Badge */}
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
-        </button>
+        <NotificationBell />
 
         {/* Avatar dropdown */}
         <div className="relative" ref={dropdownRef}>
@@ -98,9 +96,12 @@ export default function Navbar({ collapsed, onToggleCollapse, onOpenMobile }) {
             className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
           >
             {/* Avatar circle */}
-            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
-              <span className="text-white text-xs font-bold">{initials}</span>
-            </div>
+            {user?.avatar
+              ? <img src={user.avatar} alt="avatar" className="w-8 h-8 rounded-full object-cover shrink-0" />
+              : <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
+                  <span className="text-white text-xs font-bold">{initials}</span>
+                </div>
+            }
             {/* Name + role — hidden on mobile */}
             <div className="hidden sm:block text-left">
               <p className="text-sm font-medium text-gray-800 leading-tight">{user?.fullName}</p>
