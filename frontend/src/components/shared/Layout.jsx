@@ -7,7 +7,6 @@ export default function Layout() {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
 
-  // Đóng mobile drawer khi resize lên desktop
   useEffect(() => {
     const onResize = () => {
       if (window.innerWidth >= 1024) setMobileOpen(false)
@@ -17,8 +16,7 @@ export default function Layout() {
   }, [])
 
   return (
-    <div className="flex h-screen bg-gray-100 overflow-hidden">
-      {/* Mobile overlay */}
+    <div className="flex h-screen bg-background overflow-hidden">
       {mobileOpen && (
         <div
           className="fixed inset-0 bg-black/50 z-20 lg:hidden"
@@ -26,14 +24,12 @@ export default function Layout() {
         />
       )}
 
-      {/* Sidebar */}
       <Sidebar
         collapsed={collapsed}
         mobileOpen={mobileOpen}
         onCloseMobile={() => setMobileOpen(false)}
       />
 
-      {/* Main content */}
       <div className="flex flex-col flex-1 overflow-hidden min-w-0">
         <Navbar
           collapsed={collapsed}

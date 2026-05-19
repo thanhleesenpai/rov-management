@@ -30,15 +30,19 @@ const stream = async (req, res) => {
   const userId = req.user._id.toString();
   notifService.registerSSE(userId, res);
 
-  // Keepalive ping mỗi 30s để tránh proxy timeout
-  const keepalive = setInterval(() => {
-    res.write(': ping\n\n');
-  }, 30000);
-
-  req.on('close', () => {
+  const cleanup = () => {
     clearInterval(keepalive);
     notifService.unregisterSSE(userId);
-  });
+  };
+
+  // Keepalive ping mỗi 30s để tránh proxy timeout
+  const keepalive = setInterval(() => {
+    if (res.writableEnded || res.destroyed) { cleanup(); return; }
+    try { res.write(': ping\n\n'); } catch { cleanup(); }
+  }, 30000);
+
+  req.on('close', cleanup);
+  res.on('error', cleanup);
 };
 
 const list = async (req, res, next) => {

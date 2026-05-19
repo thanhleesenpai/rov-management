@@ -6,7 +6,6 @@ export default function Pagination({ page, totalPages, total, limit, onPageChang
   const from = (page - 1) * limit + 1
   const to = Math.min(page * limit, total)
 
-  // Build page number list with ellipsis
   const pages = []
   if (totalPages <= 7) {
     for (let i = 1; i <= totalPages; i++) pages.push(i)
@@ -19,13 +18,13 @@ export default function Pagination({ page, totalPages, total, limit, onPageChang
   }
 
   return (
-    <div className="flex items-center justify-between mt-4 text-sm text-gray-500">
+    <div className="flex items-center justify-between mt-4 text-sm text-muted-foreground">
       <span>{from}–{to} of {total}</span>
       <div className="flex items-center gap-1">
         <button
           onClick={() => onPageChange(page - 1)}
           disabled={page === 1}
-          className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="p-1.5 rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           <ChevronLeft size={16} />
         </button>
@@ -36,8 +35,8 @@ export default function Pagination({ page, totalPages, total, limit, onPageChang
             <button
               key={p}
               onClick={() => onPageChange(p)}
-              className={`w-8 h-8 rounded text-xs font-medium ${
-                p === page ? 'bg-blue-600 text-white' : 'hover:bg-gray-100'
+              className={`w-8 h-8 rounded text-xs font-medium transition-colors ${
+                p === page ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-foreground'
               }`}
             >
               {p}
@@ -47,7 +46,7 @@ export default function Pagination({ page, totalPages, total, limit, onPageChang
         <button
           onClick={() => onPageChange(page + 1)}
           disabled={page === totalPages}
-          className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="p-1.5 rounded hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           <ChevronRight size={16} />
         </button>

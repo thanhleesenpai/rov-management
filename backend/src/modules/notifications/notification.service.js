@@ -4,17 +4,29 @@ const Notification = require('./notification.model');
 const sseClients = new Map();
 
 const registerSSE = (userId, res) => {
-  sseClients.set(userId, res);
+  // If user opens a second tab, close the old connection first
+  const existing = sseClients.get(userId.toString());
+  if (existing && !existing.writableEnded) {
+    existing.end();
+  }
+  sseClients.set(userId.toString(), res);
 };
 
 const unregisterSSE = (userId) => {
-  sseClients.delete(userId);
+  sseClients.delete(userId.toString());
 };
 
 const pushSSE = (userId, data) => {
   const client = sseClients.get(userId.toString());
-  if (client) {
+  if (!client || client.writableEnded || client.destroyed) {
+    // Connection already closed — remove stale entry
+    sseClients.delete(userId.toString());
+    return;
+  }
+  try {
     client.write(`data: ${JSON.stringify(data)}\n\n`);
+  } catch {
+    sseClients.delete(userId.toString());
   }
 };
 

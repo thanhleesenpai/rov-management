@@ -36,7 +36,18 @@ const tripSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     required: true
-  }
+  },
+  aiSummary: {
+    vi:          { type: String, default: '' },
+    en:          { type: String, default: '' },
+    generatedAt: { type: Date, default: null },
+    status:      { type: String, enum: ['idle', 'pending', 'done', 'failed'], default: 'idle' },
+  },
+  gpsLocation: {
+    lat: { type: Number, default: null },
+    lng: { type: Number, default: null },
+  },
+  locationName: { type: String, default: '' },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Trip', tripSchema);

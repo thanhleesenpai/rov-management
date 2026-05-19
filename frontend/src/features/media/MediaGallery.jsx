@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Play, Trash2, X, ChevronLeft, ChevronRight, Loader, File, FileText, Download, CheckCircle2 } from 'lucide-react'
+import { Play, Trash2, X, ChevronLeft, ChevronRight, Loader, File, FileText, Download, CheckCircle2, Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
 import { SortableContext, useSortable, rectSortingStrategy } from '@dnd-kit/sortable'
 import { useDndContext } from '@dnd-kit/core'
@@ -34,7 +34,6 @@ const TABS = [
   { id: 'document', label: 'Docs' },
 ]
 
-// ─── Hook lấy presigned URL (cache 50 phút) ───────────────────────────────
 function useMediaUrl(mediaId) {
   return useQuery({
     queryKey: ['media-url', mediaId],
@@ -44,20 +43,23 @@ function useMediaUrl(mediaId) {
   })
 }
 
-// ─── Card ảnh ────────────────────────────────────────────────────────────
 function ImageCard({ media, onClick, onDelete, canDelete, selectMode, selected, onSelect }) {
   const { data: url, isLoading } = useMediaUrl(media._id)
-
   return (
-    <div className="group relative aspect-square rounded-lg overflow-hidden bg-gray-100 cursor-pointer"
+    <div className="group relative aspect-square rounded-lg overflow-hidden bg-muted cursor-pointer"
       onClick={selectMode ? onSelect : onClick}>
       {isLoading ? (
         <div className="w-full h-full flex items-center justify-center">
-          <Loader size={20} className="text-gray-300 animate-spin" />
+          <Loader size={20} className="text-muted-foreground animate-spin" />
         </div>
       ) : (
         <img src={url} alt={media.originalName}
           className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105" />
+      )}
+      {media.analysisStatus === 'pending' && !selectMode && (
+        <div className="absolute top-1.5 right-1.5 z-10 pointer-events-none">
+          <Loader size={12} className="text-white animate-spin drop-shadow" />
+        </div>
       )}
       {!selectMode && <Overlay media={media} url={url} canDelete={canDelete} onDelete={onDelete} />}
       {selectMode && <SelectOverlay selected={selected} />}
@@ -65,7 +67,6 @@ function ImageCard({ media, onClick, onDelete, canDelete, selectMode, selected, 
   )
 }
 
-// ─── Card video ───────────────────────────────────────────────────────────
 function VideoCard({ media, onClick, onDelete, canDelete, selectMode, selected, onSelect }) {
   const { data: url, isLoading } = useMediaUrl(media._id)
   const videoRef = useRef(null)
@@ -109,18 +110,17 @@ function VideoCard({ media, onClick, onDelete, canDelete, selectMode, selected, 
 
   return (
     <div ref={cardRef}
-      className="group relative aspect-square rounded-lg overflow-hidden bg-gray-900 cursor-pointer"
+      className="group relative aspect-square rounded-lg overflow-hidden bg-card cursor-pointer"
       onClick={handleClick}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}>
 
       {isLoading ? (
         <div className="w-full h-full flex items-center justify-center">
-          <Loader size={20} className="text-gray-500 animate-spin" />
+          <Loader size={20} className="text-muted-foreground animate-spin" />
         </div>
       ) : (
-        <video ref={videoRef} src={url} muted playsInline loop
-          className="w-full h-full object-cover" />
+        <video ref={videoRef} src={url} muted playsInline loop className="w-full h-full object-cover" />
       )}
 
       {!playing && !selectMode && (
@@ -131,40 +131,50 @@ function VideoCard({ media, onClick, onDelete, canDelete, selectMode, selected, 
         </div>
       )}
 
+      {media.recordedAt && !selectMode && (
+        <div className="absolute top-1.5 left-1.5 z-10 pointer-events-none
+                        flex items-center gap-0.5 bg-emerald-500/90 backdrop-blur-sm
+                        text-white text-[8px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+          SYNCED
+        </div>
+      )}
+
       {playing && !selectMode && (
         <div className="absolute bottom-0 left-0 right-0 py-1.5 flex items-center justify-center
-                        bg-gradient-to-t from-black/60 to-transparent
-                        [@media(hover:hover)]:hidden">
+                        bg-gradient-to-t from-black/60 to-transparent [@media(hover:hover)]:hidden">
           <p className="text-white/80 text-xs">Tap to open</p>
         </div>
       )}
 
+      {media.analysisStatus === 'pending' && !selectMode && (
+        <div className="absolute top-1.5 right-1.5 z-10 pointer-events-none">
+          <Loader size={12} className="text-white animate-spin drop-shadow" />
+        </div>
+      )}
       {!selectMode && <Overlay media={media} url={url} canDelete={canDelete} onDelete={onDelete} />}
       {selectMode && <SelectOverlay selected={selected} />}
     </div>
   )
 }
 
-// ─── Card tài liệu ───────────────────────────────────────────────────────
 function DocCard({ media, onClick, onDelete, canDelete, selectMode, selected, onSelect }) {
   const { data: url } = useMediaUrl(media._id)
   return (
-    <div className="group relative aspect-square rounded-lg overflow-hidden bg-gray-50 border border-gray-200 cursor-pointer flex flex-col items-center justify-center gap-2"
+    <div className="group relative aspect-square rounded-lg overflow-hidden bg-muted border border-border cursor-pointer flex flex-col items-center justify-center gap-2"
       onClick={selectMode ? onSelect : onClick}>
-      <FileText size={32} className="text-gray-400" />
-      <p className="text-xs text-gray-500 text-center px-2 truncate w-full">{media.originalName}</p>
+      <FileText size={32} className="text-muted-foreground" />
+      <p className="text-xs text-muted-foreground text-center px-2 truncate w-full">{media.originalName}</p>
       {!selectMode && <Overlay media={media} url={url} canDelete={canDelete} onDelete={onDelete} />}
       {selectMode && <SelectOverlay selected={selected} />}
     </div>
   )
 }
 
-// ─── Select overlay ───────────────────────────────────────────────────────
 function SelectOverlay({ selected }) {
   return (
-    <div className={`absolute inset-0 transition-colors ${selected ? 'bg-blue-500/30' : 'bg-black/0 hover:bg-black/10'}`}>
+    <div className={`absolute inset-0 transition-colors ${selected ? 'bg-primary/30' : 'bg-black/0 hover:bg-black/10'}`}>
       <div className={`absolute top-1.5 right-1.5 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${
-        selected ? 'bg-blue-500 border-blue-500' : 'bg-white/70 border-white'
+        selected ? 'bg-primary border-primary' : 'bg-white/70 border-white'
       }`}>
         {selected && <CheckCircle2 size={14} className="text-white" strokeWidth={3} />}
       </div>
@@ -172,24 +182,14 @@ function SelectOverlay({ selected }) {
   )
 }
 
-// ─── Download helper ─────────────────────────────────────────────────────
 function triggerDownload(url, filename) {
   const a = document.createElement('a')
-  a.href = url
-  a.download = filename
-  a.target = '_blank'
-  a.rel = 'noreferrer'
-  document.body.appendChild(a)
-  a.click()
-  document.body.removeChild(a)
+  a.href = url; a.download = filename; a.target = '_blank'; a.rel = 'noreferrer'
+  document.body.appendChild(a); a.click(); document.body.removeChild(a)
 }
 
-// ─── Overlay chung ────────────────────────────────────────────────────────
 function Overlay({ media, url, canDelete, onDelete }) {
-  const handleDownload = (e) => {
-    e.stopPropagation()
-    if (url) triggerDownload(url, media.originalName)
-  }
+  const handleDownload = (e) => { e.stopPropagation(); if (url) triggerDownload(url, media.originalName) }
   const handleDelete = (e) => { e.stopPropagation(); onDelete() }
 
   return (
@@ -197,6 +197,11 @@ function Overlay({ media, url, canDelete, onDelete }) {
       {/* Desktop hover overlay */}
       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors
                       hidden [@media(hover:hover)]:block pointer-events-none group-hover:pointer-events-auto">
+        {media.labels?.length > 0 && (
+          <div className="absolute top-0 left-0 right-0 p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <LabelBadges labels={media.labels} max={4} />
+          </div>
+        )}
         <div className="absolute bottom-0 left-0 right-0 p-2 translate-y-full group-hover:translate-y-0 transition-transform">
           <div className="flex items-end justify-between gap-1">
             <div className="min-w-0">
@@ -212,7 +217,7 @@ function Overlay({ media, url, canDelete, onDelete }) {
               )}
               {canDelete && (
                 <button data-no-dnd onClick={handleDelete}
-                  className="p-1 bg-red-500 hover:bg-red-600 rounded transition-colors">
+                  className="p-1 bg-destructive hover:bg-destructive/90 rounded transition-colors">
                   <Trash2 size={11} className="text-white" />
                 </button>
               )}
@@ -224,19 +229,16 @@ function Overlay({ media, url, canDelete, onDelete }) {
       {/* Mobile persistent action bar */}
       <div className="absolute bottom-0 left-0 right-0 px-1.5 py-1
                       flex items-center justify-between gap-1
-                      bg-gradient-to-t from-black/60 to-transparent
-                      [@media(hover:hover)]:hidden">
+                      bg-gradient-to-t from-black/60 to-transparent [@media(hover:hover)]:hidden">
         <p className="text-white text-xs truncate leading-tight min-w-0">{media.originalName}</p>
         <div className="flex gap-1 shrink-0">
           {url && (
-            <button data-no-dnd onClick={handleDownload}
-              className="p-1 bg-black/50 active:bg-black/80 rounded" title="Download">
+            <button data-no-dnd onClick={handleDownload} className="p-1 bg-black/50 active:bg-black/80 rounded" title="Download">
               <Download size={11} className="text-white" />
             </button>
           )}
           {canDelete && (
-            <button data-no-dnd onClick={handleDelete}
-              className="p-1 bg-red-500/80 active:bg-red-600 rounded">
+            <button data-no-dnd onClick={handleDelete} className="p-1 bg-destructive/80 active:bg-destructive rounded">
               <Trash2 size={11} className="text-white" />
             </button>
           )}
@@ -246,15 +248,47 @@ function Overlay({ media, url, canDelete, onDelete }) {
   )
 }
 
-// ─── Lightbox ─────────────────────────────────────────────────────────────
+function LbDetectionSVG({ labels, dims }) {
+  if (!dims || !labels?.some(l => l.bbox)) return null
+  return (
+    <svg viewBox={`0 0 ${dims.w} ${dims.h}`} preserveAspectRatio="xMidYMid meet"
+      className="absolute inset-0 w-full h-full pointer-events-none z-10">
+      {labels.filter(l => l.bbox).map((l, i) => {
+        const { x1, y1, x2, y2 } = l.bbox
+        const px1 = x1 * dims.w, py1 = y1 * dims.h
+        const pw  = (x2 - x1) * dims.w, ph = (y2 - y1) * dims.h
+        const color = l.confidence > 0.8 ? '#60a5fa' : '#fbbf24'
+        const sw = Math.max(dims.w * 0.003, 2)
+        const fs = Math.max(dims.h * 0.028, 12)
+        const lh = fs * 1.6
+        const labelW = (l.name.length * fs * 0.62) + (String(Math.round(l.confidence * 100)).length * fs * 0.62) + fs * 1.2
+        return (
+          <g key={`${l.name}-${i}`}>
+            <rect x={px1} y={py1} width={pw} height={ph}
+              fill="none" stroke={color} strokeWidth={sw} />
+            <rect x={px1} y={Math.max(0, py1 - lh)} width={Math.min(labelW, pw + sw)}
+              height={lh} fill={color} rx={3} opacity={0.9} />
+            <text x={px1 + 4} y={Math.max(lh * 0.78, py1 - lh * 0.22)}
+              fontSize={fs} fill="black" fontFamily="system-ui,sans-serif" fontWeight="700">
+              {l.name} {Math.round(l.confidence * 100)}%
+            </text>
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
 function Lightbox({ mediaList, initialIndex, onClose }) {
   const [index, setIndex] = useState(initialIndex)
   const [visible, setVisible] = useState(false)
+  const [showDetections, setShowDetections] = useState(false)
+  const [dims, setDims] = useState(null)
   const media = mediaList[index]
   const { data: url, isLoading } = useMediaUrl(media?._id)
 
-  const prev = () => setIndex(i => (i - 1 + mediaList.length) % mediaList.length)
-  const next = () => setIndex(i => (i + 1) % mediaList.length)
+  const prev = () => { setIndex(i => (i - 1 + mediaList.length) % mediaList.length); setDims(null) }
+  const next = () => { setIndex(i => (i + 1) % mediaList.length); setDims(null) }
 
   useEffect(() => { requestAnimationFrame(() => setVisible(true)) }, [])
 
@@ -266,7 +300,7 @@ function Lightbox({ mediaList, initialIndex, onClose }) {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [mediaList.length])
+  }, [onClose, mediaList.length])
 
   return (
     <div className={`fixed inset-0 flex items-center justify-center z-50 transition-colors duration-200 ${visible ? 'bg-black/90' : 'bg-black/0'}`}
@@ -274,10 +308,20 @@ function Lightbox({ mediaList, initialIndex, onClose }) {
       <div className={`relative max-w-5xl w-full max-h-[90vh] px-4 sm:px-16 transition-all duration-200 ${visible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}
         onClick={e => e.stopPropagation()}>
 
-        <button onClick={onClose}
-          className="absolute -top-10 right-4 text-white/60 hover:text-white transition-colors">
+        <button onClick={onClose} className="absolute -top-10 right-4 text-white/60 hover:text-white transition-colors">
           <X size={24} />
         </button>
+
+        {media?.analysisStatus === 'done' && media?.labels?.some(l => l.bbox) && (
+          <button onClick={() => setShowDetections(v => !v)}
+            className={`absolute -top-10 right-14 flex items-center gap-1.5 px-2.5 py-1 rounded-full
+                        text-xs font-semibold transition-colors ${
+              showDetections ? 'bg-blue-500/80 text-white' : 'bg-white/10 hover:bg-white/20 text-white/70'
+            }`}>
+            {showDetections ? <EyeOff size={13} /> : <Eye size={13} />}
+            {showDetections ? 'Hide' : 'Detect'}
+          </button>
+        )}
 
         <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-white/50 text-sm">
           {index + 1} / {mediaList.length}
@@ -294,17 +338,24 @@ function Lightbox({ mediaList, initialIndex, onClose }) {
           {isLoading ? (
             <Loader size={36} className="text-white/40 animate-spin" />
           ) : resolveType(media) === 'video' ? (
-            <video key={url} src={url} controls autoPlay
-              className="max-w-full max-h-[80vh] rounded-lg" />
+            <div className="relative max-w-full">
+              <video key={url} src={url} controls autoPlay className="max-w-full max-h-[80vh] rounded-lg block"
+                onLoadedMetadata={e => setDims({ w: e.target.videoWidth, h: e.target.videoHeight })} />
+              {showDetections && <LbDetectionSVG labels={media?.labels} dims={dims} />}
+            </div>
           ) : resolveType(media) === 'image' ? (
-            <img key={url} src={url} alt={media.originalName}
-              className="max-w-full max-h-[80vh] object-contain rounded-lg" />
+            <div className="relative max-w-full">
+              <img key={url} src={url} alt={media.originalName}
+                className="max-w-full max-h-[80vh] object-contain rounded-lg block"
+                onLoad={e => setDims({ w: e.target.naturalWidth, h: e.target.naturalHeight })} />
+              {showDetections && <LbDetectionSVG labels={media?.labels} dims={dims} />}
+            </div>
           ) : (
-            <div className="bg-white rounded-xl p-8 text-center">
-              <File size={48} className="mx-auto text-gray-300 mb-3" />
-              <p className="text-gray-600 text-sm mb-4">{media?.originalName}</p>
+            <div className="bg-card rounded-xl p-8 text-center border border-border">
+              <File size={48} className="mx-auto text-muted-foreground mb-3" />
+              <p className="text-foreground text-sm mb-4">{media?.originalName}</p>
               <a href={url} target="_blank" rel="noreferrer"
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm">
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 text-sm transition-colors">
                 Open File
               </a>
             </div>
@@ -320,12 +371,23 @@ function Lightbox({ mediaList, initialIndex, onClose }) {
 
         <p className="text-center text-white/50 text-xs mt-3">{media?.originalName}</p>
 
+        {media?.labels?.length > 0 && (
+          <div className="flex flex-wrap justify-center gap-1 mt-1.5">
+            <LabelBadges labels={media.labels} max={20} showConf={true} />
+          </div>
+        )}
+        {media?.analysisStatus === 'pending' && (
+          <p className="flex items-center justify-center gap-1.5 text-white/40 text-xs mt-1.5">
+            <Loader size={11} className="animate-spin" /> Analyzing…
+          </p>
+        )}
+
         {mediaList.length > 1 && (
           <div className="flex gap-2 justify-center mt-3 overflow-x-auto pb-1">
             {mediaList.map((m, i) => (
               <button key={m._id} onClick={() => setIndex(i)}
                 className={`w-12 h-12 rounded-md overflow-hidden shrink-0 border-2 transition-colors ${
-                  i === index ? 'border-blue-500' : 'border-transparent opacity-50 hover:opacity-80'
+                  i === index ? 'border-primary' : 'border-transparent opacity-50 hover:opacity-80'
                 }`}>
                 <ThumbnailStrip media={m} />
               </button>
@@ -333,6 +395,22 @@ function Lightbox({ mediaList, initialIndex, onClose }) {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+function LabelBadges({ labels, max = 4, showConf = false }) {
+  if (!labels?.length) return null
+  return (
+    <div className="flex flex-wrap gap-1">
+      {labels.slice(0, max).map(l => (
+        <span key={l.name}
+          className={`text-[8px] font-bold px-1 py-0.5 rounded-full leading-none ${
+            l.confidence > 0.8 ? 'bg-blue-500/85 text-white' : 'bg-amber-500/85 text-white'
+          }`}>
+          {l.name}{showConf ? ` ${Math.round(l.confidence * 100)}%` : ''}
+        </span>
+      ))}
     </div>
   )
 }
@@ -347,17 +425,16 @@ function ThumbnailStrip({ media }) {
       onLoadedMetadata={e => { e.target.currentTime = 1 }} />
   )
   return (
-    <div className="w-full h-full bg-gray-700 flex items-center justify-center">
-      <File size={14} className="text-gray-400" />
+    <div className="w-full h-full bg-muted flex items-center justify-center">
+      <File size={14} className="text-muted-foreground" />
     </div>
   )
 }
 
-// ─── Sortable wrapper ────────────────────────────────────────────────────
-function SortableCard({ media, jobId, canDrag, canDelete, onClick, onDelete, selectMode, selected, onSelect }) {
+function SortableCard({ media, diveId, canDrag, canDelete, onClick, onDelete, selectMode, selected, onSelect }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: media._id,
-    data: { jobId, media },
+    data: { diveId, media },
     disabled: !canDrag || selectMode,
   })
 
@@ -379,13 +456,12 @@ function SortableCard({ media, jobId, canDrag, canDelete, onClick, onDelete, sel
   )
 }
 
-// ─── Ghost card khi kéo từ job khác vào ──────────────────────────────────
 function CrossJobGhost({ media }) {
   const { data: url } = useMediaUrl(media?._id)
   const t = resolveType(media ?? {})
 
   return (
-    <div className="aspect-square rounded-lg overflow-hidden opacity-50 pointer-events-none ring-2 ring-blue-400">
+    <div className="aspect-square rounded-lg overflow-hidden opacity-50 pointer-events-none ring-2 ring-primary">
       {t === 'video' ? (
         <div className="relative w-full h-full bg-gray-900">
           {url && <video src={url} muted className="w-full h-full object-cover" />}
@@ -398,17 +474,16 @@ function CrossJobGhost({ media }) {
       ) : t === 'image' ? (
         <img src={url} alt={media?.originalName} className="w-full h-full object-cover" />
       ) : (
-        <div className="w-full h-full bg-gray-50 flex flex-col items-center justify-center gap-2">
-          <FileText size={32} className="text-gray-400" />
-          <p className="text-xs text-gray-500 text-center px-2 truncate w-full">{media?.originalName}</p>
+        <div className="w-full h-full bg-muted flex flex-col items-center justify-center gap-2">
+          <FileText size={32} className="text-muted-foreground" />
+          <p className="text-xs text-muted-foreground text-center px-2 truncate w-full">{media?.originalName}</p>
         </div>
       )}
     </div>
   )
 }
 
-// ─── Main Gallery ─────────────────────────────────────────────────────────
-export default function MediaGallery({ jobId }) {
+export default function MediaGallery({ diveId }) {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
   const [tab, setTab] = useState('all')
@@ -419,95 +494,68 @@ export default function MediaGallery({ jobId }) {
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
 
   const { data: allMedia = [], isLoading } = useQuery({
-    queryKey: ['media', jobId],
-    queryFn: () => api.get(`/media/job/${jobId}`).then(r => r.data),
-    enabled: !!jobId
+    queryKey: ['media', diveId],
+    queryFn: () => api.get(`/media/dive/${diveId}`).then(r => r.data),
+    enabled: !!diveId
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id) => api.delete(`/media/${id}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['media', jobId] })
-      toast.success('File deleted')
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['media', diveId] }); toast.success('File deleted') },
     onError: () => toast.error('Failed to delete file')
   })
 
   const bulkDeleteMutation = useMutation({
     mutationFn: (ids) => api.delete('/media/bulk', { data: { ids } }),
     onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ['media', jobId] })
+      queryClient.invalidateQueries({ queryKey: ['media', diveId] })
       toast.success(`${res.data?.deleted ?? selected.size} file(s) deleted`)
-      setSelected(new Set())
-      setSelectMode(false)
-      setConfirmBulkDelete(false)
+      setSelected(new Set()); setSelectMode(false); setConfirmBulkDelete(false)
     },
     onError: () => toast.error('Failed to delete files')
   })
 
   const canDelete = user?.role === 'admin'
   const canDrag = ['admin', 'operator'].includes(user?.role)
-
   const filtered = tab === 'all' ? allMedia : allMedia.filter(m => resolveType(m) === tab)
 
   const [orderedMedia, setOrderedMedia] = useState([])
   useEffect(() => {
     setOrderedMedia(filtered)
-    // Clear selection when filter changes
     setSelected(new Set())
   }, [allMedia, tab])
 
   const exitSelectMode = () => { setSelectMode(false); setSelected(new Set()) }
-
-  const toggleSelect = (id) => {
-    setSelected(prev => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
-  }
-
-  const selectAll = () => {
-    if (selected.size === orderedMedia.length) {
-      setSelected(new Set())
-    } else {
-      setSelected(new Set(orderedMedia.map(m => m._id)))
-    }
-  }
+  const toggleSelect = (id) => setSelected(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
+  const selectAll = () => setSelected(selected.size === orderedMedia.length ? new Set() : new Set(orderedMedia.map(m => m._id)))
 
   const { active, over } = useDndContext()
-  const showCrossJobPlaceholder =
-    active?.data?.current?.jobId &&
-    active.data.current.jobId !== jobId &&
-    over?.data?.current?.jobId === jobId
+  const showCrossDivePlaceholder =
+    active?.data?.current?.diveId &&
+    active.data.current.diveId !== diveId &&
+    over?.data?.current?.diveId === diveId
 
   if (isLoading) return (
     <div className="grid grid-cols-3 gap-2 mt-3">
-      {[1, 2, 3].map(i => (
-        <div key={i} className="aspect-square bg-gray-100 rounded-lg animate-pulse" />
-      ))}
+      {[1, 2, 3].map(i => <div key={i} className="aspect-square bg-muted rounded-lg animate-pulse" />)}
     </div>
   )
 
   if (allMedia.length === 0) return (
-    <p className="text-xs text-gray-400 mt-2 text-center py-2">No files uploaded yet.</p>
+    <p className="text-xs text-muted-foreground mt-2 text-center py-2">No files uploaded yet.</p>
   )
 
   const allSelected = orderedMedia.length > 0 && selected.size === orderedMedia.length
 
   return (
     <div className="mt-3">
-      {/* Toolbar */}
       <div className="flex items-center justify-between gap-2 mb-3">
-        {/* Tabs (hidden in select mode) */}
         {!selectMode ? (
           <div className="flex gap-1 flex-wrap">
             {TABS.filter(t => t.id === 'all' || allMedia.some(m => resolveType(m) === t.id)).map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
                 className={`px-3 py-1 text-xs rounded-full font-medium transition-colors ${
-                  tab === t.id
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  tab === t.id ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'
                 }`}>
                 {t.label}
                 <span className="ml-1 opacity-70">
@@ -517,28 +565,26 @@ export default function MediaGallery({ jobId }) {
             ))}
           </div>
         ) : (
-          /* Select mode header */
           <div className="flex items-center gap-2">
             <button onClick={selectAll}
-              className="text-xs px-2.5 py-1 rounded-full border font-medium transition-colors bg-white border-gray-300 text-gray-700 hover:bg-gray-50">
+              className="text-xs px-2.5 py-1 rounded-full border border-border font-medium transition-colors bg-card text-foreground hover:bg-muted">
               {allSelected ? 'Deselect all' : 'Select all'}
             </button>
             {selected.size > 0 && (
-              <span className="text-xs text-gray-500 font-medium">{selected.size} selected</span>
+              <span className="text-xs text-muted-foreground font-medium">{selected.size} selected</span>
             )}
           </div>
         )}
 
-        {/* Right actions */}
         <div className="flex items-center gap-1.5 shrink-0">
           {!selectMode ? (
             <>
               {canDrag && orderedMedia.length > 1 && (
-                <p className="text-xs text-gray-400 [@media(hover:hover)]:hidden">Hold to reorder</p>
+                <p className="text-xs text-muted-foreground [@media(hover:hover)]:hidden">Hold to reorder</p>
               )}
               {canDelete && (
                 <button data-no-dnd onClick={() => setSelectMode(true)}
-                  className="px-2.5 py-1 text-xs text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors font-medium">
+                  className="px-2.5 py-1 text-xs text-muted-foreground bg-muted hover:bg-muted/80 rounded-full transition-colors font-medium">
                   Select
                 </button>
               )}
@@ -547,12 +593,12 @@ export default function MediaGallery({ jobId }) {
             <>
               {selected.size > 0 && (
                 <button data-no-dnd onClick={() => setConfirmBulkDelete(true)}
-                  className="flex items-center gap-1 px-2.5 py-1 text-xs text-white bg-red-500 hover:bg-red-600 rounded-full transition-colors font-medium">
+                  className="flex items-center gap-1 px-2.5 py-1 text-xs text-white bg-destructive hover:bg-destructive/90 rounded-full transition-colors font-medium">
                   <Trash2 size={11} /> Delete ({selected.size})
                 </button>
               )}
               <button data-no-dnd onClick={exitSelectMode}
-                className="px-2.5 py-1 text-xs text-gray-500 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors font-medium">
+                className="px-2.5 py-1 text-xs text-muted-foreground bg-muted hover:bg-muted/80 rounded-full transition-colors font-medium">
                 Cancel
               </button>
             </>
@@ -560,9 +606,12 @@ export default function MediaGallery({ jobId }) {
         </div>
       </div>
 
-      {/* Grid */}
+      {canDrag && orderedMedia.length > 1 && (
+        <p className="text-[10px] text-muted-foreground mb-2">Drag to reorder</p>
+      )}
+
       {orderedMedia.length === 0 ? (
-        <p className="text-xs text-gray-400 text-center py-4">No {tab}s uploaded.</p>
+        <p className="text-xs text-muted-foreground text-center py-4">No {tab}s uploaded.</p>
       ) : (
         <SortableContext items={orderedMedia.map(m => m._id)} strategy={rectSortingStrategy}>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
@@ -570,7 +619,7 @@ export default function MediaGallery({ jobId }) {
               <SortableCard
                 key={media._id}
                 media={media}
-                jobId={jobId}
+                diveId={diveId}
                 canDrag={canDrag}
                 canDelete={canDelete}
                 onClick={() => setLightboxIndex(i)}
@@ -580,37 +629,25 @@ export default function MediaGallery({ jobId }) {
                 onSelect={() => toggleSelect(media._id)}
               />
             ))}
-            {showCrossJobPlaceholder && (
-              <CrossJobGhost media={active.data.current.media} />
-            )}
+            {showCrossDivePlaceholder && <CrossJobGhost media={active.data.current.media} />}
           </div>
         </SortableContext>
       )}
 
-      {/* Lightbox */}
       {lightboxIndex !== null && !selectMode && (
-        <Lightbox
-          mediaList={filtered}
-          initialIndex={lightboxIndex}
-          onClose={() => setLightboxIndex(null)}
-        />
+        <Lightbox mediaList={filtered} initialIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
       )}
 
-      {/* Confirm single delete */}
       {confirmDelete && (
         <ConfirmDialog
           title="Delete File"
           message={`Are you sure you want to delete "${confirmDelete.originalName}"?`}
           loading={deleteMutation.isPending}
-          onConfirm={() => {
-            deleteMutation.mutate(confirmDelete._id)
-            setConfirmDelete(null)
-          }}
+          onConfirm={() => { deleteMutation.mutate(confirmDelete._id); setConfirmDelete(null) }}
           onCancel={() => setConfirmDelete(null)}
         />
       )}
 
-      {/* Confirm bulk delete */}
       {confirmBulkDelete && (
         <ConfirmDialog
           title="Delete Files"

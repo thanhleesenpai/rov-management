@@ -1,6 +1,7 @@
 const userService = require('./user.service');
 const { success } = require('../../utils/response.util');
 const notifService = require('../notifications/notification.service');
+const audit = require('../audit/audit.service');
 
 const getAllUsers = async (req, res, next) => {
   try {
@@ -14,6 +15,7 @@ const getAllUsers = async (req, res, next) => {
 const updateUser = async (req, res, next) => {
   try {
     const data = await userService.updateUser(req.params.id, req.body, req.user._id);
+    if (req.body.role) audit.log(req.user._id, 'change_role', 'User', data._id, { role: req.body.role, email: data.email });
     return success(res, data, 'User updated successfully');
   } catch (err) {
     next(err);
@@ -23,6 +25,7 @@ const updateUser = async (req, res, next) => {
 const toggleStatus = async (req, res, next) => {
   try {
     const data = await userService.toggleStatus(req.params.id, req.user._id);
+    audit.log(req.user._id, data.isActive ? 'activate' : 'disable', 'User', data._id, { email: data.email });
     return success(res, data, `Account ${data.isActive ? 'activated' : 'disabled'} successfully`);
   } catch (err) {
     next(err);
@@ -49,6 +52,7 @@ const bulkStatus = async (req, res, next) => {
       });
     }
 
+    audit.log(req.user._id, isActive ? 'bulk_activate' : 'bulk_disable', 'User', null, { count, ids });
     return success(res, { updated: count }, `${count} user(s) ${isActive ? 'activated' : 'disabled'}`);
   } catch (err) { next(err); }
 };
@@ -59,6 +63,7 @@ const bulkRole = async (req, res, next) => {
     if (!Array.isArray(ids) || ids.length === 0 || !['viewer','operator','admin'].includes(role))
       return res.status(400).json({ message: 'ids (array) and valid role required' });
     const count = await userService.bulkSetRole(ids, role, req.user._id);
+    audit.log(req.user._id, 'bulk_change_role', 'User', null, { count, role, ids });
     return success(res, { updated: count }, `${count} user(s) updated to ${role}`);
   } catch (err) { next(err); }
 };

@@ -77,30 +77,30 @@ export function exportTripsPDF(trips) {
   downloadPDF(`trips_${dateTag()}.pdf`, 'Trip Report', headers, rows)
 }
 
-// ─── Jobs ─────────────────────────────────────────────────────────────────
-export function exportJobsCSV(jobs) {
+// ─── Dives ────────────────────────────────────────────────────────────────
+export function exportDivesCSV(dives) {
   const headers = ['Title', 'Description', 'Trip', 'Status', 'Created By', 'Created At']
-  const rows = jobs.map(j => [
-    j.title,
-    j.description || '—',
-    j.trip?.name || '—',
-    j.status,
-    j.createdBy?.fullName || '—',
-    new Date(j.createdAt).toLocaleString(),
+  const rows = dives.map(d => [
+    d.title,
+    d.description || '—',
+    d.trip?.name || '—',
+    d.status,
+    d.createdBy?.fullName || '—',
+    new Date(d.createdAt).toLocaleString(),
   ])
-  downloadCSV(`jobs_${dateTag()}.csv`, toCSV(headers, rows))
+  downloadCSV(`dives_${dateTag()}.csv`, toCSV(headers, rows))
 }
 
-export function exportJobsPDF(jobs) {
+export function exportDivesPDF(dives) {
   const headers = ['Title', 'Trip', 'Status', 'Created By', 'Created At']
-  const rows = jobs.map(j => [
-    j.title,
-    j.trip?.name || '—',
-    j.status,
-    j.createdBy?.fullName || '—',
-    new Date(j.createdAt).toLocaleDateString(),
+  const rows = dives.map(d => [
+    d.title,
+    d.trip?.name || '—',
+    d.status,
+    d.createdBy?.fullName || '—',
+    new Date(d.createdAt).toLocaleDateString(),
   ])
-  downloadPDF(`jobs_${dateTag()}.pdf`, 'Job Report', headers, rows)
+  downloadPDF(`dives_${dateTag()}.pdf`, 'Dive Report', headers, rows)
 }
 
 // ─── ROVs ─────────────────────────────────────────────────────────────────

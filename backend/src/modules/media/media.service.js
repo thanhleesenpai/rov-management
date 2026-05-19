@@ -3,6 +3,7 @@ const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { v4: uuidv4 } = require('uuid');
 const s3 = require('../../config/s3');
 const Media = require('./media.model');
+const { mediaAnalysisQueue } = require('../../config/queue');
 
 const BUCKET = process.env.S3_BUCKET;
 const REGION = process.env.AWS_REGION;
@@ -20,22 +21,25 @@ const getMediaType = (mimeType) => {
 };
 
 // Tạo presigned URL để client upload thẳng lên S3
-const createPresignedUploadUrl = async ({ jobId, tripId, userId, fileName, mimeType, size }) => {
+const createPresignedUploadUrl = async ({ diveId, tripId, userId, fileName, mimeType, size, recordedAt }) => {
   const ext = fileName.split('.').pop();
-  const s3Key = `jobs/${jobId}/${uuidv4()}.${ext}`;
+  const s3Key = `dives/${diveId}/${uuidv4()}.${ext}`;
 
   const command = new PutObjectCommand({
     Bucket: BUCKET,
     Key: s3Key,
     ContentType: mimeType,
-    // Không ký ContentLength — tránh lỗi signature khi client upload
   });
 
   const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 300 }); // 5 phút
 
+  // Tìm order cao nhất hiện tại để media mới luôn nằm ở cuối
+  const last = await Media.findOne({ dive: diveId }).sort({ order: -1 }).select('order').lean();
+  const nextOrder = last ? last.order + 1 : 0;
+
   // Lưu metadata vào DB với status pending
   const media = await Media.create({
-    job: jobId,
+    dive: diveId,
     trip: tripId,
     uploadedBy: userId,
     originalName: fileName,
@@ -45,6 +49,8 @@ const createPresignedUploadUrl = async ({ jobId, tripId, userId, fileName, mimeT
     size,
     type: getMediaType(mimeType),
     status: 'pending',
+    order: nextOrder,
+    recordedAt: recordedAt || null,
   });
 
   return { uploadUrl, media };
@@ -54,7 +60,7 @@ const createPresignedUploadUrl = async ({ jobId, tripId, userId, fileName, mimeT
 const confirmUpload = async (mediaId) => {
   const media = await Media.findByIdAndUpdate(
     mediaId,
-    { status: 'ready' },
+    { status: 'ready', analysisStatus: 'idle' },
     { new: true }
   ).populate('uploadedBy', 'fullName');
 
@@ -62,11 +68,17 @@ const confirmUpload = async (mediaId) => {
   return media;
 };
 
-// Lấy danh sách media của 1 job
-const getByJob = async (jobId) => {
-  return Media.find({ job: jobId, status: 'ready' })
-    .populate('uploadedBy', 'fullName')
-    .sort({ order: 1, createdAt: -1 });
+// Synced videos (recordedAt set) come first sorted by recordedAt ASC (timeline order).
+// Normal media (recordedAt null) follow, sorted by user-defined order then createdAt.
+const getByDive = async (diveId) => {
+  const base = { dive: diveId, status: 'ready' };
+  const [synced, normal] = await Promise.all([
+    Media.find({ ...base, recordedAt: { $ne: null } })
+      .populate('uploadedBy', 'fullName').sort({ recordedAt: 1 }),
+    Media.find({ ...base, recordedAt: null })
+      .populate('uploadedBy', 'fullName').sort({ order: 1, createdAt: 1 }),
+  ]);
+  return [...synced, ...normal];
 };
 
 const reorder = async (items) => {
@@ -95,11 +107,11 @@ const createViewUrl = async (mediaId) => {
   return { url, media };
 };
 
-// Chuyển media sang job khác
-const moveToJob = async (mediaId, newJobId) => {
+// Chuyển media sang dive khác
+const moveToDive = async (mediaId, newDiveId) => {
   const media = await Media.findById(mediaId);
   if (!media) throw { statusCode: 404, message: 'Media not found' };
-  media.job = newJobId;
+  media.dive = newDiveId;
   media.order = 0;
   await media.save();
   return media;
@@ -134,4 +146,31 @@ const remove = async (mediaId) => {
 const getPublicUrl = (s3Key) =>
   `https://${BUCKET}.s3.${REGION}.amazonaws.com/${s3Key}`;
 
-module.exports = { createPresignedUploadUrl, confirmUpload, getByJob, getByTrip, createViewUrl, remove, bulkRemove, reorder, moveToJob, getPublicUrl };
+const update = async (mediaId, data) => {
+  const allowed = ['recordedAt', 'description', 'order'];
+  const patch = Object.fromEntries(Object.entries(data).filter(([k]) => allowed.includes(k)));
+  const media = await Media.findByIdAndUpdate(mediaId, patch, { new: true });
+  if (!media) throw { statusCode: 404, message: 'Media not found' };
+  return media;
+};
+
+// (Re-)queue YOLO analysis — overwrites existing labels
+const enqueueAnalysis = async (mediaId, { model = 'yolov8n', confidence = 0.3 } = {}) => {
+  if (!/^[a-zA-Z0-9_-]{1,64}$/.test(model)) throw { statusCode: 400, message: 'Invalid model name' };
+  if (confidence < 0.1 || confidence > 0.9) throw { statusCode: 400, message: 'confidence must be 0.1–0.9' };
+
+  const media = await Media.findByIdAndUpdate(
+    mediaId,
+    { analysisStatus: 'pending', labels: [] },
+    { new: true }
+  ).populate('uploadedBy', '_id');
+  if (!media) throw { statusCode: 404, message: 'Media not found' };
+
+  await mediaAnalysisQueue.add(
+    { mediaId: media._id.toString(), mimeType: media.mimeType, userId: media.uploadedBy?._id?.toString(), model, confidence },
+    { jobId: `media-analysis-${media._id}-${Date.now()}` }
+  );
+  return media;
+};
+
+module.exports = { createPresignedUploadUrl, confirmUpload, getByDive, getByTrip, createViewUrl, remove, bulkRemove, reorder, moveToDive, getPublicUrl, update, enqueueAnalysis };

@@ -18,6 +18,9 @@ api.interceptors.request.use(async (config) => {
         const res = await axios.post('/api/v1/auth/refresh', { refreshToken })
         token = res.data.data.accessToken
         useAuthStore.getState().setAccessToken(token)
+        // Refresh user data so persisted avatar URL (which expires) is always up to date
+        const meRes = await axios.get('/api/v1/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+        useAuthStore.getState().updateUser(meRes.data.data)
       } catch {
         useAuthStore.getState().logout()
         window.location.href = '/login'

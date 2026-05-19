@@ -15,10 +15,10 @@ import { exportTripsCSV, exportTripsPDF } from '@/lib/export'
 import { useDebounce } from '@/hooks/useDebounce'
 
 const STATUS = {
-  planned:   { text: 'Planned',   cls: 'bg-blue-100 text-blue-700' },
-  ongoing:   { text: 'Ongoing',   cls: 'bg-green-100 text-green-700' },
-  completed: { text: 'Completed', cls: 'bg-gray-200 text-gray-600' },
-  cancelled: { text: 'Cancelled', cls: 'bg-red-100 text-red-600' }
+  planned:   { text: 'Planned',   cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+  ongoing:   { text: 'Ongoing',   cls: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
+  completed: { text: 'Completed', cls: 'bg-muted text-muted-foreground' },
+  cancelled: { text: 'Cancelled', cls: 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300' }
 }
 
 const LIMIT = 10
@@ -92,12 +92,12 @@ export default function TripsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold text-gray-800">Trips</h1>
+        <h1 className="text-2xl font-bold text-foreground">Trips</h1>
         <div className="flex items-center gap-2">
           <ExportMenu onExportCSV={handleExportCSV} onExportPDF={handleExportPDF} />
           {canEdit && (
             <button onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 bg-blue-600 text-white px-3 py-2 sm:px-4 rounded-lg hover:bg-blue-700 transition-colors text-sm">
+              className="flex items-center gap-2 bg-primary text-primary-foreground px-3 py-2 sm:px-4 rounded-lg hover:bg-primary/90 transition-colors text-sm">
               <Plus size={16} /> <span className="hidden sm:inline">New Trip</span><span className="sm:hidden">New</span>
             </button>
           )}
@@ -108,13 +108,13 @@ export default function TripsPage() {
       <div className="space-y-2 mb-4">
         <div className="flex flex-wrap gap-2">
           <div className="relative flex-1 min-w-48">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input type="text" placeholder="Search name, location..."
               value={search} onChange={e => { setSearch(e.target.value); resetPage() }}
-              className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full pl-9 pr-3 py-2 border border-input bg-background text-foreground rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground" />
           </div>
           <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); resetPage() }}
-            className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+            className="border border-input bg-background text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
             <option value="">All Status</option>
             <option value="planned">Planned</option>
             <option value="ongoing">Ongoing</option>
@@ -122,25 +122,24 @@ export default function TripsPage() {
             <option value="cancelled">Cancelled</option>
           </select>
           <select value={filterRov} onChange={e => { setFilterRov(e.target.value); resetPage() }}
-            className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+            className="border border-input bg-background text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
             <option value="">All ROVs</option>
             {rovList?.map(r => <option key={r._id} value={r._id}>{r.name}</option>)}
           </select>
         </div>
 
-        {/* Date range */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-gray-400 shrink-0">Start date:</span>
+          <span className="text-xs text-muted-foreground shrink-0">Start date:</span>
           <input type="date" value={fromDate}
             onChange={e => { setFromDate(e.target.value); resetPage() }}
-            className="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
-          <span className="text-xs text-gray-400">→</span>
+            className="border border-input bg-background text-foreground rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+          <span className="text-xs text-muted-foreground">→</span>
           <input type="date" value={toDate} min={fromDate}
             onChange={e => { setToDate(e.target.value); resetPage() }}
-            className="border rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" />
+            className="border border-input bg-background text-foreground rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
           {hasActiveFilter && (
             <button onClick={resetFilters}
-              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 rounded-lg transition-colors">
+              className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 dark:bg-red-900/20 dark:border-red-800 dark:hover:bg-red-900/30 rounded-lg transition-colors">
               <X size={11} /> Clear filters
             </button>
           )}
@@ -155,7 +154,7 @@ export default function TripsPage() {
           title={search || hasActiveFilter ? 'No trips match your filters' : 'No trips yet'}
           description={!search && !hasActiveFilter && canEdit ? 'Create a trip to start tracking ROV dives.' : undefined}
           action={!search && !hasActiveFilter && canEdit
-            ? <button onClick={() => setShowForm(true)} className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">Create Trip</button>
+            ? <button onClick={() => setShowForm(true)} className="px-4 py-2 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90">Create Trip</button>
             : undefined}
         />
       ) : (
@@ -164,15 +163,15 @@ export default function TripsPage() {
             {trips.map(trip => {
               const { text, cls } = STATUS[trip.status] || STATUS.planned
               return (
-                <div key={trip._id} className="bg-white rounded-xl shadow p-5 flex items-start justify-between gap-4">
+                <div key={trip._id} className="bg-card rounded-xl shadow border border-border p-5 flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>{text}</span>
-                      <span className="text-xs text-gray-400">ROV: {trip.rov?.name || '—'}</span>
+                      <span className="text-xs text-muted-foreground">ROV: {trip.rov?.name || '—'}</span>
                     </div>
-                    <h2 className="font-semibold text-gray-800 truncate">{trip.name}</h2>
-                    {trip.description && <p className="text-sm text-gray-500 mt-1 truncate">{trip.description}</p>}
-                    <div className="flex items-center gap-4 mt-2 text-xs text-gray-400 flex-wrap">
+                    <h2 className="font-semibold text-foreground truncate">{trip.name}</h2>
+                    {trip.description && <p className="text-sm text-muted-foreground mt-1 truncate">{trip.description}</p>}
+                    <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground flex-wrap">
                       {trip.location && <span className="flex items-center gap-1"><MapPin size={11} />{trip.location}</span>}
                       {trip.startTime && (
                         <span className="flex items-center gap-1">
@@ -184,18 +183,18 @@ export default function TripsPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
-                    <Link to={`/trips/${trip._id}`} className="p-1.5 text-gray-400 hover:text-blue-600 rounded" title="View">
+                    <Link to={`/trips/${trip._id}`} className="p-1.5 text-muted-foreground hover:text-primary rounded transition-colors" title="View">
                       <Eye size={15} />
                     </Link>
                     {canEdit && (
                       <button onClick={() => { setEditing(trip); setShowForm(true) }}
-                        className="p-1.5 text-gray-400 hover:text-yellow-600 rounded" title="Edit">
+                        className="p-1.5 text-muted-foreground hover:text-yellow-500 rounded transition-colors" title="Edit">
                         <Pencil size={15} />
                       </button>
                     )}
                     {canDelete && (
                       <button onClick={() => setConfirmDelete(trip)}
-                        className="p-1.5 text-gray-400 hover:text-red-600 rounded" title="Delete">
+                        className="p-1.5 text-muted-foreground hover:text-destructive rounded transition-colors" title="Delete">
                         <Trash2 size={15} />
                       </button>
                     )}

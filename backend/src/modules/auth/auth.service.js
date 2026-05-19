@@ -66,7 +66,7 @@ const refresh = async (token) => {
 const logout = async (userId, accessToken) => {
   const user = await User.findById(userId).select('+refreshToken');
   if (user) {
-    // Blacklist access token còn hạn
+    // Blacklist access token for its remaining lifetime
     if (accessToken) {
       try {
         const decoded = jwt.decode(accessToken);
@@ -77,7 +77,7 @@ const logout = async (userId, accessToken) => {
             await redis.set(`blacklist:${accessToken}`, '1', 'EX', ttl);
           }
         }
-      } catch { /* ignore */ }
+      } catch { /* Redis unavailable or decode failed — logout still succeeds */ }
     }
     user.refreshToken = null;
     await user.save();

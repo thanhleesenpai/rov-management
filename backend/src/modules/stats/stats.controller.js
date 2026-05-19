@@ -1,5 +1,5 @@
 const Trip = require('../trips/trip.model');
-const Job = require('../jobs/job.model');
+const Dive = require('../dives/dive.model');
 const ROV = require('../rovs/rov.model');
 const Media = require('../media/media.model');
 const { success } = require('../../utils/response.util');
@@ -9,9 +9,9 @@ const getOverview = async (req, res, next) => {
     const now = new Date();
     const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
-    const [tripByStatus, jobByStatus, rovByStatus, tripsPerMonth, jobsPerMonth, rovUtilization, mediaPerMonth] = await Promise.all([
+    const [tripByStatus, diveByStatus, rovByStatus, tripsPerMonth, divesPerMonth, rovUtilization, mediaPerMonth] = await Promise.all([
       Trip.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
-      Job.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
+      Dive.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
       ROV.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
 
       // Trips per month (6 tháng)
@@ -21,8 +21,8 @@ const getOverview = async (req, res, next) => {
         { $sort: { '_id.year': 1, '_id.month': 1 } }
       ]),
 
-      // Jobs per month (6 tháng)
-      Job.aggregate([
+      // Dives per month (6 tháng)
+      Dive.aggregate([
         { $match: { createdAt: { $gte: sixMonthsAgo } } },
         { $group: { _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } }, count: { $sum: 1 } } },
         { $sort: { '_id.year': 1, '_id.month': 1 } }
@@ -57,26 +57,13 @@ const getOverview = async (req, res, next) => {
       });
     }
 
-    const buildTimeline = (raw, key) => {
-      const map = {};
-      raw.forEach(({ _id, count }) => { map[`${_id.year}-${_id.month}`] = count });
-      return monthLabels.map(({ year, month, label }) => ({
-        name: label,
-        [key]: map[`${year}-${month}`] || 0
-      }));
-    };
-
-    const tripsTimeline = buildTimeline(tripsPerMonth, 'trips');
-    const jobsTimeline  = buildTimeline(jobsPerMonth,  'jobs');
-    const mediaTimeline = buildTimeline(mediaPerMonth, 'media');
-
     // Merge timelines
     const activityTimeline = monthLabels.map(({ year, month, label }) => {
       const key = `${year}-${month}`
       return {
         name: label,
         trips: (tripsPerMonth.find(r => `${r._id.year}-${r._id.month}` === key)?.count) || 0,
-        jobs:  (jobsPerMonth.find(r  => `${r._id.year}-${r._id.month}` === key)?.count) || 0,
+        dives: (divesPerMonth.find(r => `${r._id.year}-${r._id.month}` === key)?.count) || 0,
         media: (mediaPerMonth.find(r => `${r._id.year}-${r._id.month}` === key)?.count) || 0,
       }
     });
@@ -84,14 +71,11 @@ const getOverview = async (req, res, next) => {
     const toMap = (arr) => Object.fromEntries(arr.map(({ _id, count }) => [_id, count]));
 
     return success(res, {
-      tripByStatus:      toMap(tripByStatus),
-      jobByStatus:       toMap(jobByStatus),
-      rovByStatus:       toMap(rovByStatus),
-      tripsTimeline,
-      jobsTimeline,
-      mediaTimeline,
+      tripByStatus:   toMap(tripByStatus),
+      diveByStatus:   toMap(diveByStatus),
+      rovByStatus:    toMap(rovByStatus),
       activityTimeline,
-      rovUtilization:    rovUtilization.map(r => ({ name: r.name, trips: r.count })),
+      rovUtilization: rovUtilization.map(r => ({ name: r.name, trips: r.count })),
     });
   } catch (err) {
     next(err);

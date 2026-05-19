@@ -9,3 +9,12 @@ connectDB().then(() => {
     console.log(`Server running on http://localhost:${PORT}`);
   });
 });
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[UnhandledRejection]', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[UncaughtException]', err);
+  process.exit(1);
+});

@@ -13,9 +13,9 @@ const TABS = [
 ]
 
 const ROLE_STYLE = {
-  admin:    'bg-purple-100 text-purple-700',
-  operator: 'bg-blue-100 text-blue-700',
-  viewer:   'bg-gray-100 text-gray-600'
+  admin:    'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
+  operator: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  viewer:   'bg-muted text-muted-foreground'
 }
 
 function AvatarUpload({ user, onUploaded }) {
@@ -34,11 +34,12 @@ function AvatarUpload({ user, onUploaded }) {
         fileName: file.name,
         mimeType: file.type
       })
-      const { uploadUrl, viewUrl } = data
+      const { uploadUrl, s3Key } = data
 
       await fetch(uploadUrl, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } })
-      await api.patch('/auth/me', { avatar: viewUrl })
-      onUploaded(viewUrl)
+      // Save s3Key to DB; response includes a fresh presigned URL generated server-side
+      const patchRes = await api.patch('/auth/me', { avatar: s3Key })
+      onUploaded(patchRes.data.avatar)
       toast.success('Avatar updated')
     } catch {
       toast.error('Upload failed')
@@ -59,8 +60,8 @@ function AvatarUpload({ user, onUploaded }) {
     >
       {user?.avatar
         ? <img src={user.avatar} alt="avatar" className="w-16 h-16 rounded-full object-cover" />
-        : <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center">
-            <span className="text-white text-xl font-bold">{initials}</span>
+        : <div className="w-16 h-16 rounded-full bg-primary flex items-center justify-center">
+            <span className="text-primary-foreground text-xl font-bold">{initials}</span>
           </div>
       }
       <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
@@ -74,83 +75,81 @@ function AvatarUpload({ user, onUploaded }) {
   )
 }
 
-function ProfileTab({ user, updateUser }) {
+function ProfileTab({ user, updateUser, isPending }) {
   const [form, setForm] = useState({ fullName: user?.fullName || '' })
   const { updateUser: updateStore } = useAuthStore()
 
   return (
     <div className="space-y-6">
-      {/* Avatar */}
       <div className="flex items-center gap-4">
         <AvatarUpload user={user} onUploaded={(url) => updateStore({ avatar: url })} />
         <div>
-          <p className="font-semibold text-gray-800">{user?.fullName}</p>
-          <p className="text-sm text-gray-500">{user?.email}</p>
+          <p className="font-semibold text-foreground">{user?.fullName}</p>
+          <p className="text-sm text-muted-foreground">{user?.email}</p>
           <span className={`text-xs px-2 py-0.5 rounded font-medium mt-1 inline-block ${ROLE_STYLE[user?.role]}`}>
             {user?.role}
           </span>
-          <p className="text-xs text-gray-400 mt-1">Click avatar to change photo</p>
+          <p className="text-xs text-muted-foreground mt-1">Click avatar to change photo</p>
         </div>
       </div>
 
-      {/* Form */}
-      <div className="border-t pt-6 space-y-4">
+      <div className="border-t border-border pt-6 space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+          <label className="block text-sm font-medium text-foreground mb-1">Full Name</label>
           <input
             type="text"
             value={form.fullName}
             onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))}
-            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-md"
+            className="w-full border border-input bg-background text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring max-w-md"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+          <label className="block text-sm font-medium text-foreground mb-1">Email</label>
           <input
             type="email"
             value={user?.email || ''}
             disabled
-            className="w-full border rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-400 max-w-md cursor-not-allowed"
+            className="w-full border border-input bg-muted text-muted-foreground rounded-lg px-3 py-2 text-sm max-w-md cursor-not-allowed"
           />
-          <p className="text-xs text-gray-400 mt-1">Email cannot be changed</p>
+          <p className="text-xs text-muted-foreground mt-1">Email cannot be changed</p>
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+          <label className="block text-sm font-medium text-foreground mb-1">Role</label>
           <input
             type="text"
             value={user?.role || ''}
             disabled
-            className="w-full border rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-400 max-w-md cursor-not-allowed capitalize"
+            className="w-full border border-input bg-muted text-muted-foreground rounded-lg px-3 py-2 text-sm max-w-md cursor-not-allowed capitalize"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Member Since</label>
+          <label className="block text-sm font-medium text-foreground mb-1">Member Since</label>
           <input
             type="text"
             value={user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : '—'}
             disabled
-            className="w-full border rounded-lg px-3 py-2 text-sm bg-gray-50 text-gray-400 max-w-md cursor-not-allowed"
+            className="w-full border border-input bg-muted text-muted-foreground rounded-lg px-3 py-2 text-sm max-w-md cursor-not-allowed"
           />
         </div>
       </div>
 
       <button
         onClick={() => updateUser({ fullName: form.fullName })}
-        disabled={form.fullName === user?.fullName || !form.fullName}
-        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        disabled={isPending || form.fullName === user?.fullName || !form.fullName}
+        className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
-        <Save size={15} /> Save Changes
+        <Save size={15} /> {isPending ? 'Saving...' : 'Save Changes'}
       </button>
     </div>
   )
 }
 
-const inputCls = 'w-full border rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-md'
+const inputCls = 'w-full border border-input bg-background text-foreground rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-ring max-w-md'
 
-function PasswordField({ label, field, show, onToggle, value, onChange }) {
+function PasswordField({ label, show, onToggle, value, onChange }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <label className="block text-sm font-medium text-foreground mb-1">{label}</label>
       <div className="relative max-w-md">
         <input
           type={show ? 'text' : 'password'}
@@ -161,7 +160,7 @@ function PasswordField({ label, field, show, onToggle, value, onChange }) {
         />
         <button type="button"
           onClick={onToggle}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
           {show ? <EyeOff size={15} /> : <Eye size={15} />}
         </button>
       </div>
@@ -187,39 +186,27 @@ function PasswordTab() {
   const handleSubmit = (e) => {
     e.preventDefault()
     setError('')
-    if (form.newPassword !== form.confirmPassword) {
-      setError('New passwords do not match')
-      return
-    }
-    if (form.newPassword.length < 6) {
-      setError('New password must be at least 6 characters')
-      return
-    }
+    if (form.newPassword !== form.confirmPassword) { setError('New passwords do not match'); return }
+    if (form.newPassword.length < 6) { setError('New password must be at least 6 characters'); return }
     mutation.mutate({ currentPassword: form.currentPassword, newPassword: form.newPassword })
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4 max-w-md">
-      {error && <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded">{error}</p>}
-      <PasswordField
-        label="Current Password" value={form.currentPassword}
+      {error && <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded">{error}</p>}
+      <PasswordField label="Current Password" value={form.currentPassword}
         onChange={e => setForm(f => ({ ...f, currentPassword: e.target.value }))}
-        show={show.current} onToggle={() => setShow(s => ({ ...s, current: !s.current }))}
-      />
-      <PasswordField
-        label="New Password" value={form.newPassword}
+        show={show.current} onToggle={() => setShow(s => ({ ...s, current: !s.current }))} />
+      <PasswordField label="New Password" value={form.newPassword}
         onChange={e => setForm(f => ({ ...f, newPassword: e.target.value }))}
-        show={show.new} onToggle={() => setShow(s => ({ ...s, new: !s.new }))}
-      />
-      <PasswordField
-        label="Confirm New Password" value={form.confirmPassword}
+        show={show.new} onToggle={() => setShow(s => ({ ...s, new: !s.new }))} />
+      <PasswordField label="Confirm New Password" value={form.confirmPassword}
         onChange={e => setForm(f => ({ ...f, confirmPassword: e.target.value }))}
-        show={show.confirm} onToggle={() => setShow(s => ({ ...s, confirm: !s.confirm }))}
-      />
+        show={show.confirm} onToggle={() => setShow(s => ({ ...s, confirm: !s.confirm }))} />
       <button
         type="submit"
         disabled={mutation.isPending}
-        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
       >
         <Save size={15} />
         {mutation.isPending ? 'Saving...' : 'Update Password'}
@@ -231,24 +218,24 @@ function PasswordTab() {
 function SettingsTab() {
   return (
     <div className="space-y-6 max-w-md">
-      <div className="bg-gray-50 rounded-lg p-4">
-        <p className="text-sm font-medium text-gray-700 mb-1">Language</p>
-        <select className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+      <div className="bg-muted rounded-lg p-4">
+        <p className="text-sm font-medium text-foreground mb-1">Language</p>
+        <select className="w-full border border-input bg-background text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
           <option value="en">English</option>
           <option value="vi">Tiếng Việt</option>
         </select>
       </div>
-      <div className="bg-gray-50 rounded-lg p-4 flex items-center justify-between">
+      <div className="bg-muted rounded-lg p-4 flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium text-gray-700">Email Notifications</p>
-          <p className="text-xs text-gray-400 mt-0.5">Receive updates about trips and jobs</p>
+          <p className="text-sm font-medium text-foreground">Email Notifications</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Receive updates about trips and jobs</p>
         </div>
         <label className="relative inline-flex items-center cursor-pointer">
           <input type="checkbox" className="sr-only peer" defaultChecked />
-          <div className="w-10 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-4" />
+          <div className="w-10 h-6 bg-muted-foreground/30 peer-focus:ring-2 peer-focus:ring-ring rounded-full peer peer-checked:bg-primary after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-4" />
         </label>
       </div>
-      <p className="text-xs text-gray-400">More settings coming soon.</p>
+      <p className="text-xs text-muted-foreground">More settings coming soon.</p>
     </div>
   )
 }
@@ -272,18 +259,17 @@ export default function ProfilePage() {
 
   return (
     <div className="p-4 md:p-6 max-w-3xl">
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">Account</h1>
+      <h1 className="text-2xl font-bold text-foreground mb-6">Account</h1>
 
-      {/* Tab bar */}
-      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-6 w-fit">
+      <div className="flex gap-1 bg-muted rounded-xl p-1 mb-6 w-fit">
         {visibleTabs.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => setSearchParams(id === 'profile' ? {} : { tab: id })}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
               activeTab === id
-                ? 'bg-white text-gray-800 shadow-sm'
-                : 'text-gray-500 hover:text-gray-700'
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
             }`}
           >
             <Icon size={15} />
@@ -292,10 +278,9 @@ export default function ProfilePage() {
         ))}
       </div>
 
-      {/* Tab content */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+      <div className="bg-card rounded-xl shadow-sm border border-border p-6">
         {activeTab === 'profile' && (
-          <ProfileTab user={user} updateUser={(data) => updateMutation.mutate(data)} />
+          <ProfileTab user={user} updateUser={(data) => updateMutation.mutate(data)} isPending={updateMutation.isPending} />
         )}
         {activeTab === 'password' && <PasswordTab />}
         {activeTab === 'settings' && <SettingsTab />}

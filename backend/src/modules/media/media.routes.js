@@ -5,6 +5,9 @@ const ctrl = require('./media.controller');
 
 router.use(authenticate);
 
+// Danh sách model YOLO available (operator/admin)
+router.get('/models', authorize('admin', 'operator'), ctrl.getModels);
+
 // Lấy presigned URL để upload (operator/admin)
 router.post('/presigned-url', authorize('admin', 'operator'), ctrl.getUploadUrl);
 
@@ -17,17 +20,23 @@ router.get('/:id/url', ctrl.getViewUrl);
 // Đổi thứ tự (operator/admin)
 router.patch('/reorder', authorize('admin', 'operator'), ctrl.reorder);
 
-// Chuyển sang job khác (operator/admin)
+// Chuyển sang dive khác (operator/admin)
 router.patch('/:id/move', authorize('admin', 'operator'), ctrl.moveMedia);
 
 // Xóa nhiều media (admin)
 router.delete('/bulk', authorize('admin'), ctrl.bulkDelete);
 
+// Trigger (re-)analysis với model + confidence tuỳ chọn (operator/admin)
+router.post('/:id/analyze', authorize('admin', 'operator'), ctrl.analyze);
+
+// Cập nhật metadata (operator/admin) — phải đặt SAU các route /:id/... cụ thể
+router.patch('/:id', authorize('admin', 'operator'), ctrl.update);
+
 // Xóa media (admin)
 router.delete('/:id', authorize('admin'), ctrl.remove);
 
-// Media theo job
-router.get('/job/:jobId', ctrl.getByJob);
+// Media theo dive
+router.get('/dive/:diveId', ctrl.getByDive);
 
 // Media theo trip
 router.get('/trip/:tripId', ctrl.getByTrip);

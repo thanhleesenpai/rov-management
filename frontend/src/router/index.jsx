@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import NotFoundPage from '@/features/errors/NotFoundPage'
+import RouteError from '@/features/errors/RouteError'
 import ProtectedRoute from '@/components/shared/ProtectedRoute'
 import Layout from '@/components/shared/Layout'
 import LoginPage from '@/features/auth/LoginPage'
@@ -10,9 +11,11 @@ import RovsPage from '@/features/rovs/RovsPage'
 import RovDetailPage from '@/features/rovs/RovDetailPage'
 import TripsPage from '@/features/trips/TripsPage'
 import TripDetailPage from '@/features/trips/TripDetailPage'
-import JobsPage from '@/features/jobs/JobsPage'
+import DivesPage from '@/features/dives/DivesPage'
+import DiveDetailPage from '@/features/dives/DiveDetailPage'
 import UsersPage from '@/features/users/UsersPage'
 import ProfilePage from '@/features/profile/ProfilePage'
+import AuditPage from '@/features/audit/AuditPage'
 
 export const router = createBrowserRouter([
   {
@@ -34,6 +37,7 @@ export const router = createBrowserRouter([
         <Layout />
       </ProtectedRoute>
     ),
+    errorElement: <RouteError />,
     children: [
       {
         index: true,
@@ -60,8 +64,12 @@ export const router = createBrowserRouter([
         element: <TripDetailPage />
       },
       {
-        path: 'jobs',
-        element: <JobsPage />
+        path: 'dives',
+        element: <DivesPage />
+      },
+      {
+        path: 'dives/:id',
+        element: <DiveDetailPage />
       },
       {
         path: 'users',
@@ -70,6 +78,14 @@ export const router = createBrowserRouter([
       {
         path: 'profile',
         element: <ProfilePage />
+      },
+      {
+        path: 'audit',
+        element: (
+          <ProtectedRoute roles={['admin']}>
+            <AuditPage />
+          </ProtectedRoute>
+        )
       }
     ]
   },

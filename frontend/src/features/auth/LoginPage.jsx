@@ -12,7 +12,7 @@ function GoogleButton() {
     <button
       type="button"
       onClick={() => { window.location.href = GOOGLE_AUTH_URL }}
-      className="w-full flex items-center justify-center gap-3 border border-gray-300 rounded-lg px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+      className="w-full flex items-center justify-center gap-3 border border-border rounded-lg px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
     >
       <svg width="18" height="18" viewBox="0 0 48 48">
         <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
@@ -53,78 +53,74 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center px-4">
-      <div className="bg-white rounded-2xl shadow-xl p-8 w-full max-w-md">
-        {/* Header */}
+      <div className="bg-card rounded-2xl shadow-xl p-8 w-full max-w-md border border-border">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-3">
-            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-              <Anchor className="text-blue-600" size={24} />
+            <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
+              <Anchor className="text-primary" size={24} />
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">ROV Management</h1>
-          <p className="text-gray-500 text-sm mt-1">Sign in to your account</p>
+          <h1 className="text-2xl font-bold text-foreground">ROV Management</h1>
+          <p className="text-muted-foreground text-sm mt-1">Sign in to your account</p>
         </div>
 
-        {/* Google OAuth */}
         <GoogleButton />
 
         <div className="flex items-center gap-3 my-5">
-          <hr className="flex-1 border-gray-200" />
-          <span className="text-xs text-gray-400">or sign in with email</span>
-          <hr className="flex-1 border-gray-200" />
+          <hr className="flex-1 border-border" />
+          <span className="text-xs text-muted-foreground">or sign in with email</span>
+          <hr className="flex-1 border-border" />
         </div>
 
-        {/* Error */}
         {(serverError || oauthError) && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-sm">
+          <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 text-destructive rounded-lg text-sm">
             {serverError || 'Google sign-in failed. Please try again.'}
           </div>
         )}
 
-        {/* Form */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label className="block text-sm font-medium text-foreground mb-1">Email</label>
             <input
               {...register('email', { required: 'Email is required' })}
               type="email"
               autoComplete="email"
               placeholder="you@example.com"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full border border-input bg-background text-foreground rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent placeholder:text-muted-foreground"
             />
-            {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email.message}</p>}
+            {errors.email && <p className="text-destructive text-xs mt-1">{errors.email.message}</p>}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <label className="block text-sm font-medium text-foreground mb-1">Password</label>
             <div className="relative">
               <input
                 {...register('password', { required: 'Password is required' })}
                 type={showPassword ? 'text' : 'password'}
                 autoComplete="current-password"
                 placeholder="••••••••"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full border border-input bg-background text-foreground rounded-lg px-3 py-2.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-ring focus:border-transparent placeholder:text-muted-foreground"
               />
               <button type="button" onClick={() => setShowPassword(v => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                 {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
             </div>
-            {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password.message}</p>}
+            {errors.password && <p className="text-destructive text-xs mt-1">{errors.password.message}</p>}
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium text-sm hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors mt-2"
+            className="w-full bg-primary text-primary-foreground py-2.5 rounded-lg font-medium text-sm hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed transition-colors mt-2"
           >
             {loading ? 'Signing in...' : 'Sign in'}
           </button>
         </form>
 
-        <p className="text-center text-sm text-gray-500 mt-6">
+        <p className="text-center text-sm text-muted-foreground mt-6">
           Don&apos;t have an account?{' '}
-          <Link to="/register" className="text-blue-600 hover:underline font-medium">
+          <Link to="/register" className="text-primary hover:underline font-medium">
             Register
           </Link>
         </p>

@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx vite *)",
+      "Bash(npm run *)",
+      "Bash(pip --version)",
+      "Bash(pip show *)",
+      "Bash(pip install *)",
+      "Bash(python -m uvicorn main:app --host 0.0.0.0 --port 8000)",
+      "Bash(timeout 8)",
+      "Bash(curl -s http://localhost:8000/health)",
+      "Bash(Start-Sleep -Seconds 8)",
+      "Bash(curl -s -X POST http://localhost:8000/detect -H 'Content-Type: application/json' -d '{\"mediaUrl\": \"https://ultralytics.com/images/bus.jpg\", \"mediaType\": \"image/jpeg\"}')",
+      "Bash(python -m json.tool)",
+      "Bash(Get-Content \"C:\\\\Users\\\\Thanh\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\d--Code-rov-management\\\\55c7de3b-1410-47e1-a674-8bc22a75f9fe\\\\tasks\\\\bfhiuzf7d.output\" -Wait)",
+      "Bash(Select-String --line-buffered \"Successfully|error|ERROR|already|Requirement\")",
+      "WebFetch(domain:github.com)",
+      "Bash(node -e ' *)",
+      "Bash(node -e \"const pkg = require\\('d:/Code/rov-management/frontend/node_modules/lucide-react/package.json'\\); console.log\\(pkg.version\\)\")",
+      "Bash(npx tsc *)",
+      "Bash(node -e \"require\\('./src/app.js'\\); console.log\\('app loads OK'\\)\")",
+      "Bash(node --input-type=module -e ' *)",
+      "Bash(node -e \"try { require\\('./src/modules/snapshots/snapshot.model'\\); console.log\\('model OK'\\); } catch\\(e\\){ console.error\\(e.message\\); }\")",
+      "Bash(node -e \"try { require\\('./src/modules/snapshots/snapshot.routes'\\); console.log\\('routes OK'\\); } catch\\(e\\){ console.error\\(e.message, e.stack\\); }\")"
+    ]
+  }
+}

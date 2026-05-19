@@ -2,6 +2,20 @@ const { validationResult } = require('express-validator');
 const authService = require('./auth.service');
 const { success } = require('../../utils/response.util');
 
+// Store the s3Key in the DB, generate a fresh 1-hour presigned URL on every response.
+// Handles Google OAuth avatars (https://…) transparently — they're returned as-is.
+async function freshenAvatar(avatar) {
+  if (!avatar || !avatar.startsWith('avatars/')) return avatar ?? null;
+  const { GetObjectCommand } = require('@aws-sdk/client-s3');
+  const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+  const s3 = require('../../config/s3');
+  return getSignedUrl(
+    s3,
+    new GetObjectCommand({ Bucket: process.env.S3_BUCKET, Key: avatar }),
+    { expiresIn: 3600 }
+  );
+}
+
 const register = async (req, res, next) => {
   try {
     const errors = validationResult(req);
@@ -22,6 +36,7 @@ const login = async (req, res, next) => {
       return res.status(400).json({ message: 'Validation failed', errors: errors.array() });
     }
     const data = await authService.login(req.body);
+    data.user.avatar = await freshenAvatar(data.user.avatar);
     return success(res, data, 'Login successful');
   } catch (err) {
     next(err);
@@ -47,8 +62,14 @@ const logout = async (req, res, next) => {
   }
 };
 
-const me = (req, res) => {
-  return success(res, req.user);
+const me = async (req, res, next) => {
+  try {
+    const user = req.user.toObject();
+    user.avatar = await freshenAvatar(user.avatar);
+    return success(res, user);
+  } catch (err) {
+    next(err);
+  }
 };
 
 const updateMe = async (req, res, next) => {
@@ -58,7 +79,9 @@ const updateMe = async (req, res, next) => {
     if (req.body.fullName) allowed.fullName = req.body.fullName.trim();
     if (req.body.avatar !== undefined) allowed.avatar = req.body.avatar;
     const updated = await User.findByIdAndUpdate(req.user._id, allowed, { new: true }).select('-password -refreshToken');
-    return success(res, updated, 'Profile updated successfully');
+    const userObj = updated.toObject();
+    userObj.avatar = await freshenAvatar(userObj.avatar);
+    return success(res, userObj, 'Profile updated successfully');
   } catch (err) {
     next(err);
   }
@@ -66,7 +89,7 @@ const updateMe = async (req, res, next) => {
 
 const avatarPresigned = async (req, res, next) => {
   try {
-    const { PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
+    const { PutObjectCommand } = require('@aws-sdk/client-s3');
     const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
     const { v4: uuidv4 } = require('uuid');
     const s3 = require('../../config/s3');
@@ -81,10 +104,8 @@ const avatarPresigned = async (req, res, next) => {
     const BUCKET = process.env.S3_BUCKET;
 
     const uploadUrl = await getSignedUrl(s3, new PutObjectCommand({ Bucket: BUCKET, Key: s3Key, ContentType: mimeType }), { expiresIn: 300 });
-    // Presigned GET URL để xem ảnh — 7 ngày
-    const viewUrl = await getSignedUrl(s3, new GetObjectCommand({ Bucket: BUCKET, Key: s3Key }), { expiresIn: 7 * 24 * 3600 });
 
-    return success(res, { uploadUrl, viewUrl, s3Key });
+    return success(res, { uploadUrl, s3Key });
   } catch (err) {
     next(err);
   }

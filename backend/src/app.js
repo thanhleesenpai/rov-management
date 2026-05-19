@@ -10,10 +10,17 @@ const authRoutes = require('./modules/auth/auth.routes');
 const userRoutes = require('./modules/users/user.routes');
 const rovRoutes = require('./modules/rovs/rov.routes');
 const tripRoutes = require('./modules/trips/trip.routes');
-const jobRoutes = require('./modules/jobs/job.routes');
+const diveRoutes = require('./modules/dives/dive.routes');
 const mediaRoutes = require('./modules/media/media.routes');
 const statsRoutes = require('./modules/stats/stats.routes');
 const notificationRoutes = require('./modules/notifications/notification.routes');
+const auditRoutes      = require('./modules/audit/audit.routes');
+const snapshotRoutes   = require('./modules/snapshots/snapshot.routes');
+
+// Bull workers
+require('./modules/ai/ai.worker');
+require('./modules/media/media.worker');
+require('./modules/snapshots/snapshot.worker');
 
 const app = express();
 
@@ -57,10 +64,12 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/rovs', rovRoutes);
 app.use('/api/v1/trips', tripRoutes);
-app.use('/api/v1/jobs', jobRoutes);
+app.use('/api/v1/dives', diveRoutes);
 app.use('/api/v1/media', mediaRoutes);
 app.use('/api/v1/stats', statsRoutes);
 app.use('/api/v1/notifications', notificationRoutes);
+app.use('/api/v1/audit',     auditRoutes);
+app.use('/api/v1/snapshots', snapshotRoutes);
 
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date() }));

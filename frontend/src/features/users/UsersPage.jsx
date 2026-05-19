@@ -12,50 +12,50 @@ import EmptyState from '@/components/shared/EmptyState'
 import { useDebounce } from '@/hooks/useDebounce'
 
 const ROLE_STYLE = {
-  admin:    'bg-purple-100 text-purple-700',
-  operator: 'bg-blue-100 text-blue-700',
-  viewer:   'bg-gray-100 text-gray-600'
+  admin:    'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
+  operator: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+  viewer:   'bg-muted text-muted-foreground'
 }
 
 const ROLES = ['viewer', 'operator', 'admin']
 const LIMIT = 10
 
-function UserEditForm({ user, onClose, onSave, isSelf }) {
+function UserEditForm({ user, onClose, onSave, isSelf, saving }) {
   const [form, setForm] = useState({ fullName: user.fullName, role: user.role })
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-sm">
-        <div className="flex items-center justify-between px-6 py-4 border-b">
-          <h2 className="font-semibold text-gray-800">Edit User</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><X size={18} /></button>
+      <div className="bg-card rounded-xl shadow-xl w-full max-w-sm border border-border">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <h2 className="font-semibold text-foreground">Edit User</h2>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X size={18} /></button>
         </div>
         <div className="p-6 space-y-4">
-          <p className="text-xs text-gray-400">{user.email}</p>
+          <p className="text-xs text-muted-foreground">{user.email}</p>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+            <label className="block text-sm font-medium text-foreground mb-1">Full Name</label>
             <input type="text" required value={form.fullName}
               onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))}
-              className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full border border-input bg-background text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
           </div>
           {isSelf ? (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg px-3 py-2 text-xs text-yellow-700">
+            <div className="bg-yellow-50 border border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800 rounded-lg px-3 py-2 text-xs text-yellow-700 dark:text-yellow-300">
               You cannot change your own role.
             </div>
           ) : (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+              <label className="block text-sm font-medium text-foreground mb-1">Role</label>
               <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
-                className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className="w-full border border-input bg-background text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
                 {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
               </select>
             </div>
           )}
           <div className="flex justify-end gap-2 pt-2">
-            <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Cancel</button>
-            <button onClick={() => onSave(user._id, form)}
-              className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
-              Save Changes
+            <button onClick={onClose} disabled={saving} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors">Cancel</button>
+            <button onClick={() => onSave(user._id, form)} disabled={saving}
+              className="px-4 py-2 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors">
+              {saving ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </div>
@@ -64,7 +64,6 @@ function UserEditForm({ user, onClose, onSave, isSelf }) {
   )
 }
 
-// Dropdown để chọn role bulk
 function RoleDropdown({ onSelect, disabled }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
@@ -76,14 +75,14 @@ function RoleDropdown({ onSelect, disabled }) {
   return (
     <div ref={ref} className="relative">
       <button onClick={() => setOpen(v => !v)} disabled={disabled}
-        className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-purple-50 text-purple-700 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors disabled:opacity-50 font-medium">
+        className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-900/20 dark:text-purple-300 dark:border-purple-800 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors disabled:opacity-50 font-medium">
         <ShieldCheck size={12} /> Set Role <ChevronDown size={11} />
       </button>
       {open && (
-        <div className="absolute left-0 mt-1 w-36 bg-white rounded-xl shadow-lg border border-gray-100 z-20 overflow-hidden">
+        <div className="absolute left-0 mt-1 w-36 bg-card rounded-xl shadow-lg border border-border z-20 overflow-hidden">
           {ROLES.map(r => (
             <button key={r} onClick={() => { onSelect(r); setOpen(false) }}
-              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 capitalize transition-colors">
+              className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-muted capitalize transition-colors">
               {r}
             </button>
           ))}
@@ -127,21 +126,13 @@ export default function UsersPage() {
 
   const bulkStatusMutation = useMutation({
     mutationFn: ({ ids, isActive }) => api.patch('/users/bulk/status', { ids, isActive }),
-    onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ['users'] })
-      toast.success(res?.message || 'Users updated')
-      exitSelectMode()
-    },
+    onSuccess: (res) => { queryClient.invalidateQueries({ queryKey: ['users'] }); toast.success(res?.message || 'Users updated'); exitSelectMode() },
     onError: () => toast.error('Failed to update users')
   })
 
   const bulkRoleMutation = useMutation({
     mutationFn: ({ ids, role }) => api.patch('/users/bulk/role', { ids, role }),
-    onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ['users'] })
-      toast.success(res?.message || 'Users updated')
-      exitSelectMode()
-    },
+    onSuccess: (res) => { queryClient.invalidateQueries({ queryKey: ['users'] }); toast.success(res?.message || 'Users updated'); exitSelectMode() },
     onError: () => toast.error('Failed to update users')
   })
 
@@ -160,60 +151,59 @@ export default function UsersPage() {
   const handleExportPDF = async () => { const res = await fetchAllUsers(); exportUsersPDF(res?.data?.users || []) }
 
   const selectedIds = [...selected]
-  const isPending = bulkStatusMutation.isPending || bulkRoleMutation.isPending
+  const isBulkPending = bulkStatusMutation.isPending || bulkRoleMutation.isPending
 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold text-gray-800">Users</h1>
+        <h1 className="text-2xl font-bold text-foreground">Users</h1>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-400">{data?.total ?? 0} users</span>
+          <span className="text-sm text-muted-foreground">{data?.total ?? 0} users</span>
           <ExportMenu onExportCSV={handleExportCSV} onExportPDF={handleExportPDF} />
         </div>
       </div>
 
-      {/* Search & filter + bulk toolbar */}
       {!selectMode ? (
         <div className="flex flex-wrap gap-2 mb-4">
           <div className="relative flex-1 min-w-48">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input type="text" placeholder="Search name or email..." value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }}
-              className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="w-full pl-9 pr-3 py-2 border border-input bg-background text-foreground rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground" />
           </div>
           <select value={roleFilter} onChange={e => { setRoleFilter(e.target.value); setPage(1) }}
-            className="border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white">
+            className="border border-input bg-background text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
             <option value="">All Roles</option>
             <option value="admin">Admin</option>
             <option value="operator">Operator</option>
             <option value="viewer">Viewer</option>
           </select>
           <button onClick={() => setSelectMode(true)}
-            className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+            className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-lg text-sm text-muted-foreground hover:bg-muted transition-colors">
             <CheckSquare size={14} /> Select
           </button>
         </div>
       ) : (
-        <div className="flex items-center gap-2 mb-4 p-3 bg-blue-50 rounded-xl border border-blue-100">
-          <span className="text-sm font-medium text-blue-700">
+        <div className="flex items-center gap-2 mb-4 p-3 bg-primary/5 rounded-xl border border-primary/20">
+          <span className="text-sm font-medium text-primary">
             {someSelected ? `${selected.size} selected` : 'Select users'}
           </span>
           <div className="flex items-center gap-2 ml-auto flex-wrap">
             {someSelected && (
               <>
-                <button onClick={() => bulkStatusMutation.mutate({ ids: selectedIds, isActive: true })} disabled={isPending}
-                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 transition-colors disabled:opacity-50 font-medium">
+                <button onClick={() => bulkStatusMutation.mutate({ ids: selectedIds, isActive: true })} disabled={isBulkPending}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors disabled:opacity-50 font-medium">
                   <ToggleRight size={13} /> Activate
                 </button>
-                <button onClick={() => bulkStatusMutation.mutate({ ids: selectedIds, isActive: false })} disabled={isPending}
-                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 transition-colors disabled:opacity-50 font-medium">
+                <button onClick={() => bulkStatusMutation.mutate({ ids: selectedIds, isActive: false })} disabled={isBulkPending}
+                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-red-50 text-red-600 border border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors disabled:opacity-50 font-medium">
                   <ToggleLeft size={13} /> Deactivate
                 </button>
-                <RoleDropdown disabled={isPending} onSelect={(role) => bulkRoleMutation.mutate({ ids: selectedIds, role })} />
+                <RoleDropdown disabled={isBulkPending} onSelect={(role) => bulkRoleMutation.mutate({ ids: selectedIds, role })} />
               </>
             )}
             <button onClick={exitSelectMode}
-              className="px-3 py-1.5 text-xs text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors font-medium">
+              className="px-3 py-1.5 text-xs text-muted-foreground bg-card border border-border rounded-lg hover:bg-muted transition-colors font-medium">
               Cancel
             </button>
           </div>
@@ -222,16 +212,16 @@ export default function UsersPage() {
 
       {isLoading ? (
         <div className="space-y-2">
-          {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-16 bg-gray-100 rounded-xl animate-pulse" />)}
+          {Array.from({ length: 6 }).map((_, i) => <div key={i} className="h-16 bg-muted rounded-xl animate-pulse" />)}
         </div>
       ) : users.length === 0 ? (
         <EmptyState icon={User} title="No users found" description="Try adjusting your search or filter." />
       ) : (
         <>
           {/* Desktop table */}
-          <div className="hidden sm:block bg-white rounded-xl shadow overflow-hidden">
+          <div className="hidden sm:block bg-card rounded-xl shadow overflow-hidden border border-border">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b">
+              <thead className="bg-muted border-b border-border">
                 <tr>
                   {selectMode && (
                     <th className="px-4 py-3 w-10">
@@ -239,17 +229,17 @@ export default function UsersPage() {
                         className="w-4 h-4 rounded accent-blue-600 cursor-pointer" />
                     </th>
                   )}
-                  <th className="text-left px-6 py-3 text-gray-500 font-medium">User</th>
-                  <th className="text-left px-6 py-3 text-gray-500 font-medium">Role</th>
-                  <th className="text-left px-6 py-3 text-gray-500 font-medium">Status</th>
-                  <th className="text-left px-6 py-3 text-gray-500 font-medium">Last Login</th>
-                  {!selectMode && <th className="text-right px-6 py-3 text-gray-500 font-medium">Actions</th>}
+                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">User</th>
+                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Role</th>
+                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Status</th>
+                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Last Login</th>
+                  {!selectMode && <th className="text-right px-6 py-3 text-muted-foreground font-medium">Actions</th>}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-border">
                 {users.map(u => (
                   <tr key={u._id}
-                    className={`transition-colors ${selectMode ? 'cursor-pointer hover:bg-blue-50' : 'hover:bg-gray-50'} ${selected.has(u._id) ? 'bg-blue-50' : ''}`}
+                    className={`transition-colors ${selectMode ? 'cursor-pointer hover:bg-primary/5' : 'hover:bg-muted/50'} ${selected.has(u._id) ? 'bg-primary/5' : ''}`}
                     onClick={selectMode ? () => toggleSelect(u._id) : undefined}>
                     {selectMode && (
                       <td className="px-4 py-4">
@@ -260,12 +250,12 @@ export default function UsersPage() {
                     )}
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                          <User size={14} className="text-blue-600" />
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                          <User size={14} className="text-primary" />
                         </div>
                         <div>
-                          <p className="font-medium text-gray-800">{u.fullName}</p>
-                          <p className="text-xs text-gray-400">{u.email}</p>
+                          <p className="font-medium text-foreground">{u.fullName}</p>
+                          <p className="text-xs text-muted-foreground">{u.email}</p>
                         </div>
                       </div>
                     </td>
@@ -275,22 +265,22 @@ export default function UsersPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${u.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${u.isActive ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300'}`}>
                         {u.isActive ? 'Active' : 'Disabled'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-xs text-gray-400">
+                    <td className="px-6 py-4 text-xs text-muted-foreground">
                       {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : '—'}
                     </td>
                     {!selectMode && (
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => setEditingUser(u)} className="p-1.5 text-gray-400 hover:text-yellow-600 rounded" title="Edit">
+                          <button onClick={() => setEditingUser(u)} className="p-1.5 text-muted-foreground hover:text-yellow-500 rounded transition-colors" title="Edit">
                             <Pencil size={15} />
                           </button>
                           <button onClick={() => toggleMutation.mutate(u._id)} disabled={toggleMutation.isPending}
                             title={u.isActive ? 'Disable' : 'Enable'}
-                            className={`p-1.5 rounded transition-colors ${u.isActive ? 'text-green-500 hover:text-red-500' : 'text-gray-400 hover:text-green-500'}`}>
+                            className={`p-1.5 rounded transition-colors ${u.isActive ? 'text-green-500 hover:text-destructive' : 'text-muted-foreground hover:text-green-500'}`}>
                             {u.isActive ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
                           </button>
                         </div>
@@ -306,7 +296,7 @@ export default function UsersPage() {
           <div className="sm:hidden space-y-2">
             {users.map(u => (
               <div key={u._id}
-                className={`bg-white rounded-xl border shadow-sm px-4 py-3 transition-colors ${selectMode ? 'cursor-pointer' : ''} ${selected.has(u._id) ? 'border-blue-400 bg-blue-50' : 'border-gray-200'}`}
+                className={`bg-card rounded-xl border shadow-sm px-4 py-3 transition-colors ${selectMode ? 'cursor-pointer' : ''} ${selected.has(u._id) ? 'border-primary bg-primary/5' : 'border-border'}`}
                 onClick={selectMode ? () => toggleSelect(u._id) : undefined}>
                 <div className="flex items-center justify-between gap-2">
                   {selectMode && (
@@ -315,26 +305,26 @@ export default function UsersPage() {
                       className="w-4 h-4 rounded accent-blue-600 cursor-pointer shrink-0" />
                   )}
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
-                      <User size={15} className="text-blue-600" />
+                    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                      <User size={15} className="text-primary" />
                     </div>
                     <div className="min-w-0">
-                      <p className="font-semibold text-sm text-gray-800 truncate">{u.fullName}</p>
-                      <p className="text-xs text-gray-400 truncate">{u.email}</p>
+                      <p className="font-semibold text-sm text-foreground truncate">{u.fullName}</p>
+                      <p className="text-xs text-muted-foreground truncate">{u.email}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ROLE_STYLE[u.role]}`}>{u.role}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${u.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-600'}`}>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${u.isActive ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300'}`}>
                       {u.isActive ? 'Active' : 'Off'}
                     </span>
                     {!selectMode && (
                       <>
-                        <button onClick={() => setEditingUser(u)} className="p-1.5 text-gray-400 hover:text-yellow-600 rounded">
+                        <button onClick={() => setEditingUser(u)} className="p-1.5 text-muted-foreground hover:text-yellow-500 rounded transition-colors">
                           <Pencil size={14} />
                         </button>
                         <button onClick={() => toggleMutation.mutate(u._id)} disabled={toggleMutation.isPending}
-                          className={`p-1.5 rounded transition-colors ${u.isActive ? 'text-green-500 hover:text-red-500' : 'text-gray-400 hover:text-green-500'}`}>
+                          className={`p-1.5 rounded transition-colors ${u.isActive ? 'text-green-500 hover:text-destructive' : 'text-muted-foreground hover:text-green-500'}`}>
                           {u.isActive ? <ToggleRight size={19} /> : <ToggleLeft size={19} />}
                         </button>
                       </>
@@ -352,6 +342,7 @@ export default function UsersPage() {
 
       {editingUser && (
         <UserEditForm user={editingUser} isSelf={editingUser._id === currentUser?._id}
+          saving={editMutation.isPending}
           onClose={() => setEditingUser(null)}
           onSave={(id, formData) => editMutation.mutate({ id, data: formData })} />
       )}
