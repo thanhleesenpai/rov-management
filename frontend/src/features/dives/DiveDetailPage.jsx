@@ -8,7 +8,7 @@ import {
   AlertTriangle, File, FileText, CheckCircle2,
   Maximize2, Minimize2, Download, Radio, Sparkles, Film, Loader, Eye, EyeOff,
   Play, Pause, Volume2, VolumeX,
-  Camera, Clapperboard, Square, Images, X,
+  Camera, Clapperboard, Square, Images, X, MoreVertical, Clock, Info, Trash2,
 } from 'lucide-react'
 import {
   ResponsiveContainer, AreaChart, Area, LineChart, Line,
@@ -22,6 +22,7 @@ import CompassRose from './components/CompassRose'
 import MediaUpload from '@/features/media/MediaUpload'
 import SensorUpload from '@/features/trips/components/SensorUpload'
 import { Skeleton } from '@/components/shared/Skeleton'
+import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import 'leaflet/dist/leaflet.css'
 
 // ─── Status ──────────────────────────────────────────────────────────────────
@@ -328,20 +329,18 @@ function AIAnalyzePopover({ media, diveId, canUse, portalTarget }) {
 
   return (
     <>
-      {/* Trigger button — replaces the old plain ⟳ button */}
+      {/* Trigger button — unified with Detect styling */}
       <button ref={btnRef} onClick={toggle}
         title="AI Analysis settings"
-        className={`pointer-events-auto flex items-center gap-1.5 px-2.5 py-1.5
-                   text-[11px] font-bold rounded-full transition-all select-none
-                   backdrop-blur-sm border shadow-lg ${
+        className={`flex items-center gap-1 px-2 py-1.5 rounded-full text-[11px] font-bold transition-colors select-none ${
           open
-            ? 'bg-violet-500/90 border-violet-400/60 text-white'
+            ? 'bg-blue-500/90 text-white'
             : isPending
-              ? 'bg-black/50 border-white/20 text-white animate-pulse'
-              : 'bg-black/50 border-white/20 text-white hover:bg-black/70 hover:border-white/30'
+              ? 'bg-blue-500/60 text-white animate-pulse'
+              : 'text-white/80 hover:text-white'
         }`}>
         <Sparkles size={11} />
-        {isPending ? 'Analyzing…' : 'Analyze'}
+        <span className="hidden sm:inline">{isPending ? 'Analyzing' : 'Analyze'}</span>
       </button>
 
       {open && createPortal(
@@ -539,6 +538,70 @@ function CustomVideoControls({ videoRef, isPlaying, mediaId, containerRef, curre
   )
 }
 
+// ─── Evidence viewer (inline in video area) ──────────────────────────────────
+
+function EvidenceViewer({ evidence, media, onClose }) {
+  const { data: mediaUrl } = useMediaUrl(media?._id)
+  const [dims, setDims] = useState(null)
+  const isClip = evidence.type === 'clip'
+
+  if (!evidence) return null
+
+  return (
+    <div className="relative w-full h-full flex flex-col bg-black">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/10 shrink-0">
+        <button onClick={onClose}
+          className="flex items-center gap-2 text-[11px] font-bold text-white/80 hover:text-white transition-colors">
+          <ArrowLeft size={14} />
+          <span className="hidden sm:inline">Back</span>
+        </button>
+        <div className="flex items-center gap-2 text-[10px] text-white/60">
+          <span className="uppercase font-bold">{isClip ? 'clip' : 'photo'}</span>
+          <span className="font-mono">
+            {isClip
+              ? `${fmtVideoTime(evidence.startTime)} → ${fmtVideoTime(evidence.endTime)}`
+              : fmtVideoTime(evidence.imageTime)
+            }
+          </span>
+        </div>
+        <button onClick={onClose}
+          className="p-1 text-white/60 hover:text-white transition-colors">
+          <X size={14} />
+        </button>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-h-0 flex items-center justify-center relative">
+        {isClip && media ? (
+          <video src={mediaUrl}
+            className="max-w-full max-h-full object-contain"
+            controls autoPlay
+            onLoadedMetadata={e => setDims({ w: e.target.videoWidth, h: e.target.videoHeight })} />
+        ) : (
+          <img src={evidence.imageUrl || evidence.thumbnailUrl} alt=""
+            className="max-w-full max-h-full object-contain"
+            onLoad={e => setDims({ w: e.target.naturalWidth, h: e.target.naturalHeight })} />
+        )}
+      </div>
+
+      {/* AI labels footer */}
+      {evidence.aiLabels?.length > 0 && (
+        <div className="px-4 py-2.5 border-t border-white/10 bg-black/50 shrink-0">
+          <div className="flex flex-wrap gap-2">
+            {evidence.aiLabels.slice(0, 8).map((label, i) => (
+              <span key={i} className={`text-[10px] font-bold px-2 py-1 rounded-full
+                ${label.confidence > 0.8 ? 'bg-blue-500/80 text-white' : 'bg-amber-500/80 text-white'}`}>
+                {label.name} {Math.round(label.confidence * 100)}%
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Main media renderer ──────────────────────────────────────────────────────
 
 function DetectionSVG({ labels, dims }) {
@@ -686,32 +749,8 @@ function fmtVideoTime(sec) {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
-function EvidenceCard({ snap, canEdit, diveId, queryClient, onSeek }) {
-  const [note,       setNote]       = useState(snap.note || '')
-  const [analyzing,  setAnalyzing]  = useState(false)
-  const [deleting,   setDeleting]   = useState(false)
-
-  const saveNote = async () => {
-    if (note === snap.note) return
-    try { await api.patch(`/snapshots/${snap._id}/note`, { note }) } catch {}
-  }
-
-  const handleAnalyze = async () => {
-    setAnalyzing(true)
-    try {
-      await api.post(`/snapshots/${snap._id}/analyze`, { model: 'yolov8n', confidence: 0.3 })
-      queryClient.invalidateQueries({ queryKey: ['snapshots', diveId] })
-    } catch {}
-    setAnalyzing(false)
-  }
-
-  const handleDelete = async () => {
-    setDeleting(true)
-    try {
-      await api.delete(`/snapshots/${snap._id}`)
-      queryClient.invalidateQueries({ queryKey: ['snapshots', diveId] })
-    } catch { setDeleting(false) }
-  }
+function EvidenceCard({ snap, canEdit, diveId, queryClient, onSeek, onClick, onDelete }) {
+  const [deleting, setDeleting] = useState(false)
 
   const isClip   = snap.type === 'clip'
   const timeLabel = isClip
@@ -727,104 +766,81 @@ function EvidenceCard({ snap, canEdit, diveId, queryClient, onSeek }) {
     : []
 
   return (
-    <div className="rounded-lg overflow-hidden border border-white/10 bg-white/5 group/card">
-      {/* Thumbnail */}
-      <div className="relative aspect-video bg-slate-800 cursor-pointer"
-           onClick={() => onSeek(isClip ? snap.startTime : snap.imageTime)}>
-        {snap.thumbnailUrl
-          ? <img src={snap.thumbnailUrl} alt="" className="w-full h-full object-cover" />
-          : <div className="w-full h-full flex items-center justify-center">
-              <FileText size={16} className="text-slate-500" />
-            </div>
-        }
-        <span className={`absolute top-1 left-1 text-[8px] font-bold px-1.5 py-0.5
-                          rounded leading-none
-                          ${isClip ? 'bg-violet-500/90 text-white' : 'bg-blue-500/90 text-white'}`}>
-          {isClip ? '🎬' : '📷'}
-        </span>
-        <span className="absolute bottom-1 right-1 text-[8px] font-mono
-                         bg-black/70 text-white/80 px-1 py-0.5 rounded">
-          {timeLabel}
-        </span>
-        {canEdit && (
-          <button onClick={e => { e.stopPropagation(); handleDelete() }}
-            disabled={deleting}
-            className="absolute top-1 right-1 p-1 rounded bg-red-900/80 text-red-300
-                       opacity-0 group-hover/card:opacity-100 transition-opacity
-                       hover:bg-red-800/80 disabled:opacity-30 pointer-events-auto">
-            {deleting ? <Loader size={8} className="animate-spin" /> : <X size={8} />}
-          </button>
-        )}
+    <div className="relative group/thumb rounded-lg overflow-hidden border-2 border-white/20 aspect-video
+                    bg-slate-800 cursor-pointer hover:border-white/40 transition-colors"
+         onClick={() => onClick && onClick()}>
+      {/* Thumbnail image */}
+      {snap.imageUrl || snap.thumbnailUrl
+        ? <img src={snap.imageUrl || snap.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+        : <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-700 to-slate-900">
+            <FileText size={20} className="text-slate-500" />
+          </div>
+      }
+
+      {/* Type badge — top-left */}
+      <div className="absolute top-1 left-1 text-[7px] font-bold uppercase tracking-wider
+                      px-1.5 py-0.5 rounded leading-none text-white bg-black/40">
+        {isClip ? 'clip' : 'photo'}
       </div>
 
-      {/* AI labels */}
-      {uniqueLabels.length > 0 && (
-        <div className="flex flex-wrap gap-0.5 px-1.5 pt-1.5">
-          {uniqueLabels.map(l => (
-            <span key={l.name}
-              className={`text-[8px] font-bold px-1.5 py-0.5 rounded-full leading-none
-                          ${l.confidence > 0.8 ? 'bg-blue-500/70 text-white' : 'bg-amber-500/70 text-white'}`}>
-              {l.name} {Math.round(l.confidence * 100)}%
-            </span>
-          ))}
+      {/* AI badge — top-right, shows analysis status */}
+      {isDone && uniqueLabels.length > 0 && (
+        <div className="absolute top-1 right-1 text-[8px] font-bold px-1.5 py-0.5 rounded-full
+                        bg-emerald-500/80 text-white leading-none">
+          {uniqueLabels.length}
+        </div>
+      )}
+      {isPending && (
+        <div className="absolute top-1 right-1 text-[8px] font-bold px-1.5 py-0.5 rounded-full
+                        bg-blue-500/60 text-white leading-none flex items-center gap-0.5">
+          <Loader size={7} className="animate-spin" />
+        </div>
+      )}
+      {isFailed && (
+        <div className="absolute top-1 right-1 text-[8px] font-bold px-1.5 py-0.5 rounded-full
+                        bg-red-500/60 text-white leading-none">
+          err
         </div>
       )}
 
-      {/* Analyze */}
+      {/* Time label — bottom */}
+      <div className="absolute bottom-1 left-0 right-0 text-center text-[7px] text-white/80
+                      font-mono px-1">
+        {timeLabel}
+      </div>
+
+      {/* Delete button — top-right corner, ghost button */}
       {canEdit && (
-        <div className="px-1.5 pt-1">
-          <button onClick={handleAnalyze}
-            disabled={isPending || analyzing}
-            className={`w-full flex items-center justify-center gap-1 py-1 rounded
-                        text-[9px] font-bold transition-colors
-                        ${isPending || analyzing
-                          ? 'bg-blue-900/40 text-blue-400 cursor-wait'
-                          : isFailed
-                            ? 'bg-red-900/40 text-red-400 hover:bg-red-900/60'
-                            : isDone
-                              ? 'bg-white/5 text-white/40 hover:bg-white/10 hover:text-white/60'
-                              : 'bg-white/8 text-white/60 hover:bg-white/15 hover:text-white'}`}>
-            {isPending || analyzing
-              ? <><Loader size={9} className="animate-spin" /> Analyzing…</>
-              : isFailed
-                ? <><AlertTriangle size={9} /> Retry</>
-                : isDone
-                  ? <><Sparkles size={9} /> Re-analyze</>
-                  : <><Sparkles size={9} /> Analyze</>}
-          </button>
-        </div>
+        <button onClick={e => { e.stopPropagation(); onDelete && onDelete() }}
+          disabled={deleting}
+          className="absolute -top-1 -right-1 p-1 rounded-full
+                     opacity-0 group-hover/thumb:opacity-100 transition-opacity
+                     bg-red-600 hover:bg-red-700 text-white disabled:opacity-40">
+          {deleting ? <Loader size={10} className="animate-spin" /> : <X size={10} />}
+        </button>
       )}
-
-      {/* Note */}
-      <div className="px-1.5 pb-1.5 pt-1">
-        <input
-          value={note}
-          onChange={e => setNote(e.target.value)}
-          onBlur={saveNote}
-          placeholder="Add note…"
-          className="w-full text-[9px] bg-transparent border-b border-white/10
-                     focus:border-white/30 focus:outline-none text-white/60 pb-0.5
-                     placeholder:text-white/25" />
-      </div>
     </div>
   )
 }
 
-function EvidencePanel({ snapshots, isOpen, diveId, canEdit, videoRef, queryClient }) {
+function EvidencePanel({ snapshots, isOpen, diveId, canEdit, videoRef, queryClient, currentMediaId, onSelectEvidence, confirmDelete, setConfirmDelete }) {
+  // Filter snapshots to only show evidence belonging to current media
+  const currentMediaSnapshots = snapshots.filter(s => s.parentMediaId === currentMediaId)
+
   return (
-    <div className={`absolute top-0 left-0 bottom-0 z-10 w-52
-                     bg-black/92 backdrop-blur-sm border-r border-white/10
+    <div className={`absolute top-0 right-0 bottom-0 z-10 w-44
+                     bg-black/90 backdrop-blur-sm border-l border-white/10
                      overflow-y-auto flex flex-col
                      transition-transform duration-200 ease-out
-                     ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-      <div className="px-3 py-2.5 border-b border-white/10 shrink-0">
+                     ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+      <div className="px-3 py-2.5 border-b border-white/10 shrink-0 sticky top-0 bg-black/60 backdrop-blur-sm">
         <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Evidence</p>
         <p className="text-[8px] text-white/30 mt-0.5">
-          {snapshots.length} item{snapshots.length !== 1 ? 's' : ''}
+          {currentMediaSnapshots.length} item{currentMediaSnapshots.length !== 1 ? 's' : ''}
         </p>
       </div>
 
-      {snapshots.length === 0 ? (
+      {currentMediaSnapshots.length === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-2 p-4">
           <Camera size={20} className="text-white/20" />
           <p className="text-[9px] text-white/30 text-center leading-relaxed">
@@ -834,14 +850,16 @@ function EvidencePanel({ snapshots, isOpen, diveId, canEdit, videoRef, queryClie
           </p>
         </div>
       ) : (
-        <div className="p-1.5 flex flex-col gap-1.5 pb-16">
-          {snapshots.map(snap => (
+        <div className="p-2 pb-16 flex flex-col gap-2">
+          {currentMediaSnapshots.map(snap => (
             <EvidenceCard
               key={snap._id}
               snap={snap}
               canEdit={canEdit}
               diveId={diveId}
               queryClient={queryClient}
+              onClick={() => onSelectEvidence(snap)}
+              onDelete={() => setConfirmDelete(snap)}
               onSeek={(t) => {
                 const v = videoRef.current
                 if (v && t != null) { v.currentTime = t; v.play().catch(() => {}) }
@@ -883,11 +901,35 @@ export default function DiveDetailPage() {
   const [isEvidencePanelOpen, setIsEvidencePanelOpen] = useState(false)
   const [clipStart,           setClipStart]           = useState(null)
   const [isCapturingPhoto,    setIsCapturingPhoto]    = useState(false)
+  const [showMoreMenu,        setShowMoreMenu]        = useState(false)
+  const [showSyncEditor,      setShowSyncEditor]      = useState(false)
+  const [showFileInfo,        setShowFileInfo]        = useState(false)
+  const [downloadingMedia,    setDownloadingMedia]    = useState(false)
+  const [deletingMedia,       setDeletingMedia]       = useState(false)
+  const [confirmDelete,       setConfirmDelete]       = useState(null)
+  const [showToolbar,         setShowToolbar]         = useState(true)
+  const [showCenterPauseBtn,  setShowCenterPauseBtn]  = useState(false)
+  const [activeEvidence,      setActiveEvidence]      = useState(null)
+  const [dims,                setDims]                = useState(null)
+  const [showEvidenceDetections, setShowEvidenceDetections] = useState(false)
+  const [evidenceCurrentTime, setEvidenceCurrentTime] = useState(0)
+  const [evidenceVideoDuration, setEvidenceVideoDuration] = useState(0)
+  const [evidenceShowToolbar, setEvidenceShowToolbar] = useState(true)
+  const [evidenceShowCenterPauseBtn, setEvidenceShowCenterPauseBtn] = useState(false)
+  const [isEvidenceVideoPlaying, setIsEvidenceVideoPlaying] = useState(false)
+  const [evidenceAnalyzing, setEvidenceAnalyzing] = useState(false)
+  const [evidenceAnalyzeOpen, setEvidenceAnalyzeOpen] = useState(false)
+  const [evidenceAnalyzeModel, setEvidenceAnalyzeModel] = useState('yolov8n')
+  const [evidenceAnalyzeConf, setEvidenceAnalyzeConf] = useState(0.30)
 
-  const videoRef          = useRef(null)
+  const videoRef              = useRef(null)
+  const evidenceVideoRef      = useRef(null)
   const containerRef      = useRef(null)
   const chartContainerRef = useRef(null)
   const exportRef         = useRef(null)
+  const moreMenuRef       = useRef(null)
+  const toolbarTimeoutRef = useRef(null)
+  const evidenceToolbarTimeoutRef = useRef(null)
   const [syncTs,        setSyncTs]      = useState(null)
   const [showExport,    setShowExport]  = useState(false)
   const [isFullscreen,  setIsFullscreen] = useState(false)
@@ -896,6 +938,28 @@ export default function DiveDetailPage() {
     const onChange = () => setIsFullscreen(!!document.fullscreenElement)
     document.addEventListener('fullscreenchange', onChange)
     return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
+
+  // Auto-hide toolbar after 3 seconds without hover/movement in video container
+  const handleVideoMouseMove = useCallback(() => {
+    setShowToolbar(true)
+    setShowCenterPauseBtn(false)
+    if (toolbarTimeoutRef.current) clearTimeout(toolbarTimeoutRef.current)
+    toolbarTimeoutRef.current = setTimeout(() => {
+      setShowToolbar(false)
+    }, 3000)
+  }, [])
+
+  // Center pause button shows for 2s when clicked
+  const showCenterPauseBriefly = useCallback(() => {
+    setShowCenterPauseBtn(true)
+    setTimeout(() => setShowCenterPauseBtn(false), 2000)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (toolbarTimeoutRef.current) clearTimeout(toolbarTimeoutRef.current)
+    }
   }, [])
 
   const backTo    = location.state?.from || '/dives'
@@ -946,6 +1010,7 @@ export default function DiveDetailPage() {
   const stats     = sensorData?.stats     ?? null
   const anomalies = sensorData?.anomalies ?? []
   const media     = mediaList[selIdx] ?? null
+  const { data: mediaUrl, isLoading: isMediaUrlLoading } = useMediaUrl(media?._id)
   const hasNavData   = chartData.some(d => d.yaw   != null || d.pitch           != null || d.roll != null)
   const hasPowerData = chartData.some(d => d.voltage != null || d.battery_percent != null || d.humidity != null)
 
@@ -963,6 +1028,25 @@ export default function DiveDetailPage() {
   useEffect(() => {
     setSyncTs(null); setCurrentVideoTime(0); setSelectedClass(null); setVideoDuration(0)
   }, [media?._id])
+
+  // Reset evidence-related states when closing evidence viewer or switching media
+  useEffect(() => {
+    if (!activeEvidence) {
+      setEvidenceCurrentTime(0)
+      setEvidenceVideoDuration(0)
+      setEvidenceShowToolbar(true)
+      setEvidenceShowCenterPauseBtn(false)
+      setIsEvidenceVideoPlaying(false)
+      setShowEvidenceDetections(false)
+    }
+  }, [activeEvidence])
+
+  // Cleanup evidence toolbar timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (evidenceToolbarTimeoutRef.current) clearTimeout(evidenceToolbarTimeoutRef.current)
+    }
+  }, [])
 
   // Per-frame when ANY label has a frameTime — simple and handles unique-class-per-frame edge case
   const hasPerFrame = useMemo(() => {
@@ -1002,7 +1086,48 @@ export default function DiveDetailPage() {
     selectedClass ? activeLabs.filter(l => l.name === selectedClass) : activeLabs
   , [activeLabs, selectedClass])
 
+  // Evidence class groups - same as main video
+  const evidenceClassGroups = useMemo(() => {
+    if (!activeEvidence?.aiLabels?.length) return []
+    const map = {}
+    activeEvidence.aiLabels.forEach(l => {
+      if (!map[l.name]) map[l.name] = { name: l.name, count: 0, maxConf: 0 }
+      map[l.name].count++
+      if (l.confidence > map[l.name].maxConf) map[l.name].maxConf = l.confidence
+    })
+    return Object.values(map).sort((a, b) => b.maxConf - a.maxConf)
+  }, [activeEvidence?.aiLabels])
+
   const handleVideoEnded = useCallback(() => {}, [])
+
+  const handleEvidenceTimeUpdate = useCallback(() => {
+    if (!evidenceVideoRef.current || !activeEvidence) return
+    const v = evidenceVideoRef.current
+    const { startTime = 0, endTime } = activeEvidence
+
+    // Update the current time display (relative to clip start)
+    setEvidenceCurrentTime(Math.max(0, v.currentTime - startTime))
+
+    // Loop back to startTime when reaching endTime
+    if (endTime && v.currentTime >= endTime - 0.05) {
+      v.currentTime = startTime
+      v.play().catch(() => {})
+    }
+  }, [activeEvidence])
+
+  const handleEvidenceVideoMouseMove = useCallback(() => {
+    setEvidenceShowToolbar(true)
+    setEvidenceShowCenterPauseBtn(false)
+    if (evidenceToolbarTimeoutRef.current) clearTimeout(evidenceToolbarTimeoutRef.current)
+    evidenceToolbarTimeoutRef.current = setTimeout(() => {
+      setEvidenceShowToolbar(false)
+    }, 3000)
+  }, [])
+
+  const showEvidenceCenterPauseBriefly = useCallback(() => {
+    setEvidenceShowCenterPauseBtn(true)
+    setTimeout(() => setEvidenceShowCenterPauseBtn(false), 2000)
+  }, [])
 
   const handleLoadedMetadata = useCallback((e) => {
     setVideoDuration(e.target.duration || 0)
@@ -1019,43 +1144,52 @@ export default function DiveDetailPage() {
     if (video.duration && video.duration !== videoDuration) setVideoDuration(video.duration)
   }, [media?.recordedAt, videoDuration])
 
-  // Capture current video frame + bbox overlay → POST /snapshots
+  // Capture current video frame → POST /snapshots (backend extracts frame from S3 video)
   const capturePhoto = useCallback(async () => {
     const video = videoRef.current
     if (!video || !media || resolveType(media) !== 'video') return
     setIsCapturingPhoto(true)
     try {
-      const w = video.videoWidth  || 640
-      const h = video.videoHeight || 360
-      const canvas = document.createElement('canvas')
-      canvas.width = w; canvas.height = h
-      const ctx = canvas.getContext('2d')
-      ctx.drawImage(video, 0, 0, w, h)
-      // Burn visible bbox overlay into the frame
-      if (showDetections && visibleLabs.length > 0) {
-        visibleLabs.filter(l => l.bbox).forEach(l => {
-          const { x1, y1, x2, y2 } = l.bbox
-          const bx = x1 * w, by = y1 * h, bw = (x2 - x1) * w, bh = (y2 - y1) * h
-          const color = l.confidence > 0.8 ? '#60a5fa' : '#fbbf24'
-          const sw    = Math.max(w * 0.003, 2)
-          const fs    = Math.max(h * 0.028, 12)
-          ctx.strokeStyle = color; ctx.lineWidth = sw
-          ctx.strokeRect(bx, by, bw, bh)
-          const label = `${l.name} ${Math.round(l.confidence * 100)}%`
-          ctx.font = `bold ${fs}px system-ui,sans-serif`
-          const lw = ctx.measureText(label).width + 8
-          ctx.fillStyle = color
-          ctx.fillRect(bx, Math.max(0, by - fs * 1.6), lw, fs * 1.6)
-          ctx.fillStyle = 'black'
-          ctx.fillText(label, bx + 4, Math.max(fs * 1.25, by - fs * 0.35))
-        })
+      // Try to export canvas, but handle CORS error gracefully
+      let dataUrl = null
+      try {
+        const w = video.videoWidth  || 640
+        const h = video.videoHeight || 360
+        const canvas = document.createElement('canvas')
+        canvas.width = w; canvas.height = h
+        const ctx = canvas.getContext('2d')
+        ctx.drawImage(video, 0, 0, w, h)
+        // Burn visible bbox overlay into the frame
+        if (showDetections && visibleLabs.length > 0) {
+          visibleLabs.filter(l => l.bbox).forEach(l => {
+            const { x1, y1, x2, y2 } = l.bbox
+            const bx = x1 * w, by = y1 * h, bw = (x2 - x1) * w, bh = (y2 - y1) * h
+            const color = l.confidence > 0.8 ? '#60a5fa' : '#fbbf24'
+            const sw    = Math.max(w * 0.003, 2)
+            const fs    = Math.max(h * 0.028, 12)
+            ctx.strokeStyle = color; ctx.lineWidth = sw
+            ctx.strokeRect(bx, by, bw, bh)
+            const label = `${l.name} ${Math.round(l.confidence * 100)}%`
+            ctx.font = `bold ${fs}px system-ui,sans-serif`
+            const lw = ctx.measureText(label).width + 8
+            ctx.fillStyle = color
+            ctx.fillRect(bx, Math.max(0, by - fs * 1.6), lw, fs * 1.6)
+            ctx.fillStyle = 'black'
+            ctx.fillText(label, bx + 4, Math.max(fs * 1.25, by - fs * 0.35))
+          })
+        }
+        dataUrl = canvas.toDataURL('image/png')
+      } catch (corsErr) {
+        // Canvas is tainted due to CORS — backend will extract frame instead
+        console.warn('Canvas export blocked by CORS (S3 video) — backend will extract frame')
       }
+
       await api.post('/snapshots', {
         type: 'photo',
         diveId: id,
         parentMediaId: media._id,
         imageTime: video.currentTime,
-        dataUrl: canvas.toDataURL('image/png'),
+        dataUrl, // May be null if canvas is tainted
       })
       await queryClient.invalidateQueries({ queryKey: ['snapshots', id] })
       setIsEvidencePanelOpen(true)
@@ -1074,17 +1208,27 @@ export default function DiveDetailPage() {
       const endTime   = video.currentTime
       setClipStart(null)
       if (endTime <= startTime) return
-      const w = video.videoWidth || 640, h = video.videoHeight || 360
-      const canvas = document.createElement('canvas')
-      canvas.width = w; canvas.height = h
-      canvas.getContext('2d').drawImage(video, 0, 0, w, h)
+
+      // Try to export canvas, but handle CORS error gracefully
+      let dataUrl = null
+      try {
+        const w = video.videoWidth || 640, h = video.videoHeight || 360
+        const canvas = document.createElement('canvas')
+        canvas.width = w; canvas.height = h
+        canvas.getContext('2d').drawImage(video, 0, 0, w, h)
+        dataUrl = canvas.toDataURL('image/png')
+      } catch (corsErr) {
+        // Canvas is tainted due to CORS — backend will extract thumbnail instead
+        console.warn('Canvas export blocked by CORS (S3 video) — backend will extract thumbnail')
+      }
+
       try {
         await api.post('/snapshots', {
           type: 'clip',
           diveId: id,
           parentMediaId: media._id,
           startTime, endTime,
-          dataUrl: canvas.toDataURL('image/png'),
+          dataUrl, // May be null if canvas is tainted
         })
         await queryClient.invalidateQueries({ queryKey: ['snapshots', id] })
         setIsEvidencePanelOpen(true)
@@ -1113,6 +1257,17 @@ export default function DiveDetailPage() {
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
+
+  // Close menu dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target)) setShowMoreMenu(false)
+    }
+    if (showMoreMenu) {
+      document.addEventListener('mousedown', handler)
+      return () => document.removeEventListener('mousedown', handler)
+    }
+  }, [showMoreMenu])
 
   const exportCsv = () => {
     if (!chartData.length) return
@@ -1148,6 +1303,85 @@ export default function DiveDetailPage() {
     }
     img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(new XMLSerializer().serializeToString(svgEl))}`
   }
+
+  const handleDownloadMedia = async () => {
+    if (!media || !downloadingMedia) return
+    setDownloadingMedia(true)
+    try {
+      const url = media.url
+      if (!url) return
+      const a = document.createElement('a')
+      a.href = url
+      a.download = media.originalName || 'download'
+      a.click()
+    } finally {
+      setDownloadingMedia(false)
+      setShowMoreMenu(false)
+    }
+  }
+
+  const handleDeleteMedia = async (mediaId) => {
+    const idToDelete = mediaId || confirmDelete?._id
+    if (!idToDelete) return
+    setDeletingMedia(true)
+    try {
+      await api.delete(`/media/${idToDelete}`)
+      queryClient.invalidateQueries({ queryKey: ['media', id] })
+      setShowMoreMenu(false)
+      setConfirmDelete(null)
+    } catch (err) {
+      console.error('Delete failed:', err)
+    } finally {
+      setDeletingMedia(false)
+    }
+  }
+
+  // Evidence video handlers
+  const handleAnalyzeEvidence = useCallback(async () => {
+    if (!activeEvidence || !activeEvidence._id || evidenceAnalyzing) return
+    setEvidenceAnalyzing(true)
+    try {
+      await api.post(`/snapshots/${activeEvidence._id}/analyze`, {
+        model: evidenceAnalyzeModel,
+        confidence: evidenceAnalyzeConf
+      })
+      queryClient.invalidateQueries({ queryKey: ['snapshots', id] })
+      setEvidenceAnalyzeOpen(false)
+    } catch (err) {
+      console.error('Evidence analysis failed:', err)
+    } finally {
+      setEvidenceAnalyzing(false)
+    }
+  }, [activeEvidence, id, queryClient, evidenceAnalyzeModel, evidenceAnalyzeConf])
+
+  const handleDownloadEvidencePhoto = useCallback(async () => {
+    if (!activeEvidence || activeEvidence.type !== 'photo') return
+    try {
+      // Use backend endpoint to get presigned URL
+      const result = await api.get(`/snapshots/${activeEvidence._id}/download-url`)
+      const { url, filename } = result.data
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      a.click()
+    } catch (err) {
+      console.error('Download failed:', err)
+    }
+  }, [activeEvidence])
+
+  const handleDownloadEvidenceClip = useCallback(async () => {
+    if (!activeEvidence || activeEvidence.type !== 'clip') return
+    try {
+      // Use backend endpoint that extracts clip from parent video with FFmpeg
+      const url = `/api/v1/snapshots/${activeEvidence._id}/download-clip`
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `clip-${String(activeEvidence._id).slice(-6)}.mp4`
+      a.click()
+    } catch (err) {
+      console.error('Download failed:', err)
+    }
+  }, [activeEvidence])
 
   // ── loading ──
   if (isLoading) return (
@@ -1308,99 +1542,391 @@ export default function DiveDetailPage() {
 
         {/* ─── CENTER COLUMN ───────────────────────────────────────────────── */}
         {/* bg-black intentional: video player is always dark regardless of app theme */}
-        <div ref={containerRef} className="group flex-1 min-h-0 bg-black rounded-xl overflow-hidden relative flex items-center justify-center">
+        <div ref={containerRef} className="group flex-1 min-h-0 bg-black rounded-xl overflow-hidden relative flex items-center justify-center"
+          onMouseMove={handleVideoMouseMove}
+          onMouseEnter={handleVideoMouseMove}>
 
           <MainMedia media={media} videoRef={videoRef} containerRef={containerRef}
             activeLabs={visibleLabs}
             onEnded={handleVideoEnded} onTimeUpdate={handleTimeUpdate}
-            onPlay={() => setIsVideoPlaying(true)}
-            onPause={() => setIsVideoPlaying(false)}
+            onPlay={() => { setIsVideoPlaying(true); setShowCenterPauseBtn(false) }}
+            onPause={() => { setIsVideoPlaying(false); setShowCenterPauseBtn(true) }}
             onLoadedMetadata={handleLoadedMetadata}
             showDetections={showDetections} />
 
-          {/* Top gradient overlay — hidden until hover, then reveals filename + buttons */}
-          {media && (
-            <div className="absolute top-0 inset-x-0 z-20 flex items-center justify-between
-                            px-3 py-2.5 pointer-events-none
-                            bg-gradient-to-b from-black/60 to-transparent
-                            opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-              <span className="text-[11px] text-white/55 truncate max-w-[140px]">
-                {media.originalName}
-              </span>
-              <div className="flex items-center gap-1.5">
-                {media?.analysisStatus === 'done' && (
-                  <button
-                    onClick={() => setShowDetections(v => !v)}
-                    className={`pointer-events-auto flex items-center gap-1.5 px-2.5 py-1.5
-                               text-[11px] font-bold rounded-full transition-colors select-none
-                               backdrop-blur-sm border shadow-lg ${
-                      showDetections
-                        ? 'bg-blue-500/90 border-blue-400/50 text-white'
-                        : 'bg-black/50 border-white/20 text-white hover:bg-black/70'
-                    }`}>
-                    {showDetections ? <EyeOff size={11} /> : <Eye size={11} />}
-                    {showDetections ? 'Hide' : `Detect${media.labels?.length ? ` · ${media.labels.length > 99 ? '99+' : media.labels.length}` : ''}`}
-                  </button>
-                )}
-                <AIAnalyzePopover media={media} diveId={id} canUse={canUpload}
-                  portalTarget={isFullscreen ? containerRef.current : document.body} />
-
-                {/* Photo capture */}
-                {canUpload && media && resolveType(media) === 'video' && (
-                  <button onClick={capturePhoto} disabled={isCapturingPhoto}
-                    title="Capture current frame as evidence photo"
-                    className={`pointer-events-auto flex items-center gap-1 px-2.5 py-1.5
-                               text-[11px] font-bold rounded-full transition-colors select-none
-                               backdrop-blur-sm border shadow-lg
-                               ${isCapturingPhoto
-                                 ? 'bg-black/50 border-white/20 text-white/40 cursor-wait'
-                                 : 'bg-black/50 border-white/20 text-white hover:bg-white/15'}`}>
-                    {isCapturingPhoto
-                      ? <Loader size={11} className="animate-spin" />
-                      : <Camera size={11} />}
-                  </button>
-                )}
-
-                {/* Clip record */}
-                {canUpload && media && resolveType(media) === 'video' && (
-                  <button onClick={toggleClipRecording}
-                    title={clipStart === null ? 'Mark clip start' : `Recording from ${fmtVideoTime(clipStart)} — click to stop`}
-                    className={`pointer-events-auto flex items-center gap-1 px-2.5 py-1.5
-                               text-[11px] font-bold rounded-full transition-colors select-none
-                               backdrop-blur-sm border shadow-lg
-                               ${clipStart !== null
-                                 ? 'bg-red-500/90 border-red-400/50 text-white animate-pulse'
-                                 : 'bg-black/50 border-white/20 text-white hover:bg-white/15'}`}>
-                    {clipStart !== null
-                      ? <><Square size={11} fill="currentColor" /> {fmtVideoTime(clipStart)}</>
-                      : <Clapperboard size={11} />}
-                  </button>
-                )}
-
-                {/* Evidence panel toggle */}
-                <button onClick={() => setIsEvidencePanelOpen(v => !v)}
-                  title="Evidence panel"
-                  className={`pointer-events-auto flex items-center gap-1 px-2.5 py-1.5
-                             text-[11px] font-bold rounded-full transition-colors select-none
-                             backdrop-blur-sm border shadow-lg
-                             ${isEvidencePanelOpen
-                               ? 'bg-emerald-500/90 border-emerald-400/50 text-white'
-                               : 'bg-black/50 border-white/20 text-white hover:bg-white/15'}`}>
-                  <Images size={11} />
-                  {snapshots.length > 0 && <span>{snapshots.length}</span>}
+          {/* Evidence viewer overlay — displays on top of MainMedia when active */}
+          {activeEvidence && activeEvidence.parentMediaId === media?._id && (
+            <div className="absolute inset-0 z-30 bg-black rounded-xl overflow-hidden flex flex-col">
+              {/* Header with action buttons */}
+              <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 shrink-0 bg-black/60">
+                {/* Left: Back + Timestamp */}
+                <button onClick={() => { setActiveEvidence(null); setShowEvidenceDetections(false) }}
+                  className="flex items-center gap-1.5 text-[11px] font-bold text-white/80 hover:text-white transition-colors">
+                  <ArrowLeft size={13} />
+                  <span>Back</span>
+                  <span className="text-white/40 mx-1">|</span>
+                  <span className="text-white/70 font-mono text-[10px]">
+                    {activeEvidence.type === 'clip'
+                      ? `${fmtVideoTime(activeEvidence.startTime)} → ${fmtVideoTime(activeEvidence.endTime)}`
+                      : fmtVideoTime(activeEvidence.imageTime)
+                    }
+                  </span>
                 </button>
 
+                {/* Right: Action buttons */}
+                <div className="flex items-center gap-2">
+                  {/* Show/Hide Detections */}
+                  {activeEvidence.aiLabels?.length > 0 && (
+                    <button onClick={() => setShowEvidenceDetections(v => !v)}
+                      title={showEvidenceDetections ? 'Hide detections' : 'Show detections'}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold transition-colors ${
+                        showEvidenceDetections
+                          ? 'bg-blue-500/90 text-white'
+                          : 'bg-white/10 text-white/70 hover:text-white'
+                      }`}>
+                      {showEvidenceDetections ? <EyeOff size={11} /> : <Eye size={11} />}
+                      <span className="hidden sm:inline">{showEvidenceDetections ? 'Hide' : 'Show'}</span>
+                    </button>
+                  )}
+
+                  {/* Analyze button with popover */}
+                  {canUpload && (
+                    <div className="relative">
+                      <button onClick={() => setEvidenceAnalyzeOpen(!evidenceAnalyzeOpen)}
+                        disabled={evidenceAnalyzing}
+                        className={`flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold
+                                   transition-colors ${
+                          evidenceAnalyzing
+                            ? 'bg-blue-500/60 text-white'
+                            : evidenceAnalyzeOpen
+                              ? 'bg-blue-500/90 text-white'
+                              : 'bg-white/10 text-white/70 hover:text-white hover:bg-white/15'
+                        }`}>
+                        {evidenceAnalyzing ? <Loader size={11} className="animate-spin" /> : <Sparkles size={11} />}
+                        <span className="hidden sm:inline">{evidenceAnalyzing ? 'Analyzing' : 'Analyze'}</span>
+                      </button>
+
+                      {/* Analyze popover */}
+                      {evidenceAnalyzeOpen && (
+                        <div className="absolute right-0 top-full mt-2 w-60 bg-slate-900 border border-slate-700 rounded-lg shadow-lg p-3 z-50 text-white text-[10px]">
+                          <div className="space-y-2">
+                            {/* Model selector */}
+                            <div>
+                              <p className="font-bold text-white/70 mb-1.5">Model</p>
+                              <select value={evidenceAnalyzeModel} onChange={e => setEvidenceAnalyzeModel(e.target.value)}
+                                className="w-full px-2 py-1 rounded bg-slate-800 border border-slate-600 text-white text-[9px] focus:outline-none">
+                                <option value="yolov8n">YOLOv8n General</option>
+                                <option value="fish1">Fish Detector</option>
+                                <option value="trash">Trash Detector</option>
+                              </select>
+                            </div>
+
+                            {/* Confidence slider */}
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <p className="font-bold text-white/70">Confidence</p>
+                                <span className="font-mono">{(evidenceAnalyzeConf * 100).toFixed(0)}%</span>
+                              </div>
+                              <input type="range" min="0.1" max="0.9" step="0.05"
+                                value={evidenceAnalyzeConf}
+                                onChange={e => setEvidenceAnalyzeConf(parseFloat(e.target.value))}
+                                className="w-full h-1 bg-slate-700 rounded-full appearance-none cursor-pointer" />
+                            </div>
+
+                            {/* Run button */}
+                            <button onClick={handleAnalyzeEvidence} disabled={evidenceAnalyzing}
+                              className="w-full mt-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded text-white font-bold text-[10px] transition-colors">
+                              {evidenceAnalyzing ? 'Analyzing...' : 'Run Analysis'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Download buttons */}
+                  {activeEvidence.type === 'photo' && (
+                    <button onClick={handleDownloadEvidencePhoto}
+                      className="flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold
+                                 bg-white/10 text-white/70 hover:text-white hover:bg-white/15 transition-colors">
+                      <Download size={11} />
+                      <span className="hidden sm:inline">PNG</span>
+                    </button>
+                  )}
+
+                  {activeEvidence.type === 'clip' && (
+                    <button onClick={handleDownloadEvidenceClip}
+                      className="flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold
+                                 bg-white/10 text-white/70 hover:text-white hover:bg-white/15 transition-colors">
+                      <Download size={11} />
+                      <span className="hidden sm:inline">MP4</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 min-h-0 flex items-center justify-center relative group"
+                onMouseMove={handleEvidenceVideoMouseMove}
+                onMouseEnter={handleEvidenceVideoMouseMove}>
+                {isMediaUrlLoading ? (
+                  <div className="flex items-center justify-center w-full h-full">
+                    <div className="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin" />
+                  </div>
+                ) : activeEvidence.type === 'clip' && media && mediaUrl ? (
+                  <div className="relative w-full h-full cursor-pointer"
+                    onClick={() => {
+                      const v = evidenceVideoRef.current
+                      if (!v) return
+                      v.paused ? v.play().catch(() => {}) : v.pause()
+                    }}>
+                    <video ref={evidenceVideoRef} src={mediaUrl}
+                      className="w-full h-full object-contain"
+                      onLoadedMetadata={e => {
+                        const { startTime = 0, endTime } = activeEvidence
+                        setDims({ w: e.target.videoWidth, h: e.target.videoHeight })
+                        const clipDuration = (endTime || e.target.duration) - startTime
+                        setEvidenceVideoDuration(clipDuration)
+                        e.target.currentTime = startTime
+                      }}
+                      onTimeUpdate={handleEvidenceTimeUpdate}
+                      onPlay={() => setIsEvidenceVideoPlaying(true)}
+                      onPause={() => setIsEvidenceVideoPlaying(false)} />
+                    {showEvidenceDetections && <DetectionSVG labels={activeEvidence.aiLabels || []} dims={dims} />}
+
+                    {/* Evidence video center pause button */}
+                    {evidenceShowCenterPauseBtn && (
+                      <button onClick={e => {
+                        e.stopPropagation()
+                        const v = evidenceVideoRef.current
+                        if (!v) return
+                        if (v.paused) { v.play().catch(() => {}) }
+                        else { v.pause(); showEvidenceCenterPauseBriefly() }
+                      }}
+                        className="absolute z-30 p-4 rounded-full bg-white/20 hover:bg-white/30
+                                   transition-opacity opacity-100
+                                   backdrop-blur-sm border border-white/20">
+                        {isEvidenceVideoPlaying ? <Pause size={24} className="text-white" /> : <Play size={24} className="text-white" />}
+                      </button>
+                    )}
+
+                    {/* Evidence video control bar — bottom gradient overlay */}
+                    {activeEvidence.type === 'clip' && (
+                      <div className={`absolute bottom-0 inset-x-0 z-20 flex flex-col gap-2
+                                      px-3 py-2.5
+                                      bg-gradient-to-t from-black/80 to-transparent
+                                      transition-opacity duration-200 ${evidenceShowToolbar ? 'opacity-100' : 'opacity-0'}`}>
+                        {/* Timeline */}
+                        <div className="flex items-center gap-2 text-[10px] text-white/70">
+                          <span className="font-mono min-w-[32px]">{fmtVideoTime(evidenceCurrentTime)}</span>
+                          <div className="flex-1 h-1 bg-white/20 rounded-full overflow-hidden group/timeline">
+                            <div className="h-full bg-blue-500 rounded-full"
+                              style={{ width: `${evidenceVideoDuration ? (evidenceCurrentTime / evidenceVideoDuration) * 100 : 0}%` }} />
+                          </div>
+                          <span className="font-mono">{fmtVideoTime(evidenceVideoDuration)}</span>
+                        </div>
+
+                        {/* Control buttons */}
+                        <div className="flex items-center justify-center gap-2">
+                          <button onClick={e => {
+                            e.stopPropagation()
+                            const v = evidenceVideoRef.current
+                            if (!v) return
+                            if (v.paused) { v.play().catch(() => {}) }
+                            else { v.pause(); showEvidenceCenterPauseBriefly() }
+                          }}
+                            className="p-1.5 text-white/70 hover:text-white rounded transition-colors">
+                            {isEvidenceVideoPlaying ? <Pause size={13} /> : <Play size={13} />}
+                          </button>
+                          <button onClick={e => {
+                            e.stopPropagation()
+                            const v = evidenceVideoRef.current
+                            if (v) v.muted = !v.muted
+                          }}
+                            className="p-1.5 text-white/70 hover:text-white rounded transition-colors">
+                            <Volume2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : activeEvidence.type === 'photo' ? (
+                  <div className="relative w-full h-full flex items-center justify-center">
+                    <img src={activeEvidence.imageUrl || activeEvidence.thumbnailUrl} alt=""
+                      className="max-w-full max-h-full object-contain"
+                      onLoad={e => setDims({ w: e.target.naturalWidth, h: e.target.naturalHeight })} />
+                    {showEvidenceDetections && <DetectionSVG labels={activeEvidence.aiLabels || []} dims={dims} />}
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center w-full h-full">
+                    <p className="text-white/40">Loading...</p>
+                  </div>
+                )}
+              </div>
+
+              {/* AI labels footer - class groups like main video */}
+              {evidenceClassGroups.length > 0 && (
+                <div className="px-3 py-2 border-t border-white/10 bg-black/60 shrink-0">
+                  <div className="flex flex-wrap gap-1.5">
+                    {evidenceClassGroups.map(g => {
+                      const isHigh = g.maxConf > 0.8
+                      return (
+                        <span key={g.name}
+                          className={`text-[10px] font-bold px-2 py-1 rounded leading-none
+                          ${isHigh ? 'bg-blue-500/90 text-white' : 'bg-amber-500/90 text-white'}`}>
+                          {g.name} ×{g.count} {Math.round(g.maxConf * 100)}%
+                        </span>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Center pause button — shows for 2s when clicked during playback */}
+          {media && resolveType(media) === 'video' && showCenterPauseBtn && (
+            <button onClick={() => {
+              const v = videoRef.current
+              if (!v) return
+              if (v.paused) { v.play().catch(() => {}) }
+              else { v.pause(); showCenterPauseBriefly() }
+            }}
+              className="absolute z-30 p-4 rounded-full bg-white/20 hover:bg-white/30
+                         transition-opacity opacity-100
+                         backdrop-blur-sm border border-white/20">
+              {isVideoPlaying ? <Pause size={24} className="text-white" /> : <Play size={24} className="text-white" />}
+            </button>
+          )}
+
+          {/* Top gradient overlay — hidden until hover, then reveals filename + buttons */}
+          {media && !activeEvidence && (
+            <div className={`absolute top-0 inset-x-0 z-20 flex items-center justify-between
+                            px-3 py-2.5
+                            bg-gradient-to-b from-black/60 to-transparent
+                            transition-opacity duration-200 ${showToolbar ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+              <span className="text-[11px] text-white/55 truncate max-w-[140px] pointer-events-none">
+                {media.originalName}
+              </span>
+              <div className="flex items-center gap-1 flex-wrap sm:flex-nowrap pointer-events-auto">
+                {/* Group 1: Detect + Analyze */}
+                <div className="flex items-center gap-0.5 bg-black/50 border border-white/15 rounded-full px-2 py-1.5 backdrop-blur-sm">
+                  {media?.analysisStatus === 'done' && (
+                    <button onClick={() => setShowDetections(v => !v)}
+                      title={showDetections ? 'Hide detections' : 'Show detections'}
+                      className={`flex items-center gap-1 px-2 py-1.5 rounded-full text-[11px] font-bold transition-colors select-none ${
+                        showDetections
+                          ? 'bg-blue-500/90 text-white'
+                          : 'text-white/80 hover:text-white'
+                      }`}>
+                      {showDetections ? <EyeOff size={11} /> : <Eye size={11} />}
+                      <span className="hidden sm:inline">Detect</span>
+                    </button>
+                  )}
+                  <AIAnalyzePopover media={media} diveId={id} canUse={canUpload}
+                    portalTarget={isFullscreen ? containerRef.current : document.body} />
+                </div>
+
+                {/* Group 2: Photo + Clip + Evidence (video only) */}
+                {canUpload && media && resolveType(media) === 'video' && (
+                  <div className="flex items-center gap-0.5 bg-black/50 border border-white/15 rounded-full px-2 py-1.5 backdrop-blur-sm">
+                    <button onClick={capturePhoto} disabled={isCapturingPhoto}
+                      title="Capture photo"
+                      className={`p-1.5 rounded-full transition-colors ${
+                        isCapturingPhoto
+                          ? 'text-white/40 cursor-wait'
+                          : 'text-white/80 hover:text-white'
+                      }`}>
+                      {isCapturingPhoto ? <Loader size={11} className="animate-spin" /> : <Camera size={11} />}
+                    </button>
+                    <button onClick={toggleClipRecording}
+                      title={clipStart === null ? 'Record clip' : 'Stop recording'}
+                      className={`flex items-center gap-0.5 px-1.5 py-1.5 rounded-full text-[11px] font-bold transition-colors ${
+                        clipStart !== null
+                          ? 'bg-red-500/90 text-white animate-pulse'
+                          : 'text-white/80 hover:text-white'
+                      }`}>
+                      {clipStart !== null ? (
+                        <><Square size={10} fill="currentColor" /><span className="text-[10px]">{fmtVideoTime(Math.max(0, currentVideoTime - clipStart))}</span></>
+                      ) : (
+                        <Clapperboard size={11} />
+                      )}
+                    </button>
+                    <button onClick={() => { const next = !isEvidencePanelOpen; setIsEvidencePanelOpen(next); if (next) setIsPlaylistOpen(false) }}
+                      title={`Evidence (${snapshots.length})`}
+                      className={`flex items-center gap-0.5 px-1.5 py-1.5 rounded-full text-[11px] font-bold transition-colors ${
+                        isEvidencePanelOpen
+                          ? 'bg-emerald-500/90 text-white'
+                          : 'text-white/80 hover:text-white'
+                      }`}>
+                      <Images size={11} />
+                      {snapshots.length > 0 && <span className="text-[10px]">{snapshots.length}</span>}
+                    </button>
+                  </div>
+                )}
+
+                {/* Group 3: Playlist */}
                 {mediaList.length > 1 && (
-                  <button
-                    onClick={() => setIsPlaylistOpen(v => !v)}
-                    className="pointer-events-auto flex items-center gap-1.5 px-2.5 py-1.5
-                               text-[11px] font-semibold rounded-full transition-colors select-none
-                               backdrop-blur-sm border border-white/20
-                               bg-white/10 hover:bg-white/20 text-white">
+                  <button onClick={() => { const next = !isPlaylistOpen; setIsPlaylistOpen(next); if (next) setIsEvidencePanelOpen(false) }}
+                    title={isPlaylistOpen ? 'Hide playlist' : `Playlist (${mediaList.length})`}
+                    className={`flex items-center gap-1 px-2 py-1.5 rounded-full text-[11px] font-bold
+                               transition-colors select-none backdrop-blur-sm border
+                               ${isPlaylistOpen
+                                 ? 'bg-slate-600/80 border-slate-500 text-white'
+                                 : 'bg-black/50 border-white/15 text-white/80 hover:text-white'}`}>
                     <Film size={11} />
-                    <span>{isPlaylistOpen ? 'Hide' : mediaList.length}</span>
+                    <span className="hidden sm:inline">{isPlaylistOpen ? 'Hide' : mediaList.length}</span>
                   </button>
                 )}
+
+                {/* Group 4: Menu */}
+                <div ref={moreMenuRef} className="relative">
+                  <button onClick={() => setShowMoreMenu(v => !v)}
+                    title="More options"
+                    className={`flex items-center justify-center p-1.5 rounded-full text-[11px] font-bold
+                               transition-colors select-none backdrop-blur-sm border
+                               ${showMoreMenu
+                                 ? 'bg-slate-600/80 border-slate-500 text-white'
+                                 : 'bg-black/50 border-white/15 text-white/80 hover:text-white'}`}>
+                    <MoreVertical size={13} />
+                  </button>
+                  {showMoreMenu && (
+                    <div className="absolute top-full right-0 mt-1.5 w-40 z-50
+                                    bg-slate-900 border border-slate-700 rounded-lg shadow-lg overflow-hidden">
+                      <button onClick={handleDownloadMedia} disabled={downloadingMedia}
+                        className="w-full px-3 py-2 text-xs text-slate-300 hover:bg-slate-800
+                                   transition-colors disabled:opacity-50 flex items-center gap-2 text-left">
+                        {downloadingMedia ? <Loader size={10} className="animate-spin" /> : <Download size={10} />}
+                        Download
+                      </button>
+                      {media && resolveType(media) === 'video' && canUpload && (
+                        <button onClick={() => setShowSyncEditor(v => !v)}
+                          className="w-full px-3 py-2 text-xs text-slate-300 hover:bg-slate-800
+                                     transition-colors flex items-center gap-2 text-left">
+                          <Clock size={10} />
+                          Sync time
+                        </button>
+                      )}
+                      <button onClick={() => setShowFileInfo(v => !v)}
+                        className="w-full px-3 py-2 text-xs text-slate-300 hover:bg-slate-800
+                                   transition-colors flex items-center gap-2 text-left">
+                        <Info size={10} />
+                        File info
+                      </button>
+                      {canUpload && (
+                        <>
+                          <div className="border-t border-slate-700" />
+                          <button onClick={() => setConfirmDelete(media)}
+                            className="w-full px-3 py-2 text-xs text-rose-400 hover:bg-rose-500/20
+                                       transition-colors flex items-center gap-2 text-left">
+                            <Trash2 size={10} />
+                            Delete
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -1479,7 +2005,7 @@ export default function DiveDetailPage() {
               queryClient={queryClient} />
           )}
 
-          {/* Evidence panel ─ slides in from left, independent of playlist */}
+          {/* Evidence panel ─ slides in from right, independent of playlist */}
           <EvidencePanel
             snapshots={snapshots}
             isOpen={isEvidencePanelOpen}
@@ -1487,6 +2013,10 @@ export default function DiveDetailPage() {
             canEdit={canUpload}
             videoRef={videoRef}
             queryClient={queryClient}
+            currentMediaId={media?._id}
+            onSelectEvidence={setActiveEvidence}
+            confirmDelete={confirmDelete}
+            setConfirmDelete={setConfirmDelete}
           />
 
           {/* Playlist overlay ─ slides in from right as an absolute panel */}
@@ -1503,24 +2033,19 @@ export default function DiveDetailPage() {
                 </div>
               ) : (
                 mediaList.map((m, i) => (
-                  <div key={m._id} className="flex flex-col gap-1">
-                    <ThumbVertical
-                      media={m}
-                      active={i === selIdx}
-                      onClick={() => setSelIdx(i)}
-                      label={`${resolveType(m) === 'video' ? 'Video' : 'Photo'} ${i + 1}`} />
-                    {/* recordedAt editor shown for the selected video */}
-                    {i === selIdx && resolveType(m) === 'video' && (
-                      <RecordedAtEditor media={m} diveId={id} />
-                    )}
-                  </div>
+                  <ThumbVertical
+                    key={m._id}
+                    media={m}
+                    active={i === selIdx}
+                    onClick={() => setSelIdx(i)}
+                    label={`${resolveType(m) === 'video' ? 'Video' : 'Photo'} ${i + 1}`} />
                 ))
               )}
             </div>
           </div>
 
           {/* Custom video controls — unified with all overlays under same group-hover */}
-          {media && resolveType(media) === 'video' && (
+          {media && resolveType(media) === 'video' && !activeEvidence && (
             <CustomVideoControls
               videoRef={videoRef}
               isPlaying={isVideoPlaying}
@@ -1868,6 +2393,35 @@ export default function DiveDetailPage() {
         <SensorUpload dive={dive} tripId={dive.trip?._id} tripGpsLocation={null}
           onClose={() => setShowSensorUp(false)} />
       )}
+      {confirmDelete && confirmDelete.originalName && (
+        <ConfirmDialog
+          title="Delete Media"
+          message={`Are you sure you want to delete "${confirmDelete.originalName}"?`}
+          loading={deletingMedia}
+          onConfirm={() => handleDeleteMedia(confirmDelete._id)}
+          onCancel={() => setConfirmDelete(null)} />
+      )}
+
+      {confirmDelete && confirmDelete.type && (
+        <ConfirmDialog
+          title={`Delete ${confirmDelete.type === 'clip' ? 'Clip' : 'Photo'}`}
+          message={`Are you sure you want to delete this ${confirmDelete.type === 'clip' ? 'clip' : 'photo'}?`}
+          loading={deletingMedia}
+          onConfirm={async () => {
+            setDeletingMedia(true)
+            try {
+              await api.delete(`/snapshots/${confirmDelete._id}`)
+              queryClient.invalidateQueries({ queryKey: ['snapshots', id] })
+              setConfirmDelete(null)
+            } catch {
+              // error
+            } finally {
+              setDeletingMedia(false)
+            }
+          }}
+          onCancel={() => setConfirmDelete(null)} />
+      )}
+
     </div>
   )
 }

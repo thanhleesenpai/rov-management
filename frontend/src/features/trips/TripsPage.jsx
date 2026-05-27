@@ -129,14 +129,16 @@ export default function TripsPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted-foreground shrink-0">Start date:</span>
-          <input type="date" value={fromDate}
-            onChange={e => { setFromDate(e.target.value); resetPage() }}
-            className="border border-input bg-background text-foreground rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-          <span className="text-xs text-muted-foreground">→</span>
-          <input type="date" value={toDate} min={fromDate}
-            onChange={e => { setToDate(e.target.value); resetPage() }}
-            className="border border-input bg-background text-foreground rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+          <div className="flex items-center gap-2 flex-1 sm:flex-none">
+            <span className="hidden sm:inline text-xs text-muted-foreground shrink-0">Start date:</span>
+            <input type="date" value={fromDate}
+              onChange={e => { setFromDate(e.target.value); resetPage() }}
+              className="border border-input bg-background text-foreground rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring flex-1 sm:flex-none min-w-0" />
+            <span className="text-xs text-muted-foreground shrink-0">→</span>
+            <input type="date" value={toDate} min={fromDate}
+              onChange={e => { setToDate(e.target.value); resetPage() }}
+              className="border border-input bg-background text-foreground rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring flex-1 sm:flex-none min-w-0" />
+          </div>
           {hasActiveFilter && (
             <button onClick={resetFilters}
               className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 dark:bg-red-900/20 dark:border-red-800 dark:hover:bg-red-900/30 rounded-lg transition-colors">

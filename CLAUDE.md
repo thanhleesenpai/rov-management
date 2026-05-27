@@ -648,106 +648,82 @@ MODEL_META = {
 
 ---
 
-### TASK 6b-3 — Evidence System (Photo Snapshot + Video Clip)
+### TASK 6b-3 — Evidence System (Photo Snapshot + Video Clip) ✅
 **Mô tả:** Operator đang xem video, phát hiện vật thể quan trọng → chụp ảnh frame hoặc đánh dấu đoạn clip làm **bằng chứng (evidence)**. Có thể gọi YOLO phân tích riêng từng evidence — tránh phải analyze toàn bộ video dài. Evidence lưu collection riêng, không lẫn vào Media playlist.
 
 **Hai loại evidence:**
 | Loại | Lưu gì | YOLO | Xem lại |
 |------|---------|------|---------|
-| **Photo** | Canvas PNG → S3 (`thumbnailS3Key`) | predict trên PNG | Lightbox ảnh + bbox overlay |
-| **Clip** | `{ startTime, endTime }` + thumbnail PNG | track trên video gốc, chỉ frames trong range | Seek parent video đến startTime, auto-stop ở endTime |
+| **Photo** | Canvas PNG → S3 (`imageS3Key`) | predict trên PNG | EvidenceViewer inline overlay + bbox |
+| **Clip** | `{ startTime, endTime }` + thumbnail PNG (`thumbnailS3Key`) | track trên video gốc, chỉ frames trong range | EvidenceViewer: video constrained [t0,t1] + bbox |
 
-**Schema `Snapshot` collection:**
+**Schema `Snapshot` collection (thực tế):**
 ```
 type: 'photo' | 'clip'
 dive: ObjectId ref Dive
 trip: ObjectId ref Trip
 createdBy: ObjectId ref User
-parentVideoId: ObjectId ref Media   ← video đang xem lúc tạo
-startTime: Number                    ← giây trong video (photo: frame; clip: start)
-endTime: Number                      ← null cho photo, giây kết thúc cho clip
-thumbnailS3Key: String               ← PNG nhỏ hiển thị trong panel (cả 2 loại)
+parentMediaId: ObjectId ref Media   ← video đang xem lúc tạo (KHÔNG phải parentVideoId)
+imageS3Key: String                   ← photo: full-size PNG; null cho clip
+imageTime: Number                    ← giây trong video (chỉ cho photo)
+startTime: Number                    ← giây bắt đầu (clip); null cho photo
+endTime: Number                      ← giây kết thúc (clip); null cho photo
+thumbnailS3Key: String               ← clip thumbnail PNG; null cho photo
 aiLabels: [{ name, confidence, bbox, frameTime, trackId }]
 analysisStatus: 'idle' | 'pending' | 'done' | 'failed'
-note: String                         ← ghi chú tùy chọn
+analysisMeta: { model, confidence, analyzedAt }
+note: String
 ```
 Index: `{ dive: 1, createdAt: -1 }`
 
-**UI — Top overlay video (thêm 2 nút cạnh playlist toggle):**
+**UI thực tế — Top overlay video:**
 ```
-[filename]        [📷 Photo] [▶ Start Clip / ⏹ Stop] [🎞 N] [Evidence N]
+[filename]  [Detect/Hide] [Analyze⚙] [📷] [🎬] [Evidence N] [🎞 N/Hide]
 ```
-- Khi đang ghi clip: nút ⏹ Stop + counter nhỏ hiện thời gian đã chọn (ví dụ "0:15 → 0:28") + dấu chấm đỏ nhấp nháy
-- "Evidence N": pill badge với tổng số evidence của video hiện tại, click → mở Evidence Panel
+- Khi đang ghi clip: nút 🎬 chuyển đỏ + `animate-pulse` + hiện `fmtVideoTime(clipStart)` (start time)
+- Evidence N: pill badge click → mở EvidencePanel (mutually exclusive với playlist)
 
-**UI — Evidence Panel (drawer từ phải, độc lập playlist):**
-```
-┌────────────────────────────────┐
-│  Evidence (3)              [×] │
-├────────────────────────────────┤
-│  ┌──────────┐  ┌──────────┐   │
-│  │  [PNG]   │  │  [PNG]▶  │   │
-│  │  📷 0:12 │  │ 0:15–0:35│   │
-│  │  fish ×2 │  │ trash ×1 │   │
-│  │ [Analyze]│  │[Analyzing]│   │
-│  └──────────┘  └──────────┘   │
-├────────────────────────────────┤
-│  Empty state: "No evidence yet │
-│  — capture a photo or clip"    │
-└────────────────────────────────┘
-```
-- Grid 2 cột; thumbnail + loại icon (📷 / ▶) + timestamp + top 2 aiLabels nếu đã analyze
-- Clip card hiện duration (ví dụ "20s")
-- Nút **[Analyze]** trên mỗi card → gọi YOLO riêng cho evidence đó
-- Nút **[Analyze]** chuyển spinner khi `analysisStatus === 'pending'`
-- Hover card → nút ×  xóa (admin/operator)
-- Click photo card → lightbox PNG + bbox overlay
-- Click clip card → seek parent video đến `startTime`, autoplay đến `endTime` rồi pause
+**UI — Evidence Panel (single column, matches Playlist ThumbVertical style):**
+- Single column, `w-44`, `top-0 bottom-0`, `pt-[52px]` (tránh che button bar)
+- `ThumbVertical`-style thumbnail: `aspect-video`, `border-2`, bottom timestamp label
+- Top-left badge: `PHOTO` / `CLIP` (bg-white/15, không emoji)
+- Top-right badge: AI label count khi done (emerald), `err` khi failed
+- Hover actions: Sparkles (analyze), Download, X (delete)
+- Ghost X button `absolute top-[54px] right-1.5`
+- Click thumb → EvidenceViewer overlay (KHÔNG phải lightbox riêng)
 
-**Backend — subtasks:**
-1. Tạo `modules/snapshots/snapshot.model.js` + `snapshot.routes.js` + `snapshot.controller.js`
-2. `POST /snapshots` — nhận `{ type, diveId, tripId, parentVideoId, startTime, endTime?, dataUrl (base64 PNG thumbnail) }`
-   - Upload thumbnail S3: `Buffer.from(dataUrl.split(',')[1], 'base64')` → `PutObjectCommand`
-   - Tạo doc, trả snapshot mới
-3. `GET /snapshots/dive/:diveId` — sort `startTime ASC`
-4. `POST /snapshots/:id/analyze` — enqueue Bull job `snapshot-analysis`:
-   - Photo: `{ snapshotId, type: 'photo', s3Url: thumbnailS3Url, model, confidence }`
-   - Clip: `{ snapshotId, type: 'clip', parentVideoUrl, startTime, endTime, model, confidence }`
-   - Set `analysisStatus: 'pending'`
-   - Trả 202
-5. Bull worker `snapshot.worker.js`:
-   - Photo → `POST yolo-service/detect { mediaUrl: thumbnailUrl, mediaType: 'image/png' }`
-   - Clip → `POST yolo-service/detect { mediaUrl: parentVideoUrl, mediaType: 'video/mp4', startTime, endTime }`
-   - Lưu `aiLabels`, set `analysisStatus: 'done'` → SSE push
-6. `DELETE /snapshots/:id` — xóa doc + S3 thumbnail
-7. Đăng ký route trong `app.js`
+**EvidenceViewer component (inline overlay z-30):**
+- Photo: hiện `<img thumbnailUrl>` + `DetectionSVG` với tất cả aiLabels
+- Clip: `<video>` với cùng presigned URL của parent media, constrained `[t0, t1]` qua `handleTimeUpdate`
+- `onPlay` handler: nếu `currentTime >= t1 - 0.05` → seek về `t0` (restart clip)
+- Controls: play/pause, seek bar (no transition-[width]), time display `elapsed/duration`, mute
+- Detect toggle (same style as main video), Back button → `setActiveEvidence(null)`
+- Khi EvidenceViewer active: `CustomVideoControls` ẩn, `MainMedia` click disabled
 
-**YOLO service — thay đổi cần thiết (thực hiện trong 6b-4):**
-- `DetectRequest` thêm `startTime: float = None`, `endTime: float = None`
-- `_detect_video`: nếu có range → skip frames ngoài `[startTime, endTime]`
-
-**Frontend — subtasks:**
-1. **Photo capture:** `ctx.drawImage(videoRef.current)` → nếu `showDetections` vẽ thêm bbox → `canvas.toDataURL('image/png')` → `POST /snapshots`
-2. **Clip capture:** "Start Clip" → lưu `clipStart = currentTime` → "Stop Clip" → thumbnail = canvas frame tại `clipStart` → `POST /snapshots { type: 'clip', startTime: clipStart, endTime: currentTime, dataUrl }`
-3. **Clip playback:** click card → `videoRef.current.currentTime = startTime` + `video.play()` → `ontimeupdate` kiểm tra nếu `currentTime >= endTime` → `video.pause()`
-4. **Evidence Panel:** query `GET /snapshots/dive/:diveId`, grid 2 cột, nút Analyze per card
-5. **Analyze per snapshot:** click [Analyze] → `POST /snapshots/:id/analyze` → SSE invalidate → labels hiện trên card
-6. Top overlay: thêm pill "Evidence N", nút 📷, nút ▶/⏹ với counter
+**Thay đổi so với kế hoạch ban đầu:**
+- `parentVideoId` → `parentMediaId` (tên field thực tế trong DB)
+- Photo lưu vào `imageS3Key` (full-size), không phải `thumbnailS3Key`
+- Evidence Panel: single column (không phải grid 2 cột)
+- "Lightbox" → `EvidenceViewer` inline overlay (đầy đủ hơn: có video play, bbox, controls)
+- Clip counter: hiện start time + pulse (không phải live "0:15→0:28" counter)
+- Body limit Express tăng lên `8mb` để handle base64 PNG
 
 **Checklist sau TASK 6b-3:**
-- [ ] Bấm 📷 Photo khi video đang phát → PNG frame + thumbnail lưu DB + S3
-- [ ] Bbox overlay đang hiện → photo có bbox vẽ vào ảnh
-- [ ] Bấm ▶ Start → ⏹ Stop → clip doc tạo với startTime/endTime + thumbnail
-- [ ] Counter "0:15 → 0:28" + chấm đỏ hiện khi đang ghi clip
-- [ ] Evidence N badge cập nhật sau mỗi lần capture
-- [ ] Mở Evidence Panel → grid 2 cột đúng, phân biệt photo/clip icon
-- [ ] Click [Analyze] → spinner → sau vài giây labels hiện trên card (SSE)
-- [ ] Clip analyze: YOLO chỉ process frames trong range, nhanh hơn full video
-- [ ] Click photo → lightbox PNG + bbox overlay
-- [ ] Click clip → seek video đến startTime, autoplay đến endTime rồi pause
-- [ ] Xóa evidence → biến khỏi panel + xóa S3 thumbnail
-- [ ] Evidence KHÔNG xuất hiện trong Media playlist
-- [ ] Disabled capture khi không có video đang active
+- [x] Bấm 📷 Photo khi video đang phát → PNG frame + thumbnail lưu DB + S3
+- [x] Bbox overlay đang hiện → photo có bbox vẽ vào ảnh (canvas burn-in)
+- [x] Bấm 🎬 Start → 🎬(đỏ) Stop → clip doc tạo với startTime/endTime + thumbnail
+- [x] Start time + animate-pulse hiện khi đang ghi clip (thay vì live counter)
+- [x] Evidence N badge cập nhật sau mỗi lần capture
+- [x] Evidence Panel: single column ThumbVertical style, PHOTO/CLIP text badge
+- [x] Click [Analyze] → spinner → sau vài giây labels hiện trên card (SSE)
+- [x] Clip analyze: YOLO chỉ process frames trong range (startTime/endTime truyền qua)
+- [x] Click photo/clip → EvidenceViewer overlay + bbox + Detect toggle
+- [x] EvidenceViewer clip: constrain [t0,t1], onPlay seek về t0 nếu đã hết
+- [x] Xóa evidence → biến khỏi panel + xóa S3 key
+- [x] Evidence KHÔNG xuất hiện trong Media playlist (currentSnapshots filter theo parentMediaId)
+- [x] Disabled capture khi không có video đang active (button chỉ render khi resolveType === 'video')
+- [x] EvidenceViewer active → CustomVideoControls ẩn, main video click disabled
+- [x] Playlist + Evidence panel: full height top-0→bottom-0, content pt-[52px] tránh che button bar
 
 ---
 

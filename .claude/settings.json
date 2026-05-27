@@ -21,7 +21,16 @@
       "Bash(node -e \"require\\('./src/app.js'\\); console.log\\('app loads OK'\\)\")",
       "Bash(node --input-type=module -e ' *)",
       "Bash(node -e \"try { require\\('./src/modules/snapshots/snapshot.model'\\); console.log\\('model OK'\\); } catch\\(e\\){ console.error\\(e.message\\); }\")",
-      "Bash(node -e \"try { require\\('./src/modules/snapshots/snapshot.routes'\\); console.log\\('routes OK'\\); } catch\\(e\\){ console.error\\(e.message, e.stack\\); }\")"
+      "Bash(node -e \"try { require\\('./src/modules/snapshots/snapshot.routes'\\); console.log\\('routes OK'\\); } catch\\(e\\){ console.error\\(e.message, e.stack\\); }\")",
+      "Bash(node_modules/.bin/vite build *)",
+      "Bash(git checkout *)",
+      "Bash(node -c src/modules/snapshots/snapshot.service.js)",
+      "PowerShell(Get-NetTCPConnection -LocalPort 5000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }; Write-Host \"Port 5000 cleared\")",
+      "PowerShell(Get-NetTCPConnection -LocalPort 5000 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }; Start-Sleep -Milliseconds 500; Write-Host \"Port 5000 cleared\")",
+      "Read(//d/Code/rov-management/backend/src/**)",
+      "PowerShell($file = \"d:\\\\Code\\\\rov-management\\\\backend\\\\src\\\\server.js\"; \\(Get-Item $file\\).LastWriteTime = Get-Date; Write-Host \"Triggered nodemon restart\")",
+      "PowerShell(Get-Process node -ErrorAction SilentlyContinue)",
+      "PowerShell(Stop-Process -Force -ErrorAction SilentlyContinue)"
     ]
   }
 }

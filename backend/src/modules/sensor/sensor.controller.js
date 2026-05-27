@@ -126,6 +126,8 @@ const getSensorData = async (req, res, next) => {
       ...zScoreAnomalies(raw, 'temp'),
       ...zScoreAnomalies(raw, 'pressure'),
       ...zScoreAnomalies(raw, 'voltage'),
+      ...zScoreAnomalies(raw, 'battery_percent'),
+      ...zScoreAnomalies(raw, 'humidity'),
     ].sort((a, b) => a.index - b.index);
 
     const data = raw.map(r => ({

@@ -43,6 +43,13 @@ const analyze = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const getDownloadUrl = async (req, res, next) => {
+  try {
+    const result = await snapshotService.getDownloadUrl(req.params.id);
+    return success(res, result);
+  } catch (err) { next(err); }
+};
+
 const updateNote = async (req, res, next) => {
   try {
     const snap = await snapshotService.updateNote(req.params.id, req.body.note || '');
@@ -50,4 +57,18 @@ const updateNote = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-module.exports = { create, getByDive, remove, analyze, updateNote };
+// Streams clip video directly — does NOT use success() wrapper (binary response)
+const downloadClip = async (req, res, next) => {
+  try {
+    await snapshotService.streamClipDownload(req.params.id, res);
+  } catch (err) { next(err); }
+};
+
+// Proxy raw image bytes through backend — avoids CORS/tainted-canvas for client canvas export
+const proxyImage = async (req, res, next) => {
+  try {
+    await snapshotService.proxyImage(req.params.id, res);
+  } catch (err) { next(err); }
+};
+
+module.exports = { create, getByDive, remove, analyze, updateNote, getDownloadUrl, downloadClip, proxyImage };
