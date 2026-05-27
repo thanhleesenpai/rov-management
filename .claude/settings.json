@@ -30,7 +30,14 @@
       "Read(//d/Code/rov-management/backend/src/**)",
       "PowerShell($file = \"d:\\\\Code\\\\rov-management\\\\backend\\\\src\\\\server.js\"; \\(Get-Item $file\\).LastWriteTime = Get-Date; Write-Host \"Triggered nodemon restart\")",
       "PowerShell(Get-Process node -ErrorAction SilentlyContinue)",
-      "PowerShell(Stop-Process -Force -ErrorAction SilentlyContinue)"
+      "PowerShell(Stop-Process -Force -ErrorAction SilentlyContinue)",
+      "Bash(netstat -ano)",
+      "Bash(findstr :5000)",
+      "Bash(taskkill /PID 33072 /F)",
+      "PowerShell(Get-Process -Id 33072)",
+      "PowerShell(Stop-Process -Force)",
+      "Bash(cd /d/Code/rov-management/frontend && grep -n \"EvidenceViewer\" src/features/dives/DiveDetailPage.jsx | head -20)",
+      "Read(//d/d/Code/rov-management/frontend/src/features/dives/**)"
     ]
   }
 }

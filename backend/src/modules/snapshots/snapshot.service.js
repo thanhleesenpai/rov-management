@@ -3,6 +3,9 @@ const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { v4: uuidv4 } = require('uuid');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static');
+const fs = require('fs').promises;
+const path = require('path');
+const os = require('os');
 const s3 = require('../../config/s3');
 const Snapshot = require('./snapshot.model');
 const Media = require('../media/media.model');
@@ -29,10 +32,7 @@ async function extractFrameFromVideo(diveId, parentMediaId, imageTime) {
   try {
     const Media = require('../media/media.model');
     const media = await Media.findById(parentMediaId).lean();
-    if (!media?.s3Key) {
-      console.warn('Parent media not found:', parentMediaId);
-      return null;
-    }
+    if (!media?.s3Key) return null;
 
     const videoUrl = await getSignedUrl(
       s3,
@@ -40,23 +40,24 @@ async function extractFrameFromVideo(diveId, parentMediaId, imageTime) {
       { expiresIn: 300 }
     );
 
-    // Extract frame to buffer first, then upload to S3
+    // Extract frame to temp file, then upload to S3
     return new Promise((resolve, reject) => {
-      const chunks = [];
+      const tempFile = path.join(os.tmpdir(), `frame-${uuidv4()}.png`);
       const timeout = setTimeout(() => {
+        fs.unlink(tempFile).catch(() => {});
         reject(new Error('FFmpeg frame extraction timeout'));
       }, 30000); // 30s timeout
 
       ffmpeg(videoUrl)
         .seekInput(Math.max(0, imageTime))
         .frames(1)
-        .format('image2pipe')
-        .outputOptions('-f', 'image2pipe', '-c:v', 'png')
-        .on('data', (chunk) => chunks.push(chunk))
+        .output(tempFile)
         .on('end', async () => {
           clearTimeout(timeout);
           try {
-            const buffer = Buffer.concat(chunks);
+            const buffer = await fs.readFile(tempFile);
+            if (buffer.length === 0) throw new Error('FFmpeg produced empty output');
+
             const key = `snapshots/${diveId}/${uuidv4()}.png`;
             await s3.send(new PutObjectCommand({
               Bucket: BUCKET,
@@ -64,17 +65,19 @@ async function extractFrameFromVideo(diveId, parentMediaId, imageTime) {
               Body: buffer,
               ContentType: 'image/png'
             }));
+            await fs.unlink(tempFile);
             resolve(key);
           } catch (err) {
+            await fs.unlink(tempFile).catch(() => {});
             reject(err);
           }
         })
         .on('error', (err) => {
           clearTimeout(timeout);
-          console.error('FFmpeg extraction error:', err.message);
+          fs.unlink(tempFile).catch(() => {});
           reject(err);
         })
-        .pipe();
+        .run();
     });
   } catch (err) {
     console.error('extractFrameFromVideo error:', err.message);
@@ -97,9 +100,7 @@ const create = async ({ type, diveId, tripId, userId, parentMediaId, imageTime, 
     // Canvas was tainted (CORS) — extract frame from S3 video using FFmpeg
     if (type === 'photo' && imageTime != null) {
       try {
-        console.log(`Extracting frame from video at ${imageTime}s...`);
         imageS3Key = await extractFrameFromVideo(diveId, parentMediaId, imageTime);
-        console.log(`Frame extracted: ${imageS3Key}`);
       } catch (err) {
         console.error('Frame extraction failed:', err.message);
         // Continue anyway — snapshot created without image
@@ -107,9 +108,7 @@ const create = async ({ type, diveId, tripId, userId, parentMediaId, imageTime, 
     } else if (type === 'clip' && startTime != null && endTime != null) {
       // Extract thumbnail at startTime
       try {
-        console.log(`Extracting clip thumbnail at ${startTime}s...`);
         thumbnailS3Key = await extractFrameFromVideo(diveId, parentMediaId, startTime);
-        console.log(`Thumbnail extracted: ${thumbnailS3Key}`);
       } catch (err) {
         console.error('Thumbnail extraction failed:', err.message);
         // Continue anyway

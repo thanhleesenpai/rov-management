@@ -102,7 +102,11 @@ const createViewUrl = async (mediaId) => {
   const media = await Media.findById(mediaId);
   if (!media) throw { statusCode: 404, message: 'Media not found' };
 
-  const command = new GetObjectCommand({ Bucket: BUCKET, Key: media.s3Key });
+  const command = new GetObjectCommand({
+    Bucket: BUCKET,
+    Key: media.s3Key,
+    ResponseContentDisposition: `attachment; filename="${media.fileName || 'download'}"`,
+  });
   const url = await getSignedUrl(s3, command, { expiresIn: 3600 }); // 1 giờ
   return { url, media };
 };
