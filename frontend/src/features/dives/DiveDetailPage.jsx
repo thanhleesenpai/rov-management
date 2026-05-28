@@ -165,13 +165,13 @@ function ThumbVertical({ media, active, onClick, label, canEdit, onDelete, delet
 
 // ─── Inline recordedAt editor (in playlist) ───────────────────────────────────
 
-function RecordedAtEditor({ media, diveId }) {
+function RecordedAtEditor({ media, diveId, onCancel, onDone }) {
   const queryClient = useQueryClient()
   const toLocal = (d) => {
     if (!d) return ''
     const dt = new Date(d)
     const pad = n => String(n).padStart(2, '0')
-    return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`
+    return `${dt.getFullYear()}-${pad(dt.getMonth()+1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}:${pad(dt.getSeconds())}`
   }
   const [val, setVal] = useState(() => toLocal(media.recordedAt))
   const [saving, setSaving] = useState(false)
@@ -183,6 +183,7 @@ function RecordedAtEditor({ media, diveId }) {
         recordedAt: val ? new Date(val).toISOString() : null,
       })
       queryClient.invalidateQueries({ queryKey: ['media', diveId] })
+      if (onDone) onDone()
     } catch {}
     setSaving(false)
   }
@@ -190,19 +191,25 @@ function RecordedAtEditor({ media, diveId }) {
   return (
     <div className="px-1 pb-1">
       <p className="text-[9px] text-white/40 mb-0.5 uppercase tracking-wider">Sync start time</p>
-      <div className="flex gap-1">
+      <div className="flex flex-col gap-1.5">
         <input
           type="datetime-local"
+          step="1"
           value={val}
           onChange={e => setVal(e.target.value)}
           style={{ colorScheme: 'dark' }}
-          className="flex-1 min-w-0 text-[10px] px-1.5 py-1 rounded border border-white/20
+          className="w-full text-[10px] px-1.5 py-1 rounded border border-white/20
                      bg-white/5 text-white/70 focus:outline-none focus:border-blue-400" />
-        <button onClick={handleSave} disabled={saving}
-          className="shrink-0 px-2 py-1 rounded bg-blue-600 hover:bg-blue-500
-                     text-white text-[10px] font-bold disabled:opacity-40 transition-colors">
-          {saving ? '…' : '✓'}
-        </button>
+        <div className="flex gap-1 mt-0.5">
+          <button onClick={onCancel} disabled={saving}
+            className="flex-1 px-2 py-1.5 text-[11px] rounded bg-slate-700 hover:bg-slate-600 text-white transition-colors">
+            Cancel
+          </button>
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 px-2 py-1.5 text-[11px] rounded bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors">
+            {saving ? '…' : 'Save'}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -453,7 +460,7 @@ function CustomVideoControls({ videoRef, isPlaying, mediaId, containerRef, curre
   }, [mediaId])
 
   const fmt = (s) => {
-    if (!s || isNaN(s)) return '0:00'
+    if (s === null || s === undefined || isNaN(s)) return '0:00'
     const m = Math.floor(s / 60)
     return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}`
   }
@@ -564,7 +571,7 @@ function EvidenceVideoControls({ videoRef, isPlaying, currentTime, duration, sho
   }, [])
 
   const fmt = (s) => {
-    if (!s || isNaN(s)) return '0:00'
+    if (s === null || s === undefined || isNaN(s)) return '0:00'
     const m = Math.floor(s / 60)
     return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}`
   }
@@ -588,7 +595,13 @@ function EvidenceVideoControls({ videoRef, isPlaying, currentTime, duration, sho
   const togglePlay = (e) => {
     e.stopPropagation()
     const v = videoRef.current; if (!v) return
-    isPlaying ? v.pause() : v.play().catch(() => {})
+    if (isPlaying) {
+      v.pause()
+    } else {
+      // If at end of clip, reset to start before playing
+      if (v.currentTime >= (endTime || v.duration) - 0.1) v.currentTime = startTime || 0
+      v.play().catch(() => {})
+    }
   }
 
   const handleProgressMouseDown = (e) => {
@@ -671,10 +684,11 @@ function EvidenceVideoControls({ videoRef, isPlaying, currentTime, duration, sho
 
 // ─── Evidence viewer (inline in video area) ──────────────────────────────────
 
-function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
+function EvidenceViewer({ evidence, media, diveId, onClose, queryClient, evidenceShowCenterPauseBtn, showEvidenceCenterPauseBriefly }) {
   const { data: mediaUrl } = useMediaUrl(media?._id)
   const [dims, setDims] = useState(null)
   const [showEvidenceDetect, setShowEvidenceDetect] = useState(false)
+  const [selectedEvidenceClass, setSelectedEvidenceClass] = useState(null)
   const [evidenceAnalyzeOpen, setEvidenceAnalyzeOpen] = useState(false)
   const [evidenceAnalyzeModel, setEvidenceAnalyzeModel] = useState('yolov8n')
   const [evidenceAnalyzeConf, setEvidenceAnalyzeConf] = useState(0.30)
@@ -685,6 +699,7 @@ function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
   const [showEvidenceToolbar, setShowEvidenceToolbar] = useState(true)
   const [evidenceAnalyzePos, setEvidenceAnalyzePos] = useState({ top: 0, left: 0 })
   const evidenceVideoRef = useRef(null)
+  const evidenceImageRef = useRef(null)
   const evidenceToolbarTimeoutRef = useRef(null)
   const evidenceAnalyzeBtnRef = useRef(null)
   const evidenceAnalyzePopRef = useRef(null)
@@ -698,6 +713,7 @@ function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
   })
 
   // Evidence AI labels - filter by current time if per-frame
+  // frameTime may be absolute (parent video time) or 0-based (relative to clip start)
   const evidenceActiveLabs = useMemo(() => {
     const labs = evidence.aiLabels || []
     if (!labs.length) return []
@@ -707,13 +723,19 @@ function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
     // Filter to labels with frameTime
     const withFrame = labs.filter(l => l.frameTime != null)
     if (!withFrame.length) return labs
-    // Find nearest frame time
+    // Determine if frameTimes are absolute (parent video time) or 0-based
+    // by checking if any frameTime >= startTime (absolute) vs all < startTime (0-based)
+    const startTime = evidence.startTime || 0
+    const isAbsolute = withFrame.some(l => l.frameTime >= startTime - 0.5)
+    const compareTime = isAbsolute ? evidenceCurrentTime + startTime : evidenceCurrentTime
+    // Find nearest frame time (same approach as MainMedia)
     const nearestTime = withFrame.reduce((best, l) =>
-      Math.abs(l.frameTime - evidenceCurrentTime) < Math.abs(best - evidenceCurrentTime) ? l.frameTime : best,
+      Math.abs(l.frameTime - compareTime) < Math.abs(best - compareTime) ? l.frameTime : best,
       withFrame[0].frameTime)
-    // Show labels from the nearest frame (within 0.1s tolerance)
-    return withFrame.filter(l => Math.abs(l.frameTime - nearestTime) < 0.1)
-  }, [evidence.aiLabels, isClip, evidenceCurrentTime])
+    // Hide when nearest detection is more than 0.7s away (sparse or end-of-video)
+    if (Math.abs(nearestTime - compareTime) > 0.7) return []
+    return withFrame.filter(l => l.frameTime === nearestTime)
+  }, [evidence.aiLabels, isClip, evidenceCurrentTime, evidence.startTime])
 
   const evidenceClassGroups = useMemo(() => {
     if (!evidenceActiveLabs.length) return []
@@ -725,6 +747,11 @@ function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
     })
     return Object.values(map).sort((a, b) => b.maxConf - a.maxConf)
   }, [evidenceActiveLabs])
+
+  // Labels passed to DetectionSVG — filtered by selectedEvidenceClass when active
+  const visibleEvidenceLabs = useMemo(() =>
+    selectedEvidenceClass ? evidenceActiveLabs.filter(l => l.name === selectedEvidenceClass) : evidenceActiveLabs
+  , [evidenceActiveLabs, selectedEvidenceClass])
 
   const repositionEvidenceAnalyze = useCallback(() => {
     if (!evidenceAnalyzeBtnRef.current) return
@@ -764,6 +791,57 @@ function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
     if (!evidence) return
     try {
       if (format === 'png') {
+        const mediaElement = isClip ? evidenceVideoRef.current : evidenceImageRef.current
+        
+        if (showEvidenceDetect && dims && mediaElement && visibleEvidenceLabs.length > 0) {
+          try {
+            const canvas = document.createElement('canvas')
+            canvas.width = dims.w
+            canvas.height = dims.h
+            const ctx = canvas.getContext('2d')
+            
+            ctx.drawImage(mediaElement, 0, 0, dims.w, dims.h)
+
+            visibleEvidenceLabs.forEach(l => {
+              if (!l.bbox) return
+              const { x1, y1, x2, y2 } = l.bbox
+              const px1 = x1 * dims.w, py1 = y1 * dims.h
+              const pw  = (x2 - x1) * dims.w, ph = (y2 - y1) * dims.h
+              const isHigh = l.confidence > 0.8
+              const color = isHigh ? '#60a5fa' : '#fbbf24'
+              
+              ctx.strokeStyle = color
+              ctx.lineWidth = Math.max(dims.w * 0.003, 2)
+              ctx.strokeRect(px1, py1, pw, ph)
+              
+              const fs = Math.max(dims.h * 0.028, 12)
+              const lh = fs * 1.6
+              const text = `${l.name} ${Math.round(l.confidence * 100)}%`
+              ctx.font = `700 ${fs}px system-ui, sans-serif`
+              const textMetrics = ctx.measureText(text)
+              const labelW = textMetrics.width + fs * 1.2
+              
+              ctx.fillStyle = color
+              ctx.globalAlpha = 0.9
+              ctx.fillRect(px1, Math.max(0, py1 - lh), Math.min(labelW, pw + ctx.lineWidth), lh)
+              
+              ctx.globalAlpha = 1.0
+              ctx.fillStyle = 'black'
+              ctx.fillText(text, px1 + 4, Math.max(lh * 0.78, py1 - lh * 0.22))
+            })
+
+            const dataUrl = canvas.toDataURL('image/png')
+            const a = document.createElement('a')
+            a.href = dataUrl
+            a.download = `evidence-${String(evidence._id).slice(-6)}-detected.png`
+            a.click()
+            return
+          } catch (canvasErr) {
+            console.error('Failed to export canvas (likely CORS tainted), falling back to normal download:', canvasErr)
+          }
+        }
+        
+        // Normal download
         const result = await api.get(`/snapshots/${evidence._id}/download-url`)
         const { url, filename } = result.data
         const a = document.createElement('a')
@@ -771,16 +849,19 @@ function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
         a.download = filename
         a.click()
       } else if (format === 'mp4' && isClip) {
-        const url = `/api/v1/snapshots/${evidence._id}/download-clip`
+        // Fetch via API to include Authorization token, then blob download
+        const blob = await api.get(`/snapshots/${evidence._id}/download-clip`, { responseType: 'blob' })
+        const url = window.URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
         a.download = `clip-${String(evidence._id).slice(-6)}.mp4`
         a.click()
+        window.URL.revokeObjectURL(url)
       }
     } catch (err) {
       console.error('Download failed:', err)
     }
-  }, [evidence, isClip])
+  }, [evidence, isClip, showEvidenceDetect, dims, visibleEvidenceLabs])
 
   const handleEvidenceVideoMouseMove = useCallback(() => {
     setShowEvidenceToolbar(true)
@@ -794,12 +875,13 @@ function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
     if (!evidenceVideoRef.current || !evidence) return
     const v = evidenceVideoRef.current
     const { startTime = 0, endTime } = evidence
+    const clipDuration = (endTime || v.duration) - startTime
+    const elapsed = Math.max(0, Math.min(v.currentTime - startTime, clipDuration))
 
-    setEvidenceCurrentTime(Math.max(0, v.currentTime - startTime))
+    setEvidenceCurrentTime(elapsed)
 
     if (endTime && v.currentTime >= endTime - 0.05) {
-      v.currentTime = startTime
-      v.play().catch(() => {})
+      v.pause()
     }
   }, [evidence])
 
@@ -814,28 +896,32 @@ function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
   return (
     <div className="absolute inset-0 z-40 bg-black group w-full h-full"
       style={{ pointerEvents: 'auto' }}
+      onClick={handleEvidenceVideoMouseMove}
       onMouseMove={handleEvidenceVideoMouseMove}>
 
       {/* Video/Image Player - full area */}
-      <div className="absolute inset-0 flex items-center justify-center relative bg-black"
+      <div className="absolute inset-0 bg-black"
         onMouseMove={handleEvidenceVideoMouseMove}>
         {isClip && mediaUrl ? (
           <div className="relative w-full h-full cursor-pointer"
-            onClick={() => { const v = evidenceVideoRef.current; if (!v) return; v.paused ? v.play().catch(()=>{}) : v.pause() }}>
+            onClick={() => { const v = evidenceVideoRef.current; if (!v) return; if (v.paused) { if (v.currentTime >= (evidence.endTime || v.duration) - 0.1) v.currentTime = evidence.startTime; v.play().catch(()=>{}); } else { v.pause(); showEvidenceCenterPauseBriefly(); } }}>
             <video ref={evidenceVideoRef}
               src={mediaUrl}
               className="w-full h-full object-contain"
-              onClick={e => { e.stopPropagation(); const v = e.currentTarget; v.paused ? v.play().catch(()=>{}) : v.pause() }}
+              onClick={e => { e.stopPropagation(); const v = e.currentTarget; if (v.paused) { if (v.currentTime >= (evidence.endTime || v.duration) - 0.1) v.currentTime = evidence.startTime; v.play().catch(()=>{}); } else { v.pause(); showEvidenceCenterPauseBriefly(); } }}
               onLoadedMetadata={e => {
+                const { startTime = 0, endTime } = evidence
                 setDims({ w: e.target.videoWidth, h: e.target.videoHeight })
-                setEvidenceVideoDuration(e.target.duration || 0)
+                setEvidenceVideoDuration((endTime || e.target.duration) - startTime)
+                e.target.currentTime = startTime
+                showEvidenceCenterPauseBriefly()
               }}
               onTimeUpdate={handleEvidenceTimeUpdate}
               onPlay={() => setIsEvidenceVideoPlaying(true)}
               onPause={() => setIsEvidenceVideoPlaying(false)} />
           </div>
         ) : (
-          <img src={evidence.imageUrl || evidence.thumbnailUrl} alt="evidence"
+          <img ref={evidenceImageRef} src={evidence.imageUrl || evidence.thumbnailUrl} alt="evidence"
             className="w-full h-full object-contain"
             onLoad={e => setDims({ w: e.target.naturalWidth, h: e.target.naturalHeight })} />
         )}
@@ -843,7 +929,7 @@ function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
         {/* Top Header - overlays video */}
         <div className={`absolute top-0 left-0 right-0 z-20 transition-opacity duration-200
                         px-3 pt-2 pb-3 bg-gradient-to-b from-black/60 to-transparent
-                        ${showEvidenceToolbar ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+                        ${evidenceAnalyzeOpen || showEvidenceToolbar ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
           <div className="flex items-center justify-between gap-2">
             <button onClick={onClose}
               className="flex items-center gap-1.5 text-[11px] font-bold text-white/80 hover:text-white">
@@ -895,9 +981,25 @@ function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
           </div>
         </div>
 
-        {/* Detection overlay */}
-        {showEvidenceDetect && evidenceActiveLabs.length > 0 && (
-          <DetectionSVG labels={evidenceActiveLabs} dims={dims} />
+        {/* Detection overlay — filtered by selected class like MainMedia */}
+        {showEvidenceDetect && visibleEvidenceLabs.length > 0 && (
+          <DetectionSVG labels={visibleEvidenceLabs} dims={dims} />
+        )}
+
+        {/* Center pause button — shows for 2s when clicked during playback */}
+        {isClip && evidenceShowCenterPauseBtn && (
+          <button onClick={e => {
+            e.stopPropagation()
+            const v = evidenceVideoRef.current
+            if (!v) return
+            if (v.paused) { v.play().catch(() => {}) }
+            else { v.pause(); showEvidenceCenterPauseBriefly() }
+          }}
+            className="absolute z-20 p-4 rounded-full bg-white/20 hover:bg-white/30
+                       transition-opacity opacity-100
+                       backdrop-blur-sm border border-white/20">
+            {isEvidenceVideoPlaying ? <Pause size={24} className="text-white" /> : <Play size={24} className="text-white" />}
+          </button>
         )}
 
         {/* Analyze popover — matches AIAnalyzePopover style */}
@@ -977,15 +1079,53 @@ function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
           document.body
         )}
 
-        {/* Class badges - always visible */}
+        {/* Class badges — clickable to filter, animate with toolbar like MainMedia */}
         {showEvidenceDetect && evidenceClassGroups.length > 0 && (
-          <div className="absolute bottom-16 left-0 right-0 px-3 flex flex-wrap gap-1.5 pointer-events-none z-20">
-            {evidenceClassGroups.map(g => (
-              <span key={g.name} className={`text-[10px] font-bold px-2 py-1 rounded-full
-                ${g.maxConf > 0.8 ? 'bg-blue-500/85 border border-blue-400/30 text-white' : 'bg-amber-500/85 border border-amber-400/30 text-white'}`}>
-                {g.name} · {Math.round(g.maxConf * 100)}%
-              </span>
-            ))}
+          <div className={`absolute left-0 right-0 z-50
+                          opacity-100
+                          transition-[bottom] duration-200 ease-out
+                          px-3 flex flex-wrap gap-1.5 pointer-events-none
+                          ${evidenceAnalyzeOpen || showEvidenceToolbar ? 'bottom-14' : 'bottom-2'}`}>
+            {selectedEvidenceClass && (
+              <button onClick={() => setSelectedEvidenceClass(null)}
+                className="pointer-events-auto px-2 py-1 text-[10px] font-bold rounded-full
+                           bg-white/15 border border-white/25 text-white/70
+                           hover:bg-white/25 hover:text-white transition-all select-none">
+                ✕ all
+              </button>
+            )}
+            {evidenceClassGroups.map(g => {
+              const isSelected = selectedEvidenceClass === g.name
+              const isOther    = selectedEvidenceClass !== null && !isSelected
+              const isHigh     = g.maxConf > 0.8
+              return (
+                <button key={g.name}
+                  onClick={() => setSelectedEvidenceClass(prev => prev === g.name ? null : g.name)}
+                  title={`Click to ${isSelected ? 'show all' : 'filter to ' + g.name + ' only'}`}
+                  className={`pointer-events-auto flex items-center gap-1 px-2.5 py-1
+                              text-[10px] font-bold rounded-full leading-none select-none
+                              backdrop-blur-sm border transition-all duration-150
+                              cursor-pointer hover:scale-105 active:scale-95 ${
+                    isSelected
+                      ? 'ring-2 ring-white/80 scale-105 ' + (isHigh
+                          ? 'bg-blue-500 border-blue-300/60 text-white'
+                          : 'bg-amber-500 border-amber-300/60 text-white')
+                      : isOther
+                        ? 'opacity-35 ' + (isHigh
+                            ? 'bg-blue-500/60 border-blue-400/30 text-white/80'
+                            : 'bg-amber-500/60 border-amber-400/30 text-white/80')
+                        : (isHigh
+                            ? 'bg-blue-500/85 border-blue-400/30 text-white'
+                            : 'bg-amber-500/85 border-amber-400/30 text-white')
+                  }`}>
+                  <span>{g.name}</span>
+                  {g.count > 1 && (
+                    <span className="opacity-70">×{g.count}</span>
+                  )}
+                  <span className="opacity-80">· {Math.round(g.maxConf * 100)}%</span>
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
@@ -997,7 +1137,7 @@ function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
           isPlaying={isEvidenceVideoPlaying}
           currentTime={evidenceCurrentTime}
           duration={evidence.endTime - evidence.startTime}
-          showToolbar={showEvidenceToolbar}
+          showToolbar={evidenceAnalyzeOpen || showEvidenceToolbar}
           onMouseMove={handleEvidenceVideoMouseMove}
           startTime={evidence.startTime}
           endTime={evidence.endTime}
@@ -1125,13 +1265,13 @@ function AnomalyDot({ cx, cy, payload, dataKey, anomalySet }) {
 
 function KpiCard({ label, value, unit, color }) {
   return (
-    <div className="bg-background rounded-lg px-4 py-3">
-      <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-1">{label}</p>
-      <div className="flex items-baseline gap-1.5">
-        <span className="text-2xl font-bold tabular-nums leading-none" style={{ color }}>
+    <div className="bg-background rounded-lg px-2.5 py-2 lg:px-3 lg:py-1.5 2xl:px-4 2xl:py-3 flex flex-col lg:flex-row 2xl:flex-col items-start lg:items-center 2xl:items-start justify-between">
+      <p className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground mb-0.5 lg:mb-0 2xl:mb-1">{label}</p>
+      <div className="flex items-baseline gap-1">
+        <span className="text-lg lg:text-base 2xl:text-xl font-bold tabular-nums leading-none" style={{ color }}>
           {value ?? '—'}
         </span>
-        <span className="text-xs text-muted-foreground">{unit}</span>
+        <span className="text-[10px] text-muted-foreground">{unit}</span>
       </div>
     </div>
   )
@@ -1321,7 +1461,7 @@ export default function DiveDetailPage() {
   const [evidenceCurrentTime, setEvidenceCurrentTime] = useState(0)
   const [evidenceVideoDuration, setEvidenceVideoDuration] = useState(0)
   const [evidenceShowToolbar, setEvidenceShowToolbar] = useState(true)
-  const [evidenceShowCenterPauseBtn, setEvidenceShowCenterPauseBtn] = useState(false)
+  const [evidenceShowCenterPauseBtn, setEvidenceShowCenterPauseBtn] = useState(true)
   const [isEvidenceVideoPlaying, setIsEvidenceVideoPlaying] = useState(false)
   const [evidenceAnalyzing, setEvidenceAnalyzing] = useState(false)
   const [evidenceAnalyzeOpen, setEvidenceAnalyzeOpen] = useState(false)
@@ -1336,9 +1476,40 @@ export default function DiveDetailPage() {
   const moreMenuRef       = useRef(null)
   const toolbarTimeoutRef = useRef(null)
   const evidenceToolbarTimeoutRef = useRef(null)
+  const mobileToolbarTimeoutRef = useRef(null)
+  const [mobileToolbarVisible, setMobileToolbarVisible] = useState(false)
+  const [canShowHorizontalPlaylist, setCanShowHorizontalPlaylist] = useState(false)
+
   const [syncTs,        setSyncTs]      = useState(null)
   const [showExport,    setShowExport]  = useState(false)
   const [isFullscreen,  setIsFullscreen] = useState(false)
+
+  // Use ResizeObserver to detect if Center Column has enough vertical space below the video
+  useEffect(() => {
+    if (!containerRef.current || !videoRef.current) return
+    const observer = new ResizeObserver(() => {
+      if (window.innerWidth < 1024) {
+        setCanShowHorizontalPlaylist(true)
+        return
+      }
+      const c = containerRef.current
+      const v = videoRef.current
+      if (!c || !v) return
+      const cHeight = c.clientHeight
+      const cWidth = c.clientWidth
+      // Calculate what the video height would be if it filled the full width
+      const videoWidthHeight = cWidth * 9 / 16
+      const videoActualHeight = Math.min(cHeight, videoWidthHeight)
+      
+      // Only show the horizontal playlist if there's enough extra vertical space
+      // (black bars on top and bottom). A threshold of 60px is forgiving but prevents
+      // stealing height that the video actually needs.
+      setCanShowHorizontalPlaylist(cHeight - videoActualHeight > 60)
+    })
+    observer.observe(containerRef.current)
+    if (window.innerWidth < 1024) setCanShowHorizontalPlaylist(true)
+    return () => observer.disconnect()
+  }, [containerRef, videoRef])
 
   useEffect(() => {
     const onChange = () => setIsFullscreen(!!document.fullscreenElement)
@@ -1443,6 +1614,13 @@ export default function DiveDetailPage() {
     setSyncTs(null); setCurrentVideoTime(0); setSelectedClass(null); setVideoDuration(0); setCenterPauseBtnFirstShown(false); setShowCenterPauseBtn(false)
   }, [media?._id])
 
+  // Pause MainMedia when evidence becomes active
+  useEffect(() => {
+    if (!activeEvidence) return
+    const v = videoRef.current
+    if (v && !v.paused) v.pause()
+  }, [activeEvidence])
+
   // Sync activeEvidence with updated snapshots data (so analysis status updates)
   useEffect(() => {
     if (!activeEvidence) return
@@ -1450,7 +1628,7 @@ export default function DiveDetailPage() {
     if (updatedEvidence) {
       setActiveEvidence(updatedEvidence)
     }
-  }, [snapshots])
+  }, [snapshots, activeEvidence])
 
   // Reset evidence-related states when closing evidence viewer or switching media
   useEffect(() => {
@@ -1522,21 +1700,6 @@ export default function DiveDetailPage() {
   }, [activeEvidence?.aiLabels])
 
   const handleVideoEnded = useCallback(() => {}, [])
-
-  const handleEvidenceTimeUpdate = useCallback(() => {
-    if (!evidenceVideoRef.current || !activeEvidence) return
-    const v = evidenceVideoRef.current
-    const { startTime = 0, endTime } = activeEvidence
-
-    // Update the current time display (relative to clip start)
-    setEvidenceCurrentTime(Math.max(0, v.currentTime - startTime))
-
-    // Loop back to startTime when reaching endTime
-    if (endTime && v.currentTime >= endTime - 0.05) {
-      v.currentTime = startTime
-      v.play().catch(() => {})
-    }
-  }, [activeEvidence])
 
   const handleEvidenceVideoMouseMove = useCallback(() => {
     setEvidenceShowToolbar(true)
@@ -1841,10 +2004,10 @@ export default function DiveDetailPage() {
   const hasGps = dive.gpsLocation?.lat != null && dive.gpsLocation?.lng != null
 
   return (
-    <div className="-m-4 md:-m-6 h-[calc(100vh-4rem)] flex flex-col overflow-hidden bg-background">
+    <div className="-m-4 md:-m-6 min-h-[calc(100vh-4rem)] lg:h-[calc(100vh-4rem)] flex flex-col overflow-y-auto lg:overflow-hidden bg-background">
 
       {/* ══════════════════════════════════════════════════════════════ HEADER */}
-      <header className="h-14 flex-none flex items-center gap-3 px-5
+      <header className="h-11 flex-none flex items-center gap-3 px-4
                          bg-card border-b border-border shadow-sm shrink-0 z-10">
 
         <button onClick={() => navigate(backTo)}
@@ -1938,13 +2101,13 @@ export default function DiveDetailPage() {
       </header>
 
       {/* ═══════════════════════════════════════════════════════════ MIDDLE ROW */}
-      <div className="flex-1 min-h-0 flex gap-3 p-3">
+      <div className="flex-none lg:flex-1 lg:min-h-0 flex flex-col lg:flex-row gap-3 p-3 lg:overflow-hidden">
 
         {/* ─── LEFT COLUMN (w-56) ─── */}
-        <div className="w-56 flex-none flex flex-col gap-3">
+        <div className="w-full lg:w-56 flex-none lg:shrink lg:min-h-0 flex flex-col gap-3 order-2 lg:order-1">
 
           {/* Location / Map */}
-          <div className="flex-1 min-h-0 flex flex-col rounded-xl bg-card border border-border overflow-hidden">
+          <div className="flex-none lg:flex-1 h-[250px] lg:h-auto lg:min-h-[150px] flex flex-col rounded-xl bg-card border border-border overflow-hidden">
             <SectionLabel>
               <span className="px-3 pt-3 block">Location</span>
             </SectionLabel>
@@ -1968,9 +2131,9 @@ export default function DiveDetailPage() {
           </div>
 
           {/* Current Status KPIs */}
-          <div className="flex-none rounded-xl bg-card border border-border p-3">
+          <div className="flex-none rounded-xl bg-card border border-border p-3 lg:p-2.5">
             <SectionLabel>Current Status</SectionLabel>
-            <div className="space-y-2">
+            <div className="grid grid-cols-3 lg:grid-cols-1 gap-2 lg:gap-1.5">
               <KpiCard label="Depth"    value={stats?.depth?.avg    ?? '—'} unit="m"   color="#3b82f6" />
               <KpiCard label="Temp"     value={stats?.temp?.avg     ?? '—'} unit="°c"  color="#f59e0b" />
               <KpiCard label="Pressure" value={stats?.pressure?.avg ?? '—'} unit="bar" color="#10b981" />
@@ -1981,11 +2144,13 @@ export default function DiveDetailPage() {
 
         {/* ─── CENTER COLUMN ───────────────────────────────────────────────── */}
         {/* bg-black intentional: video player is always dark regardless of app theme */}
-        <div ref={containerRef} className="group flex-1 min-h-0 bg-black rounded-xl overflow-hidden relative flex items-center justify-center"
+        <div ref={containerRef} className="group flex-none lg:flex-1 h-auto lg:min-h-0 bg-black rounded-xl overflow-hidden relative flex flex-col items-center justify-center order-1 lg:order-2"
           style={{ isolation: 'isolate' }}
+          onClick={handleVideoMouseMove}
           onMouseMove={handleVideoMouseMove}
           onMouseEnter={handleVideoMouseMove}>
 
+          <div className="flex-none lg:flex-1 w-full aspect-video lg:aspect-auto lg:min-h-0 relative flex items-center justify-center">
           <MainMedia media={media} videoRef={videoRef} containerRef={containerRef}
             activeLabs={visibleLabs}
             onEnded={handleVideoEnded} onTimeUpdate={handleTimeUpdate}
@@ -1996,7 +2161,8 @@ export default function DiveDetailPage() {
 
           {/* Evidence viewer overlay — displays on top of MainMedia when active */}
           {activeEvidence && activeEvidence.parentMediaId === media?._id && (
-            <EvidenceViewer evidence={activeEvidence} media={media} diveId={id} onClose={() => setActiveEvidence(null)} queryClient={queryClient} />
+            <EvidenceViewer evidence={activeEvidence} media={media} diveId={id} onClose={() => setActiveEvidence(null)} queryClient={queryClient}
+              evidenceShowCenterPauseBtn={evidenceShowCenterPauseBtn} showEvidenceCenterPauseBriefly={showEvidenceCenterPauseBriefly} />
           )}
 
           {/* OLD IMPLEMENTATION REMOVED - replaced with EvidenceViewer component */}
@@ -2311,7 +2477,7 @@ export default function DiveDetailPage() {
                 )}
 
                 {/* Group 3: Playlist */}
-                {mediaList.length > 1 && (
+                {!canShowHorizontalPlaylist && mediaList.length > 1 && (
                   <button onClick={() => { const next = !isPlaylistOpen; setIsPlaylistOpen(next); if (next) { setIsEvidencePanelOpen(false); setShowMoreMenu(false) } }}
                     title={isPlaylistOpen ? 'Hide playlist' : `Playlist (${mediaList.length})`}
                     className={`flex items-center gap-1 px-2 py-1.5 rounded-full text-[11px] font-bold
@@ -2375,17 +2541,10 @@ export default function DiveDetailPage() {
                   {/* Sync time editor — appears below the more menu when toggled */}
                   {showSyncEditor && media && resolveType(media) === 'video' && (
                     <div className="absolute top-full right-0 mt-1.5 z-50 bg-slate-900 border border-slate-700 rounded-lg shadow-lg p-2 w-48">
-                      <RecordedAtEditor media={media} diveId={id} />
-                      <div className="flex gap-1 mt-1.5">
-                        <button onClick={() => { setShowSyncEditor(false); setShowMoreMenu(false) }}
-                          className="flex-1 px-2 py-1 text-xs rounded bg-slate-600 hover:bg-slate-500 text-white">
-                          Cancel
-                        </button>
-                        <button onClick={() => { setShowSyncEditor(false); setShowMoreMenu(false) }}
-                          className="flex-1 px-2 py-1 text-xs rounded bg-blue-600 hover:bg-blue-500 text-white font-semibold">
-                          Done
-                        </button>
-                      </div>
+                      <RecordedAtEditor media={media} diveId={id} 
+                        onCancel={() => { setShowSyncEditor(false); setShowMoreMenu(false) }}
+                        onDone={() => { setShowSyncEditor(false); setShowMoreMenu(false) }}
+                      />
                     </div>
                   )}
 
@@ -2438,7 +2597,7 @@ export default function DiveDetailPage() {
           )}
 
           {/* YOLOv8 class badges — grouped by class, always visible, click to filter bbox */}
-          {showDetections && classGroups.length > 0 && (
+          {showDetections && classGroups.length > 0 && !activeEvidence && (
             <div className={`absolute left-0 right-0 z-50
                             opacity-100
                             transition-[bottom] duration-200 ease-out
@@ -2516,7 +2675,8 @@ export default function DiveDetailPage() {
           />
 
           {/* Playlist overlay ─ slides in from right as an absolute panel */}
-          <div className={`absolute top-0 right-0 bottom-0 z-10 w-44
+          {!canShowHorizontalPlaylist && (
+            <div className={`absolute top-0 right-0 bottom-0 z-10 w-44
                            bg-black/90 backdrop-blur-sm border-l border-white/10
                            overflow-y-auto
                            transition-transform duration-200 ease-out
@@ -2542,6 +2702,7 @@ export default function DiveDetailPage() {
               )}
             </div>
           </div>
+          )}
 
           {/* Custom video controls — keep visible when popup open */}
           {media && resolveType(media) === 'video' && !activeEvidence && (
@@ -2568,11 +2729,31 @@ export default function DiveDetailPage() {
               <Minimize2 size={15} />
             </button>
           )}
+          
+          </div> {/* END of flex-1 MainMedia wrapper */}
+
+          {/* Horizontal Playlist (Bottom of Center Column) */}
+          {canShowHorizontalPlaylist && mediaList.length > 1 && (
+            <div className="flex-none w-full h-[100px] bg-black/80 flex items-center gap-2 px-3 overflow-x-auto overflow-y-hidden border-t border-white/10 z-40">
+              {mediaList.map((m, i) => (
+                <div key={m._id} className="shrink-0 w-24">
+                  <ThumbVertical
+                    media={m}
+                    active={i === selIdx}
+                    onClick={(e) => { e.stopPropagation(); setSelIdx(i) }}
+                    label={`${resolveType(m) === 'video' ? 'Video' : 'Photo'} ${i + 1}`}
+                    canEdit={canUpload}
+                    deleting={false}
+                    onDelete={() => handleDeleteMedia(m._id)} />
+                </div>
+              ))}
+            </div>
+          )}
 
         </div>
 
         {/* ─── RIGHT COLUMN (w-56) ─── */}
-        <div className="w-56 flex-none flex flex-col gap-3">
+        <div className="w-full lg:w-56 flex-none lg:shrink lg:min-h-0 flex flex-col gap-3 order-3">
 
           {/* Navigation gauges */}
           <div className="flex-none rounded-xl bg-card border border-border p-3">
