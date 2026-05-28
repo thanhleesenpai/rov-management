@@ -544,6 +544,104 @@ function CustomVideoControls({ videoRef, isPlaying, mediaId, containerRef, curre
   )
 }
 
+// ─── Evidence video controls ─────────────────────────────────────────────────
+
+function EvidenceVideoControls({ videoRef, isPlaying, currentTime, duration, showToolbar, onMouseMove, startTime, endTime }) {
+  const [muted, setMuted] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragPct, setDragPct] = useState(0)
+  const progressRef = useRef(null)
+
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v) return
+    const onVol = () => setMuted(v.muted)
+    v.addEventListener('volumechange', onVol)
+    setMuted(v.muted)
+    return () => v.removeEventListener('volumechange', onVol)
+  }, [])
+
+  const fmt = (s) => {
+    if (!s || isNaN(s)) return '0:00'
+    const m = Math.floor(s / 60)
+    return `${m}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+  }
+
+  const videoPct = duration > 0 ? (currentTime / duration) * 100 : 0
+  const displayPct = isDragging ? dragPct : videoPct
+
+  const calcPct = (clientX) => {
+    if (!progressRef.current) return 0
+    const r = progressRef.current.getBoundingClientRect()
+    return Math.max(0, Math.min(100, ((clientX - r.left) / r.width) * 100))
+  }
+
+  const applySeek = (clientX) => {
+    const v = videoRef.current; if (!v) return
+    const p = calcPct(clientX)
+    setDragPct(p)
+    v.currentTime = startTime + (p / 100) * (endTime - startTime)
+  }
+
+  const togglePlay = (e) => {
+    e.stopPropagation()
+    const v = videoRef.current; if (!v) return
+    isPlaying ? v.pause() : v.play().catch(() => {})
+  }
+
+  const handleProgressMouseDown = (e) => {
+    e.stopPropagation()
+    e.preventDefault()
+    setIsDragging(true)
+    applySeek(e.clientX)
+    const onMove = (ev) => applySeek(ev.clientX)
+    const onUp = () => {
+      setIsDragging(false)
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
+
+  const toggleMute = (e) => {
+    e.stopPropagation()
+    const v = videoRef.current; if (!v) return
+    v.muted = !v.muted
+  }
+
+  return (
+    <div className={`absolute bottom-0 left-0 right-0 z-30 transition-opacity duration-200
+                    px-3 pt-8 pb-2 bg-gradient-to-t from-black/75 via-black/30 to-transparent
+                    ${showToolbar ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+      onMouseMove={onMouseMove}>
+      {/* Progress bar */}
+      <div ref={progressRef} onMouseDown={handleProgressMouseDown}
+        className={`mb-2.5 transition-all bg-white/30 rounded-full cursor-pointer relative group/prog
+                    ${isDragging ? 'h-1.5' : 'h-1 hover:h-1.5'}`}>
+        <div className="h-full bg-white rounded-full pointer-events-none" style={{ width: `${displayPct}%` }} />
+        <div className={`absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3 h-3 rounded-full bg-white
+                        pointer-events-none transition-opacity
+                        ${isDragging ? 'opacity-100' : 'opacity-0 group-hover/prog:opacity-100'}`}
+          style={{ left: `${displayPct}%` }} />
+      </div>
+      {/* Buttons */}
+      <div className="flex items-center gap-2">
+        <button onClick={togglePlay} className="text-white hover:text-white/80 transition-colors p-0.5">
+          {isPlaying ? <Pause size={16} fill="white" strokeWidth={0} /> : <Play size={16} fill="white" strokeWidth={0} />}
+        </button>
+        <span className="text-white/75 text-[11px] tabular-nums select-none">
+          {fmt(currentTime)} / {fmt(duration)}
+        </span>
+        <div className="flex-1" />
+        <button onClick={toggleMute} className="text-white hover:text-white/80 transition-colors p-0.5">
+          {muted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ─── Evidence viewer (inline in video area) ──────────────────────────────────
 
 function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
@@ -865,27 +963,18 @@ function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
         )}
       </div>
 
-      {/* Bottom Controls - only for video */}
+      {/* Bottom Controls - matches CustomVideoControls */}
       {isClip && mediaUrl && (
-        <div className={`absolute bottom-0 left-0 right-0 z-30 transition-opacity duration-200
-                        px-3 pt-8 pb-2 bg-gradient-to-t from-black/75 via-black/30 to-transparent
-                        ${showEvidenceToolbar ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-          <div className="mb-2 h-1 bg-white/30 rounded-full cursor-pointer relative"
-            onClick={e => {
-              if (!evidenceVideoRef.current) return
-              const r = e.currentTarget.getBoundingClientRect()
-              evidenceVideoRef.current.currentTime = evidence.startTime + (e.clientX - r.left) / r.width * (evidence.endTime - evidence.startTime)
-            }}>
-            <div className="h-full bg-white rounded-full" style={{ width: `${evidenceCurrentTime / (evidence.endTime - evidence.startTime) * 100}%` }} />
-          </div>
-          <div className="flex items-center gap-2 text-white text-[11px]">
-            <button onClick={() => evidenceVideoRef.current && (isEvidenceVideoPlaying ? evidenceVideoRef.current.pause() : evidenceVideoRef.current.play())}
-              className="hover:text-white/80">
-              {isEvidenceVideoPlaying ? <Pause size={14} fill="white" /> : <Play size={14} fill="white" />}
-            </button>
-            <span>{fmtVideoTime(evidenceCurrentTime)} / {fmtVideoTime(evidence.endTime - evidence.startTime)}</span>
-          </div>
-        </div>
+        <EvidenceVideoControls
+          videoRef={evidenceVideoRef}
+          isPlaying={isEvidenceVideoPlaying}
+          currentTime={evidenceCurrentTime}
+          duration={evidence.endTime - evidence.startTime}
+          showToolbar={showEvidenceToolbar}
+          onMouseMove={handleEvidenceVideoMouseMove}
+          startTime={evidence.startTime}
+          endTime={evidence.endTime}
+        />
       )}
     </div>
   )
