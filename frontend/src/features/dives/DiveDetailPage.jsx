@@ -687,7 +687,8 @@ function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
   if (!evidence) return null
 
   return (
-    <div className="absolute inset-0 z-40 bg-black group relative"
+    <div className="absolute inset-0 z-40 bg-black group w-full h-full"
+      style={{ pointerEvents: 'auto' }}
       onMouseMove={handleEvidenceVideoMouseMove}>
 
       {/* Video/Image Player - full area */}
