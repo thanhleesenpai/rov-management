@@ -684,16 +684,18 @@ function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
   if (!evidence) return null
 
   return (
-    <div className="absolute inset-0 z-40 flex items-center justify-center relative bg-black group rounded-xl overflow-hidden"
+    <div className="absolute inset-0 z-40 bg-black group relative"
       onMouseMove={handleEvidenceVideoMouseMove}>
 
       {/* Video/Image Player - full area */}
-      <div className="w-full h-full flex items-center justify-center relative bg-black"
+      <div className="absolute inset-0 flex items-center justify-center relative bg-black cursor-pointer"
+        onClick={() => { if (isClip && evidenceVideoRef.current) { evidenceVideoRef.current.paused ? evidenceVideoRef.current.play().catch(()=>{}) : evidenceVideoRef.current.pause() } }}
         onMouseMove={handleEvidenceVideoMouseMove}>
         {isClip && mediaUrl ? (
           <video ref={evidenceVideoRef}
             src={mediaUrl}
             className="w-full h-full object-contain"
+            onClick={e => e.stopPropagation()}
             onLoadedMetadata={e => {
               setDims({ w: e.target.videoWidth, h: e.target.videoHeight })
               setEvidenceVideoDuration(e.target.duration || 0)
@@ -704,6 +706,7 @@ function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
         ) : (
           <img src={evidence.imageUrl || evidence.thumbnailUrl} alt="evidence"
             className="w-full h-full object-contain"
+            onClick={e => e.stopPropagation()}
             onLoad={e => setDims({ w: e.target.naturalWidth, h: e.target.naturalHeight })} />
         )}
 
@@ -875,7 +878,7 @@ function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
               className="hover:text-white/80">
               {isEvidenceVideoPlaying ? <Pause size={14} fill="white" /> : <Play size={14} fill="white" />}
             </button>
-            <span>{fmtTime(evidence.startTime + evidenceCurrentTime)} / {fmtTime(evidence.endTime - evidence.startTime)}</span>
+            <span>{fmtVideoTime(evidenceCurrentTime)} / {fmtVideoTime(evidence.endTime - evidence.startTime)}</span>
           </div>
         </div>
       )}
