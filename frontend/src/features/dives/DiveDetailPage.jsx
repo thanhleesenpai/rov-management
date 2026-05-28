@@ -550,7 +550,9 @@ function EvidenceVideoControls({ videoRef, isPlaying, currentTime, duration, sho
   const [muted, setMuted] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   const [dragPct, setDragPct] = useState(0)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const progressRef = useRef(null)
+  const containerRef = useRef(null)
 
   useEffect(() => {
     const v = videoRef.current
@@ -610,8 +612,30 @@ function EvidenceVideoControls({ videoRef, isPlaying, currentTime, duration, sho
     v.muted = !v.muted
   }
 
+  const handleFullscreen = (e) => {
+    e.stopPropagation()
+    const container = containerRef.current?.parentElement?.parentElement
+    if (!container) return
+    if (document.fullscreenElement) {
+      document.exitFullscreen()
+      setIsFullscreen(false)
+    } else {
+      container.requestFullscreen().catch(() => {})
+      setIsFullscreen(true)
+    }
+  }
+
+  // Listen for fullscreen changes
+  useEffect(() => {
+    const onChange = () => {
+      setIsFullscreen(!!document.fullscreenElement)
+    }
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
+
   return (
-    <div className={`absolute bottom-0 left-0 right-0 z-30 transition-opacity duration-200
+    <div ref={containerRef} className={`absolute bottom-0 left-0 right-0 z-30 transition-opacity duration-200
                     px-3 pt-8 pb-2 bg-gradient-to-t from-black/75 via-black/30 to-transparent
                     ${showToolbar ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
       onMouseMove={onMouseMove}>
@@ -636,6 +660,9 @@ function EvidenceVideoControls({ videoRef, isPlaying, currentTime, duration, sho
         <div className="flex-1" />
         <button onClick={toggleMute} className="text-white hover:text-white/80 transition-colors p-0.5">
           {muted ? <VolumeX size={15} /> : <Volume2 size={15} />}
+        </button>
+        <button onClick={handleFullscreen} className="text-white hover:text-white/80 transition-colors p-0.5">
+          {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
         </button>
       </div>
     </div>
