@@ -546,14 +546,14 @@ function CustomVideoControls({ videoRef, isPlaying, mediaId, containerRef, curre
 
 // ─── Evidence viewer (inline in video area) ──────────────────────────────────
 
-function EvidenceViewer({ evidence, media, onClose, queryClient }) {
+function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
   const { data: mediaUrl } = useMediaUrl(media?._id)
   const [dims, setDims] = useState(null)
   const [showEvidenceDetect, setShowEvidenceDetect] = useState(false)
   const [evidenceAnalyzeOpen, setEvidenceAnalyzeOpen] = useState(false)
   const [evidenceAnalyzeModel, setEvidenceAnalyzeModel] = useState('yolov8n')
   const [evidenceAnalyzeConf, setEvidenceAnalyzeConf] = useState(0.30)
-  const [evidenceAnalyzing, setEvidenceAnalyzing] = useState(false)
+  const [isEvidenceFullscreen, setIsEvidenceFullscreen] = useState(false)
   const [evidenceCurrentTime, setEvidenceCurrentTime] = useState(0)
   const [evidenceVideoDuration, setEvidenceVideoDuration] = useState(0)
   const [isEvidenceVideoPlaying, setIsEvidenceVideoPlaying] = useState(false)
@@ -608,21 +608,18 @@ function EvidenceViewer({ evidence, media, onClose, queryClient }) {
   }, [])
 
   const handleEvidenceAnalyze = useCallback(async () => {
-    if (!evidence?._id || evidenceAnalyzing) return
-    setEvidenceAnalyzing(true)
+    if (!evidence?._id || evidence.analysisStatus === 'pending') return
     try {
       await api.post(`/snapshots/${evidence._id}/analyze`, {
         model: evidenceAnalyzeModel,
         confidence: evidenceAnalyzeConf
       })
-      queryClient.invalidateQueries({ queryKey: ['snapshots'] })
+      queryClient.invalidateQueries({ queryKey: ['snapshots', diveId] })
       setEvidenceAnalyzeOpen(false)
     } catch (err) {
       console.error('Evidence analysis failed:', err)
-    } finally {
-      setEvidenceAnalyzing(false)
     }
-  }, [evidence?._id, evidenceAnalyzeModel, evidenceAnalyzeConf, evidenceAnalyzing, queryClient])
+  }, [evidence?._id, evidence.analysisStatus, diveId, evidenceAnalyzeModel, evidenceAnalyzeConf, queryClient])
 
   // Close analyze popup on outside click
   useEffect(() => {
@@ -687,7 +684,7 @@ function EvidenceViewer({ evidence, media, onClose, queryClient }) {
   if (!evidence) return null
 
   return (
-    <div className="absolute inset-0 z-40 flex flex-col bg-black group rounded-xl overflow-hidden" onMouseMove={handleEvidenceVideoMouseMove}>
+    <div className={`${isEvidenceFullscreen ? 'fixed inset-0 z-50' : 'absolute inset-0 z-40'} flex flex-col bg-black group rounded-xl overflow-hidden`} onMouseMove={handleEvidenceVideoMouseMove}>
       {/* Top Header */}
       <div className={`h-12 flex-none flex items-center justify-between px-4 gap-3
                       bg-gradient-to-b from-black/60 to-transparent
@@ -725,12 +722,19 @@ function EvidenceViewer({ evidence, media, onClose, queryClient }) {
             className={`flex items-center gap-0.5 px-1.5 py-1 rounded-full text-[10px] font-bold transition-colors ${
               evidenceAnalyzeOpen
                 ? 'bg-blue-500/90 text-white'
-                : evidenceAnalyzing
+                : evidence.analysisStatus === 'pending'
                   ? 'bg-blue-500/60 text-white animate-pulse'
                   : 'text-white/80 hover:text-white'
             }`}>
-            {evidenceAnalyzing ? <Loader size={10} className="animate-spin" /> : <Sparkles size={10} />}
-            <span className="hidden sm:inline">{evidenceAnalyzing ? 'Analyzing' : 'Analyze'}</span>
+            {evidence.analysisStatus === 'pending' ? <Loader size={10} className="animate-spin" /> : <Sparkles size={10} />}
+            <span className="hidden sm:inline">{evidence.analysisStatus === 'pending' ? 'Analyzing' : 'Analyze'}</span>
+          </button>
+
+          {/* Fullscreen button */}
+          <button onClick={() => setIsEvidenceFullscreen(v => !v)}
+            className="flex items-center gap-0.5 px-1.5 py-1 rounded-full text-[10px] font-bold text-white/80 hover:text-white transition-colors">
+            {isEvidenceFullscreen ? <Minimize2 size={10} /> : <Maximize2 size={10} />}
+            <span className="hidden sm:inline">{isEvidenceFullscreen ? 'Exit' : 'Fullscreen'}</span>
           </button>
 
           {/* Download buttons */}
@@ -1326,6 +1330,15 @@ export default function DiveDetailPage() {
     setSyncTs(null); setCurrentVideoTime(0); setSelectedClass(null); setVideoDuration(0); setCenterPauseBtnFirstShown(false); setShowCenterPauseBtn(false)
   }, [media?._id])
 
+  // Sync activeEvidence with updated snapshots data (so analysis status updates)
+  useEffect(() => {
+    if (!activeEvidence) return
+    const updatedEvidence = snapshots.find(s => s._id === activeEvidence._id)
+    if (updatedEvidence) {
+      setActiveEvidence(updatedEvidence)
+    }
+  }, [snapshots])
+
   // Reset evidence-related states when closing evidence viewer or switching media
   useEffect(() => {
     if (!activeEvidence) {
@@ -1869,7 +1882,7 @@ export default function DiveDetailPage() {
 
           {/* Evidence viewer overlay — displays on top of MainMedia when active */}
           {activeEvidence && activeEvidence.parentMediaId === media?._id && (
-            <EvidenceViewer evidence={activeEvidence} media={media} onClose={() => setActiveEvidence(null)} queryClient={queryClient} />
+            <EvidenceViewer evidence={activeEvidence} media={media} diveId={id} onClose={() => setActiveEvidence(null)} queryClient={queryClient} />
           )}
 
           {/* OLD IMPLEMENTATION REMOVED - replaced with EvidenceViewer component */}
