@@ -577,14 +577,17 @@ function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
     const labs = evidence.aiLabels || []
     if (!labs.length) return []
     const hasPerFrame = labs.some(l => l.frameTime != null)
+    // If no per-frame data or not a clip, show all labels
     if (!hasPerFrame || !isClip) return labs
+    // Filter to labels with frameTime
     const withFrame = labs.filter(l => l.frameTime != null)
     if (!withFrame.length) return labs
+    // Find nearest frame time
     const nearestTime = withFrame.reduce((best, l) =>
       Math.abs(l.frameTime - evidenceCurrentTime) < Math.abs(best - evidenceCurrentTime) ? l.frameTime : best,
       withFrame[0].frameTime)
-    if (Math.abs(nearestTime - evidenceCurrentTime) > 0.7) return []
-    return withFrame.filter(l => l.frameTime === nearestTime)
+    // Show labels from the nearest frame (within 0.1s tolerance)
+    return withFrame.filter(l => Math.abs(l.frameTime - nearestTime) < 0.1)
   }, [evidence.aiLabels, isClip, evidenceCurrentTime])
 
   const evidenceClassGroups = useMemo(() => {
@@ -1861,6 +1864,7 @@ export default function DiveDetailPage() {
         {/* ─── CENTER COLUMN ───────────────────────────────────────────────── */}
         {/* bg-black intentional: video player is always dark regardless of app theme */}
         <div ref={containerRef} className="group flex-1 min-h-0 bg-black rounded-xl overflow-hidden relative flex items-center justify-center"
+          style={{ isolation: 'isolate' }}
           onMouseMove={handleVideoMouseMove}
           onMouseEnter={handleVideoMouseMove}>
 
