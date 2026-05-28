@@ -684,77 +684,11 @@ function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
   if (!evidence) return null
 
   return (
-    <div className={`${isEvidenceFullscreen ? 'fixed inset-0 z-50' : 'absolute inset-0 z-40'} flex flex-col bg-black group rounded-xl overflow-hidden`} onMouseMove={handleEvidenceVideoMouseMove}>
-      {/* Top Header */}
-      <div className={`h-12 flex-none flex items-center justify-between px-4 gap-3
-                      bg-gradient-to-b from-black/60 to-transparent
-                      transition-opacity duration-200
-                      ${showEvidenceToolbar ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-        <button onClick={onClose}
-          className="flex items-center gap-2 text-[11px] font-bold text-white/80 hover:text-white">
-          <ArrowLeft size={13} />
-          {isClip
-            ? `Clip ${fmtVideoTime(evidence.startTime)} → ${fmtVideoTime(evidence.endTime)}`
-            : `Photo ${fmtVideoTime(evidence.imageTime)}`
-          }
-        </button>
+    <div className="absolute inset-0 z-40 flex items-center justify-center relative bg-black group rounded-xl overflow-hidden"
+      onMouseMove={handleEvidenceVideoMouseMove}>
 
-        <div className="flex items-center gap-1 flex-wrap">
-          {/* Detect button */}
-          {evidence.aiLabels?.length > 0 && (
-            <button onClick={() => setShowEvidenceDetect(v => !v)}
-              className={`flex items-center gap-0.5 px-1.5 py-1 rounded-full text-[10px] font-bold transition-colors ${
-                showEvidenceDetect
-                  ? 'bg-blue-500/90 text-white'
-                  : 'text-white/80 hover:text-white'
-              }`}>
-              {showEvidenceDetect ? <EyeOff size={10} /> : <Eye size={10} />}
-              <span className="hidden sm:inline">Detect</span>
-            </button>
-          )}
-
-          {/* Analyze button */}
-          <button ref={evidenceAnalyzeBtnRef}
-            onClick={() => {
-              if (!evidenceAnalyzeOpen) repositionEvidenceAnalyze()
-              setEvidenceAnalyzeOpen(v => !v)
-            }}
-            className={`flex items-center gap-0.5 px-1.5 py-1 rounded-full text-[10px] font-bold transition-colors ${
-              evidenceAnalyzeOpen
-                ? 'bg-blue-500/90 text-white'
-                : evidence.analysisStatus === 'pending'
-                  ? 'bg-blue-500/60 text-white animate-pulse'
-                  : 'text-white/80 hover:text-white'
-            }`}>
-            {evidence.analysisStatus === 'pending' ? <Loader size={10} className="animate-spin" /> : <Sparkles size={10} />}
-            <span className="hidden sm:inline">{evidence.analysisStatus === 'pending' ? 'Analyzing' : 'Analyze'}</span>
-          </button>
-
-          {/* Fullscreen button */}
-          <button onClick={() => setIsEvidenceFullscreen(v => !v)}
-            className="flex items-center gap-0.5 px-1.5 py-1 rounded-full text-[10px] font-bold text-white/80 hover:text-white transition-colors">
-            {isEvidenceFullscreen ? <Minimize2 size={10} /> : <Maximize2 size={10} />}
-            <span className="hidden sm:inline">{isEvidenceFullscreen ? 'Exit' : 'Fullscreen'}</span>
-          </button>
-
-          {/* Download buttons */}
-          <button onClick={() => handleEvidenceDownload('png')}
-            className="flex items-center gap-0.5 px-1.5 py-1 rounded-full text-[10px] font-bold text-white/80 hover:text-white transition-colors">
-            <Download size={10} />
-            <span className="hidden sm:inline">PNG</span>
-          </button>
-          {isClip && (
-            <button onClick={() => handleEvidenceDownload('mp4')}
-              className="flex items-center gap-0.5 px-1.5 py-1 rounded-full text-[10px] font-bold text-white/80 hover:text-white transition-colors">
-              <Download size={10} />
-              <span className="hidden sm:inline">MP4</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Video/Image Player */}
-      <div className="flex-1 min-h-0 flex items-center justify-center relative bg-black group/media"
+      {/* Video/Image Player - full area */}
+      <div className="w-full h-full flex items-center justify-center relative bg-black"
         onMouseMove={handleEvidenceVideoMouseMove}>
         {isClip && mediaUrl ? (
           <video ref={evidenceVideoRef}
@@ -772,6 +706,61 @@ function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
             className="w-full h-full object-contain"
             onLoad={e => setDims({ w: e.target.naturalWidth, h: e.target.naturalHeight })} />
         )}
+
+        {/* Top Header - overlays video */}
+        <div className={`absolute top-0 left-0 right-0 z-20 transition-opacity duration-200
+                        px-3 pt-2 pb-3 bg-gradient-to-b from-black/60 to-transparent
+                        ${showEvidenceToolbar ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
+          <div className="flex items-center justify-between gap-2">
+            <button onClick={onClose}
+              className="flex items-center gap-1.5 text-[11px] font-bold text-white/80 hover:text-white">
+              <ArrowLeft size={12} />
+              <span>{isClip ? `Clip ${fmtVideoTime(evidence.startTime)} → ${fmtVideoTime(evidence.endTime)}` : `Photo ${fmtVideoTime(evidence.imageTime)}`}</span>
+            </button>
+
+            <div className="flex items-center gap-0.5">
+              {/* Detect button */}
+              {evidence.aiLabels?.length > 0 && (
+                <button onClick={() => setShowEvidenceDetect(v => !v)}
+                  className={`flex items-center gap-0.5 px-1.5 py-1 rounded-full text-[10px] font-bold transition-colors ${
+                    showEvidenceDetect ? 'bg-blue-500/90 text-white' : 'text-white/80 hover:text-white'
+                  }`}>
+                  {showEvidenceDetect ? <EyeOff size={10} /> : <Eye size={10} />}
+                  <span className="hidden sm:inline">Detect</span>
+                </button>
+              )}
+
+              {/* Analyze button */}
+              <button ref={evidenceAnalyzeBtnRef}
+                onClick={() => {
+                  if (!evidenceAnalyzeOpen) repositionEvidenceAnalyze()
+                  setEvidenceAnalyzeOpen(v => !v)
+                }}
+                className={`flex items-center gap-0.5 px-1.5 py-1 rounded-full text-[10px] font-bold transition-colors ${
+                  evidenceAnalyzeOpen ? 'bg-blue-500/90 text-white' : evidence.analysisStatus === 'pending' ? 'bg-blue-500/60 text-white animate-pulse' : 'text-white/80 hover:text-white'
+                }`}>
+                {evidence.analysisStatus === 'pending' ? <Loader size={10} className="animate-spin" /> : <Sparkles size={10} />}
+                <span className="hidden sm:inline">{evidence.analysisStatus === 'pending' ? 'Analyzing' : 'Analyze'}</span>
+              </button>
+
+              {/* Download PNG button */}
+              <button onClick={() => handleEvidenceDownload('png')}
+                className="flex items-center gap-0.5 px-1.5 py-1 rounded-full text-[10px] font-bold text-white/80 hover:text-white transition-colors">
+                <Download size={10} />
+                <span className="hidden sm:inline">PNG</span>
+              </button>
+
+              {/* Download MP4 button - only for clips */}
+              {isClip && (
+                <button onClick={() => handleEvidenceDownload('mp4')}
+                  className="flex items-center gap-0.5 px-1.5 py-1 rounded-full text-[10px] font-bold text-white/80 hover:text-white transition-colors">
+                  <Download size={10} />
+                  <span className="hidden sm:inline">MP4</span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
 
         {/* Detection overlay */}
         {showEvidenceDetect && evidenceActiveLabs.length > 0 && (
@@ -841,12 +830,12 @@ function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
 
             {/* Run button */}
             <div className="px-4 pb-4">
-              <button onClick={handleEvidenceAnalyze} disabled={evidenceAnalyzing}
+              <button onClick={handleEvidenceAnalyze} disabled={evidence.analysisStatus === 'pending'}
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg
                            font-semibold text-sm transition-colors
                            bg-violet-600 hover:bg-violet-500
                            disabled:opacity-50 disabled:cursor-not-allowed">
-                {evidenceAnalyzing || evidence.analysisStatus === 'pending'
+                {evidence.analysisStatus === 'pending'
                   ? <><Loader size={13} className="animate-spin" /> Running…</>
                   : <><Sparkles size={13} /> Run Analysis</>}
               </button>
