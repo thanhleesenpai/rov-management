@@ -692,25 +692,26 @@ function EvidenceViewer({ evidence, media, diveId, onClose, queryClient }) {
       onMouseMove={handleEvidenceVideoMouseMove}>
 
       {/* Video/Image Player - full area */}
-      <div className="absolute inset-0 flex items-center justify-center relative bg-black cursor-pointer"
-        onClick={() => { if (isClip && evidenceVideoRef.current) { evidenceVideoRef.current.paused ? evidenceVideoRef.current.play().catch(()=>{}) : evidenceVideoRef.current.pause() } }}
+      <div className="absolute inset-0 flex items-center justify-center relative bg-black"
         onMouseMove={handleEvidenceVideoMouseMove}>
         {isClip && mediaUrl ? (
-          <video ref={evidenceVideoRef}
-            src={mediaUrl}
-            className="w-full h-full object-contain"
-            onClick={e => e.stopPropagation()}
-            onLoadedMetadata={e => {
-              setDims({ w: e.target.videoWidth, h: e.target.videoHeight })
-              setEvidenceVideoDuration(e.target.duration || 0)
-            }}
-            onTimeUpdate={handleEvidenceTimeUpdate}
-            onPlay={() => setIsEvidenceVideoPlaying(true)}
-            onPause={() => setIsEvidenceVideoPlaying(false)} />
+          <div className="relative w-full h-full cursor-pointer"
+            onClick={() => { const v = evidenceVideoRef.current; if (!v) return; v.paused ? v.play().catch(()=>{}) : v.pause() }}>
+            <video ref={evidenceVideoRef}
+              src={mediaUrl}
+              className="w-full h-full object-contain"
+              onClick={e => { e.stopPropagation(); const v = e.currentTarget; v.paused ? v.play().catch(()=>{}) : v.pause() }}
+              onLoadedMetadata={e => {
+                setDims({ w: e.target.videoWidth, h: e.target.videoHeight })
+                setEvidenceVideoDuration(e.target.duration || 0)
+              }}
+              onTimeUpdate={handleEvidenceTimeUpdate}
+              onPlay={() => setIsEvidenceVideoPlaying(true)}
+              onPause={() => setIsEvidenceVideoPlaying(false)} />
+          </div>
         ) : (
           <img src={evidence.imageUrl || evidence.thumbnailUrl} alt="evidence"
             className="w-full h-full object-contain"
-            onClick={e => e.stopPropagation()}
             onLoad={e => setDims({ w: e.target.naturalWidth, h: e.target.naturalHeight })} />
         )}
 
