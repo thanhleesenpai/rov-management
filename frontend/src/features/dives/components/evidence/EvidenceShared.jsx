@@ -1,12 +1,14 @@
 import { useMediaUrl, resolveType, DetectionSVG } from '../media/MediaShared'
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { 
   File, FileText, CheckCircle2, AlertTriangle, X, Play, Pause, 
   Volume2, VolumeX, Maximize2, Minimize2, Loader, 
   Clock, Info, Sparkles, ArrowLeft, Download, Trash2, Camera, Clapperboard, Square, Images, Eye, EyeOff
 } from 'lucide-react'
 import api from '@/lib/axios'
+import { toast } from 'sonner'
+import ConfirmDialog from '@/components/shared/ConfirmDialog'
 
 // ─── Evidence video controls ─────────────────────────────────────────────────
 
@@ -615,7 +617,7 @@ function fmtVideoTime(sec) {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
-function EvidenceCard({ snap, canEdit, diveId, queryClient, onSeek, onClick, onDelete }) {
+function EvidenceCard({ snap, canEdit, diveId, queryClient, onSeek, onClick, onDelete, selectMode, selected, onSelect }) {
   const [deleting, setDeleting] = useState(false)
 
   const isClip   = snap.type === 'clip'
@@ -632,9 +634,10 @@ function EvidenceCard({ snap, canEdit, diveId, queryClient, onSeek, onClick, onD
     : []
 
   return (
-    <div className="relative group/thumb rounded-lg overflow-hidden border-2 border-white/20 aspect-video
-                    bg-slate-800 cursor-pointer hover:border-white/40 transition-colors"
-         onClick={() => onClick && onClick()}>
+    <div className={`relative group/thumb rounded-lg overflow-hidden border-2 aspect-video
+                     bg-slate-800 cursor-pointer hover:border-white/40 transition-colors
+                     ${selectMode && selected ? 'border-blue-500' : 'border-white/20'}`}
+         onClick={() => selectMode ? onSelect() : (onClick && onClick())}>
       {/* Thumbnail image */}
       {snap.imageUrl || snap.thumbnailUrl
         ? <img src={snap.imageUrl || snap.thumbnailUrl} alt="" className="w-full h-full object-cover" />
@@ -675,8 +678,19 @@ function EvidenceCard({ snap, canEdit, diveId, queryClient, onSeek, onClick, onD
         {timeLabel}
       </div>
 
+      {/* Select Mode Overlay */}
+      {selectMode && (
+        <div className={`absolute inset-0 transition-colors ${selected ? 'bg-blue-500/30' : 'bg-black/0 hover:bg-black/10'}`}>
+          <div className={`absolute top-1 right-1 w-4 h-4 rounded-full border flex items-center justify-center transition-all ${
+            selected ? 'bg-blue-500 border-blue-500' : 'bg-white/70 border-white'
+          }`}>
+            {selected && <CheckCircle2 size={10} className="text-white" strokeWidth={3} />}
+          </div>
+        </div>
+      )}
+
       {/* Delete button — top-right corner, ghost button */}
-      {canEdit && (
+      {canEdit && !selectMode && (
         <button onClick={e => { e.stopPropagation(); onDelete && onDelete() }}
           disabled={deleting}
           className="absolute -top-1 -right-1 p-1 rounded-full
@@ -693,13 +707,59 @@ export function EvidencePanel({ snapshots, isOpen, diveId, canEdit, videoRef, qu
   // Filter snapshots to only show evidence belonging to current media
   const currentMediaSnapshots = snapshots.filter(s => s.parentMediaId === currentMediaId)
 
+  const [selectMode, setSelectMode] = useState(false)
+  const [selected, setSelected] = useState(new Set())
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids) => api.delete('/snapshots/bulk', { data: { ids } }),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['snapshots', diveId] })
+      toast.success(`${res.data?.deleted ?? selected.size} item(s) deleted`)
+      setSelected(new Set())
+      setSelectMode(false)
+      setConfirmBulkDelete(false)
+    },
+    onError: () => toast.error('Failed to delete items')
+  })
+
+  const exitSelectMode = () => { setSelectMode(false); setSelected(new Set()) }
+  const toggleSelect = (id) => setSelected(prev => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
+  const selectAll = () => setSelected(selected.size === currentMediaSnapshots.length ? new Set() : new Set(currentMediaSnapshots.map(m => m._id)))
+
   if (isHorizontal) {
     if (!isOpen) return null
     return (
       <div className="flex-none w-full h-[110px] bg-black/80 flex items-center gap-2 px-3 overflow-x-auto overflow-y-hidden border-t border-white/10 z-40">
-        <div className="shrink-0 flex flex-col justify-center px-3 border-r border-white/10 mr-1 h-[80%]">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Evidence</p>
-          <p className="text-[9px] text-white/30 mt-0.5">{currentMediaSnapshots.length} item{currentMediaSnapshots.length !== 1 ? 's' : ''}</p>
+        <div className="shrink-0 flex flex-col justify-center px-3 border-r border-white/10 mr-1 h-[80%] min-w-[80px]">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-white/50 mb-1">Evidence</p>
+          
+          {!selectMode ? (
+            <>
+              <p className="text-[9px] text-white/30 mb-1">{currentMediaSnapshots.length} item{currentMediaSnapshots.length !== 1 ? 's' : ''}</p>
+              {canEdit && currentMediaSnapshots.length > 0 && (
+                <button onClick={() => setSelectMode(true)} className="text-[9px] font-bold text-white/50 hover:text-white uppercase transition-colors self-start">
+                  Select
+                </button>
+              )}
+            </>
+          ) : (
+            <div className="flex flex-col gap-1.5 mt-1">
+              <button onClick={selectAll} className="text-[9px] text-white/70 hover:text-white px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20 transition-colors self-start">
+                {selected.size === currentMediaSnapshots.length ? 'Deselect' : 'Select All'}
+              </button>
+              <div className="flex items-center gap-1">
+                {selected.size > 0 && (
+                  <button onClick={() => setConfirmBulkDelete(true)} className="p-1 rounded bg-red-500/80 hover:bg-red-500 text-white transition-colors" title="Delete selected">
+                    <Trash2 size={10} />
+                  </button>
+                )}
+                <button onClick={exitSelectMode} className="p-1 rounded bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-colors" title="Cancel">
+                  <X size={10} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
         {currentMediaSnapshots.length === 0 ? (
           <div className="flex items-center gap-2 px-4 opacity-40">
@@ -720,6 +780,9 @@ export function EvidencePanel({ snapshots, isOpen, diveId, canEdit, videoRef, qu
                   const v = videoRef.current
                   if (v && t != null) { v.currentTime = t; v.play().catch(() => {}) }
                 }}
+                selectMode={selectMode}
+                selected={selected.has(snap._id)}
+                onSelect={() => toggleSelect(snap._id)}
               />
             </div>
           ))
@@ -734,11 +797,36 @@ export function EvidencePanel({ snapshots, isOpen, diveId, canEdit, videoRef, qu
                      overflow-y-auto flex flex-col
                      transition-transform duration-200 ease-out
                      ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-      <div className="px-3 py-2.5 border-b border-white/10 shrink-0 sticky top-0 bg-black/60 backdrop-blur-sm z-10">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Evidence</p>
-        <p className="text-[8px] text-white/30 mt-0.5">
-          {currentMediaSnapshots.length} item{currentMediaSnapshots.length !== 1 ? 's' : ''}
-        </p>
+      <div className="pt-[52px] px-3 pb-2.5 border-b border-white/10 shrink-0 sticky top-0 bg-black/60 backdrop-blur-sm z-10 flex flex-col gap-1.5">
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Evidence</p>
+          {canEdit && currentMediaSnapshots.length > 0 && !selectMode && (
+            <button onClick={() => setSelectMode(true)} className="text-[9px] font-bold text-white/50 hover:text-white uppercase transition-colors">
+              Select
+            </button>
+          )}
+        </div>
+        {!selectMode ? (
+          <p className="text-[8px] text-white/30">
+            {currentMediaSnapshots.length} item{currentMediaSnapshots.length !== 1 ? 's' : ''}
+          </p>
+        ) : (
+          <div className="flex items-center justify-between mt-1">
+            <button onClick={selectAll} className="text-[9px] text-white/70 hover:text-white px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20 transition-colors">
+              {selected.size === currentMediaSnapshots.length ? 'Deselect All' : 'Select All'}
+            </button>
+            <div className="flex items-center gap-1">
+              {selected.size > 0 && (
+                <button onClick={() => setConfirmBulkDelete(true)} className="p-1 rounded bg-red-500/80 hover:bg-red-500 text-white transition-colors" title="Delete selected">
+                  <Trash2 size={10} />
+                </button>
+              )}
+              <button onClick={exitSelectMode} className="p-1 rounded bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-colors" title="Cancel">
+                <X size={10} />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {currentMediaSnapshots.length === 0 ? (
@@ -765,9 +853,22 @@ export function EvidencePanel({ snapshots, isOpen, diveId, canEdit, videoRef, qu
                 const v = videoRef.current
                 if (v && t != null) { v.currentTime = t; v.play().catch(() => {}) }
               }}
+              selectMode={selectMode}
+              selected={selected.has(snap._id)}
+              onSelect={() => toggleSelect(snap._id)}
             />
           ))}
         </div>
+      )}
+
+      {confirmBulkDelete && (
+        <ConfirmDialog
+          title="Delete Evidence"
+          message={`Are you sure you want to delete ${selected.size} item(s)?`}
+          loading={bulkDeleteMutation.isPending}
+          onConfirm={() => bulkDeleteMutation.mutate([...selected])}
+          onCancel={() => setConfirmBulkDelete(false)}
+        />
       )}
     </div>
   )

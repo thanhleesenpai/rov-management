@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useThemeStore } from '@/store/theme.store'
 import {
   ArrowLeft, MapPin, Anchor, Activity, Upload, Pencil,
@@ -32,6 +32,7 @@ import DiveMap from './components/DiveMap'
 import { BottomChart } from './components/charts/BottomChart'
 import { ThumbVertical, MainMedia, useMediaUrl, resolveType, AIAnalyzePopover, RecordedAtEditor, RetryAnalysisButton, CustomVideoControls, DetectionSVG, fmtVideoTime } from './components/media/MediaShared'
 import { EvidencePanel, EvidenceViewer } from './components/evidence/EvidenceShared'
+import { toast } from 'sonner'
 import 'leaflet/dist/leaflet.css'
 
 // ─── Status ──────────────────────────────────────────────────────────────────
@@ -110,6 +111,23 @@ export default function DiveDetailPage() {
   const [syncTs, setSyncTs] = useState(null)
   const [showExport, setShowExport] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+
+  const [playlistSelectMode, setPlaylistSelectMode] = useState(false)
+  const [playlistSelected, setPlaylistSelected] = useState(new Set())
+  const [confirmBulkDeletePlaylist, setConfirmBulkDeletePlaylist] = useState(false)
+
+  const bulkDeletePlaylistMutation = useMutation({
+    mutationFn: (ids) => api.delete('/media/bulk', { data: { ids } }),
+    onSuccess: (res) => {
+      queryClient.invalidateQueries({ queryKey: ['media', id] })
+      toast.success(`${res.data?.deleted ?? playlistSelected.size} item(s) deleted`)
+      setPlaylistSelected(new Set())
+      setPlaylistSelectMode(false)
+      setConfirmBulkDeletePlaylist(false)
+      setSelIdx(0)
+    },
+    onError: () => toast.error('Failed to delete items')
+  })
 
   // Use ResizeObserver to detect if Center Column has enough vertical space below the video
   useEffect(() => {
@@ -1214,10 +1232,42 @@ export default function DiveDetailPage() {
             {!canShowHorizontalPlaylist && (
               <div className={`absolute top-0 right-0 bottom-0 z-10 w-44
                            bg-black/90 backdrop-blur-sm border-l border-white/10
-                           overflow-y-auto
+                           overflow-y-auto flex flex-col
                            transition-transform duration-200 ease-out
                            ${isPlaylistOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-                <div className="pt-[52px] px-2 pb-16 flex flex-col gap-2">
+                <div className="pt-[52px] px-3 pb-2.5 border-b border-white/10 shrink-0 sticky top-0 bg-black/60 backdrop-blur-sm z-10 flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Playlist</p>
+                    {canUpload && mediaList.length > 0 && !playlistSelectMode && (
+                      <button onClick={() => setPlaylistSelectMode(true)} className="text-[9px] font-bold text-white/50 hover:text-white uppercase transition-colors">
+                        Select
+                      </button>
+                    )}
+                  </div>
+                  {!playlistSelectMode ? (
+                    <p className="text-[8px] text-white/30">
+                      {mediaList.length} item{mediaList.length !== 1 ? 's' : ''}
+                    </p>
+                  ) : (
+                    <div className="flex items-center justify-between mt-1">
+                      <button onClick={() => setPlaylistSelected(playlistSelected.size === mediaList.length ? new Set() : new Set(mediaList.map(m => m._id)))} className="text-[9px] text-white/70 hover:text-white px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20 transition-colors">
+                        {playlistSelected.size === mediaList.length ? 'Deselect All' : 'Select All'}
+                      </button>
+                      <div className="flex items-center gap-1">
+                        {playlistSelected.size > 0 && (
+                          <button onClick={() => setConfirmBulkDeletePlaylist(true)} className="p-1 rounded bg-red-500/80 hover:bg-red-500 text-white transition-colors" title="Delete selected">
+                            <Trash2 size={10} />
+                          </button>
+                        )}
+                        <button onClick={() => { setPlaylistSelectMode(false); setPlaylistSelected(new Set()) }} className="p-1 rounded bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-colors" title="Cancel">
+                          <X size={10} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-2 pb-16 flex flex-col gap-2">
                   {mediaList.length === 0 ? (
                     <div className="flex flex-col items-center justify-center gap-2 py-10">
                       <File size={20} className="text-slate-600" />
@@ -1233,7 +1283,11 @@ export default function DiveDetailPage() {
                         label={`${resolveType(m) === 'video' ? 'Video' : 'Photo'} ${i + 1}`}
                         canEdit={canUpload}
                         deleting={false}
-                        onDelete={() => setConfirmDelete(m)} />
+                        onDelete={() => setConfirmDelete(m)}
+                        selectMode={playlistSelectMode}
+                        selected={playlistSelected.has(m._id)}
+                        onSelect={() => setPlaylistSelected(prev => { const next = new Set(prev); next.has(m._id) ? next.delete(m._id) : next.add(m._id); return next })}
+                      />
                     ))
                   )}
                 </div>
@@ -1287,9 +1341,39 @@ export default function DiveDetailPage() {
 
           {/* Horizontal Playlist (Bottom of Center Column) */}
           {canShowHorizontalPlaylist && isPlaylistOpen && mediaList.length > 1 && (
-            <div className="flex-none w-full h-[100px] bg-black/80 flex items-center gap-2 px-3 overflow-x-auto overflow-y-hidden border-t border-white/10 z-40">
+            <div className="flex-none w-full h-[110px] bg-black/80 flex items-center gap-2 px-3 overflow-x-auto overflow-y-hidden border-t border-white/10 z-40">
+              <div className="shrink-0 flex flex-col justify-center px-3 border-r border-white/10 mr-1 h-[80%] min-w-[80px]">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-white/50 mb-1">Playlist</p>
+                
+                {!playlistSelectMode ? (
+                  <>
+                    <p className="text-[9px] text-white/30 mb-1">{mediaList.length} item{mediaList.length !== 1 ? 's' : ''}</p>
+                    {canUpload && mediaList.length > 0 && (
+                      <button onClick={() => setPlaylistSelectMode(true)} className="text-[9px] font-bold text-white/50 hover:text-white uppercase transition-colors self-start">
+                        Select
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex flex-col gap-1.5 mt-1">
+                    <button onClick={() => setPlaylistSelected(playlistSelected.size === mediaList.length ? new Set() : new Set(mediaList.map(m => m._id)))} className="text-[9px] text-white/70 hover:text-white px-1.5 py-0.5 rounded bg-white/10 hover:bg-white/20 transition-colors self-start">
+                      {playlistSelected.size === mediaList.length ? 'Deselect' : 'Select All'}
+                    </button>
+                    <div className="flex items-center gap-1">
+                      {playlistSelected.size > 0 && (
+                        <button onClick={() => setConfirmBulkDeletePlaylist(true)} className="p-1 rounded bg-red-500/80 hover:bg-red-500 text-white transition-colors" title="Delete selected">
+                          <Trash2 size={10} />
+                        </button>
+                      )}
+                      <button onClick={() => { setPlaylistSelectMode(false); setPlaylistSelected(new Set()) }} className="p-1 rounded bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-colors" title="Cancel">
+                        <X size={10} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
               {mediaList.map((m, i) => (
-                <div key={m._id} className="shrink-0 w-24">
+                <div key={m._id} className="shrink-0 w-32">
                   <ThumbVertical
                     media={m}
                     active={i === selIdx}
@@ -1297,10 +1381,24 @@ export default function DiveDetailPage() {
                     label={`${resolveType(m) === 'video' ? 'Video' : 'Photo'} ${i + 1}`}
                     canEdit={canUpload}
                     deleting={false}
-                    onDelete={() => setConfirmDelete(m)} />
+                    onDelete={() => setConfirmDelete(m)}
+                    selectMode={playlistSelectMode}
+                    selected={playlistSelected.has(m._id)}
+                    onSelect={() => setPlaylistSelected(prev => { const next = new Set(prev); next.has(m._id) ? next.delete(m._id) : next.add(m._id); return next })}
+                  />
                 </div>
               ))}
             </div>
+          )}
+
+          {confirmBulkDeletePlaylist && (
+            <ConfirmDialog
+              title="Delete Playlist Items"
+              message={`Are you sure you want to delete ${playlistSelected.size} item(s)?`}
+              loading={bulkDeletePlaylistMutation.isPending}
+              onConfirm={() => bulkDeletePlaylistMutation.mutate([...playlistSelected])}
+              onCancel={() => setConfirmBulkDeletePlaylist(false)}
+            />
           )}
 
         </div>

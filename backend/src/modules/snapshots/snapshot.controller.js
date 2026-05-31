@@ -35,6 +35,15 @@ const remove = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const bulkDelete = async (req, res, next) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids)) return error(res, 'ids must be an array', 400);
+    const count = await snapshotService.bulkRemove(ids);
+    return success(res, { deleted: count }, `${count} snapshots deleted`);
+  } catch (err) { next(err); }
+};
+
 const analyze = async (req, res, next) => {
   try {
     const { model = 'yolov8n', confidence = 0.3 } = req.body;
@@ -71,4 +80,4 @@ const proxyImage = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-module.exports = { create, getByDive, remove, analyze, updateNote, getDownloadUrl, downloadClip, proxyImage };
+module.exports = { create, getByDive, remove, bulkDelete, analyze, updateNote, getDownloadUrl, downloadClip, proxyImage };

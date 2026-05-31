@@ -148,6 +148,25 @@ const remove = async (snapshotId) => {
   await Snapshot.findByIdAndDelete(snapshotId);
 };
 
+const bulkRemove = async (ids) => {
+  if (!Array.isArray(ids) || ids.length === 0) return 0;
+  const snaps = await Snapshot.find({ _id: { $in: ids } });
+  
+  const keys = snaps.flatMap(snap => [snap.imageS3Key, snap.thumbnailS3Key].filter(Boolean));
+  if (keys.length > 0) {
+    // Delete from S3 in parallel chunks
+    const chunk = 10;
+    for (let i = 0; i < keys.length; i += chunk) {
+      await Promise.all(keys.slice(i, i + chunk).map(k => 
+        s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: k })).catch(() => {})
+      ));
+    }
+  }
+
+  const result = await Snapshot.deleteMany({ _id: { $in: ids } });
+  return result.deletedCount;
+};
+
 const enqueueAnalysis = async (snapshotId, { model = 'yolov8n', confidence = 0.3 } = {}) => {
   if (!/^[a-zA-Z0-9_-]{1,64}$/.test(model)) throw { statusCode: 400, message: 'Invalid model name' };
   if (confidence < 0.1 || confidence > 0.9) throw { statusCode: 400, message: 'confidence must be 0.1–0.9' };
@@ -236,4 +255,4 @@ const proxyImage = async (snapshotId, res) => {
   Body.pipe(res);
 };
 
-module.exports = { create, getByDive, remove, enqueueAnalysis, updateNote, getDownloadUrl, streamClipDownload, proxyImage };
+module.exports = { create, getByDive, remove, bulkRemove, enqueueAnalysis, updateNote, getDownloadUrl, streamClipDownload, proxyImage };

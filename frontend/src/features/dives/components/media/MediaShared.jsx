@@ -34,15 +34,17 @@ export function useMediaUrl(id) {
 
 // ─── Playlist thumbnail ───────────────────────────────────────────────────────
 
-export function ThumbVertical({ media, active, onClick, label, canEdit, onDelete, deleting }) {
+export function ThumbVertical({ media, active, onClick, label, canEdit, onDelete, deleting, selectMode, selected, onSelect }) {
   const { data: url } = useMediaUrl(media._id)
   const type = resolveType(media)
   const isClip = label?.includes('clip') || media.type === 'clip'
 
   return (
-    <div className="relative group/thumb rounded-lg overflow-hidden border-2 border-white/20
-                    bg-slate-800 cursor-pointer hover:border-white/40 transition-colors"
-         onClick={onClick}>
+    <div className={`relative group/thumb rounded-lg overflow-hidden border-2 aspect-video
+                     bg-slate-800 cursor-pointer hover:border-white/40 transition-colors
+                     ${selectMode && selected ? 'border-blue-500' : 'border-white/20'}
+                     ${active && !selectMode ? 'border-white' : ''}`}
+         onClick={() => selectMode ? onSelect() : onClick()}>
       {type === 'image' && url
         ? <img src={url} alt="" className="w-full h-full object-cover aspect-video" />
         : type === 'video' && url
@@ -64,8 +66,19 @@ export function ThumbVertical({ media, active, onClick, label, canEdit, onDelete
         {label}
       </div>
 
+      {/* Select Mode Overlay */}
+      {selectMode && (
+        <div className={`absolute inset-0 transition-colors ${selected ? 'bg-blue-500/30' : 'bg-black/0 hover:bg-black/10'}`}>
+          <div className={`absolute top-1 right-1 w-4 h-4 rounded-full border flex items-center justify-center transition-all ${
+            selected ? 'bg-blue-500 border-blue-500' : 'bg-white/70 border-white'
+          }`}>
+            {selected && <CheckCircle2 size={10} className="text-white" strokeWidth={3} />}
+          </div>
+        </div>
+      )}
+
       {/* Delete button — top-right corner, ghost button, like Evidence list */}
-      {canEdit && (
+      {canEdit && !selectMode && (
         <button onClick={e => { e.stopPropagation(); onDelete && onDelete() }}
           disabled={deleting}
           className="absolute -top-1 -right-1 p-1 rounded-full

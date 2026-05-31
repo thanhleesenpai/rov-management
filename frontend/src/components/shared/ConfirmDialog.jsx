@@ -1,4 +1,5 @@
-import { AlertTriangle, TriangleAlert } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
+import { createPortal } from 'react-dom'
 
 export default function ConfirmDialog({
   title, message, onConfirm, onCancel, loading,
@@ -16,7 +17,7 @@ export default function ConfirmDialog({
 
   const defaultLabel = isWarning ? 'Continue' : 'Delete'
 
-  return (
+  const modal = (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4">
       <div className="bg-card rounded-xl shadow-2xl w-full max-w-sm p-6">
         <div className="flex items-center gap-3 mb-3">
@@ -39,4 +40,6 @@ export default function ConfirmDialog({
       </div>
     </div>
   )
+
+  return createPortal(modal, document.body)
 }
