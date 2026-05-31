@@ -219,8 +219,8 @@ export default function UsersPage() {
       ) : (
         <>
           {/* Desktop table */}
-          <div className="hidden sm:block bg-card rounded-xl shadow overflow-hidden border border-border">
-            <table className="w-full text-sm">
+          <div className="hidden xl:block bg-card rounded-xl shadow overflow-hidden border border-border">
+            <table className="w-full text-sm min-w-max">
               <thead className="bg-muted border-b border-border">
                 <tr>
                   {selectMode && (
@@ -233,7 +233,7 @@ export default function UsersPage() {
                   <th className="text-left px-6 py-3 text-muted-foreground font-medium">Role</th>
                   <th className="text-left px-6 py-3 text-muted-foreground font-medium">Status</th>
                   <th className="text-left px-6 py-3 text-muted-foreground font-medium">Last Login</th>
-                  {!selectMode && <th className="text-right px-6 py-3 text-muted-foreground font-medium">Actions</th>}
+                  {!selectMode && <th className="sticky right-0 bg-muted text-right px-6 py-3 text-muted-foreground font-medium">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -248,14 +248,14 @@ export default function UsersPage() {
                           className="w-4 h-4 rounded accent-blue-600 cursor-pointer" />
                       </td>
                     )}
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
+                    <td className="px-6 py-4 min-w-[200px]">
+                      <div className="flex items-center gap-3 min-w-0">
                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                           <User size={14} className="text-primary" />
                         </div>
-                        <div>
-                          <p className="font-medium text-foreground">{u.fullName}</p>
-                          <p className="text-xs text-muted-foreground">{u.email}</p>
+                        <div className="min-w-0">
+                          <p className="font-medium text-foreground truncate">{u.fullName}</p>
+                          <p className="text-xs text-muted-foreground truncate" title={u.email}>{u.email}</p>
                         </div>
                       </div>
                     </td>
@@ -269,11 +269,11 @@ export default function UsersPage() {
                         {u.isActive ? 'Active' : 'Disabled'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-xs text-muted-foreground">
-                      {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : '—'}
+                    <td className="px-6 py-4 text-xs text-muted-foreground whitespace-nowrap" title={u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : ''}>
+                      {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString() : '—'}
                     </td>
                     {!selectMode && (
-                      <td className="px-6 py-4">
+                      <td className="sticky right-0 bg-card px-6 py-4">
                         <div className="flex items-center justify-end gap-1">
                           <button onClick={() => setEditingUser(u)} className="p-1.5 text-muted-foreground hover:text-yellow-500 rounded transition-colors" title="Edit">
                             <Pencil size={15} />
@@ -293,7 +293,7 @@ export default function UsersPage() {
           </div>
 
           {/* Mobile card list */}
-          <div className="sm:hidden space-y-2">
+          <div className="xl:hidden space-y-2">
             {users.map(u => (
               <div key={u._id}
                 className={`bg-card rounded-xl border shadow-sm px-4 py-3 transition-colors ${selectMode ? 'cursor-pointer' : ''} ${selected.has(u._id) ? 'border-primary bg-primary/5' : 'border-border'}`}

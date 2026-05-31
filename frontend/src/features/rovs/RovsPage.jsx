@@ -107,15 +107,15 @@ export default function RovsPage() {
       ) : (
         <>
           {/* Desktop table */}
-          <div className="hidden sm:block bg-card rounded-xl shadow overflow-hidden border border-border">
-            <table className="w-full text-sm">
+          <div className="hidden xl:block bg-card rounded-xl shadow overflow-hidden border border-border">
+            <table className="w-full text-sm min-w-max">
               <thead className="bg-muted border-b border-border">
                 <tr>
                   <th className="text-left px-6 py-3 text-muted-foreground font-medium">Name</th>
                   <th className="text-left px-6 py-3 text-muted-foreground font-medium">Model</th>
                   <th className="text-left px-6 py-3 text-muted-foreground font-medium">Serial Number</th>
                   <th className="text-left px-6 py-3 text-muted-foreground font-medium">Status</th>
-                  <th className="text-right px-6 py-3 text-muted-foreground font-medium">Actions</th>
+                  <th className="sticky right-0 bg-muted text-right px-6 py-3 text-muted-foreground font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -123,13 +123,13 @@ export default function RovsPage() {
                   const { text, cls } = STATUS_LABEL[rov.status] || STATUS_LABEL.active
                   return (
                     <tr key={rov._id} className="hover:bg-muted/50 transition-colors">
-                      <td className="px-6 py-4 font-medium text-foreground">{rov.name}</td>
-                      <td className="px-6 py-4 text-muted-foreground">{rov.model}</td>
-                      <td className="px-6 py-4 text-muted-foreground font-mono text-xs">{rov.serialNumber}</td>
+                      <td className="px-6 py-4 font-medium text-foreground min-w-[150px]">{rov.name}</td>
+                      <td className="px-6 py-4 text-muted-foreground min-w-[120px] truncate" title={rov.model}>{rov.model}</td>
+                      <td className="px-6 py-4 text-muted-foreground font-mono text-xs min-w-[140px] truncate" title={rov.serialNumber}>{rov.serialNumber}</td>
                       <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${cls}`}>{text}</span>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${cls}`}>{text}</span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="sticky right-0 bg-card px-6 py-4">
                         <div className="flex items-center justify-end gap-2">
                           <Link to={`/rovs/${rov._id}`} className="p-1.5 text-muted-foreground hover:text-primary rounded" title="View">
                             <Eye size={15} />
@@ -156,7 +156,7 @@ export default function RovsPage() {
           </div>
 
           {/* Mobile card list */}
-          <div className="sm:hidden space-y-2">
+          <div className="xl:hidden space-y-2">
             {rovs.map(rov => {
               const { text, cls } = STATUS_LABEL[rov.status] || STATUS_LABEL.active
               return (

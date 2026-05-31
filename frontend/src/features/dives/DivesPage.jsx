@@ -128,15 +128,15 @@ export default function DivesPage() {
       ) : (
         <>
           {/* Desktop table */}
-          <div className="hidden sm:block bg-card rounded-xl shadow overflow-hidden border border-border">
-            <table className="w-full text-sm">
+          <div className="hidden xl:block bg-card rounded-xl shadow overflow-hidden border border-border">
+            <table className="w-full text-sm min-w-max">
               <thead className="bg-muted border-b border-border">
                 <tr>
                   <th className="text-left px-6 py-3 text-muted-foreground font-medium">Title</th>
                   <th className="text-left px-6 py-3 text-muted-foreground font-medium">Trip</th>
                   <th className="text-left px-6 py-3 text-muted-foreground font-medium">Status</th>
                   <th className="text-left px-6 py-3 text-muted-foreground font-medium">Sensor Data</th>
-                  <th className="text-right px-6 py-3 text-muted-foreground font-medium">Actions</th>
+                  <th className="sticky right-0 bg-muted text-right px-6 py-3 text-muted-foreground font-medium">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -144,39 +144,40 @@ export default function DivesPage() {
                   const { text, cls } = STATUS[dive.status] || STATUS.pending
                   return (
                     <tr key={dive._id} className="hover:bg-muted/50 transition-colors">
-                      <td className="px-6 py-4">
-                        <Link to={`/dives/${dive._id}`} className="font-medium text-foreground hover:text-primary transition-colors">
+                      <td className="px-6 py-4 min-w-[150px]">
+                        <Link to={`/dives/${dive._id}`} className="font-medium text-foreground hover:text-primary transition-colors truncate block">
                           {dive.title}
                         </Link>
-                        {dive.description && <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-xs">{dive.description}</p>}
+                        {dive.description && <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-xs" title={dive.description}>{dive.description}</p>}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 min-w-[120px]">
                         {dive.trip ? (
                           <Link to={`/trips/${dive.trip._id}`}
-                            className="flex items-center gap-1 text-primary hover:underline text-xs">
-                            {dive.trip.name} <ExternalLink size={11} />
+                            className="flex items-center gap-1 text-primary hover:underline text-xs truncate"
+                            title={dive.trip.name}>
+                            {dive.trip.name} <ExternalLink size={11} className="shrink-0" />
                           </Link>
                         ) : '—'}
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${cls}`}>{text}</span>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${cls}`}>{text}</span>
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 min-w-[180px]">
                         {(dive.sensorCount || 0) > 0 ? (
                           <div>
-                            <div className="flex items-center gap-1 text-xs text-primary">
-                              <Activity size={11} />
+                            <div className="flex items-center gap-1 text-xs text-primary whitespace-nowrap">
+                              <Activity size={11} className="shrink-0" />
                               <span className="font-medium">{dive.sensorCount.toLocaleString()} readings</span>
                             </div>
                             {dive.locationName && (
-                              <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[180px]">{dive.locationName}</p>
+                              <p className="text-xs text-muted-foreground mt-0.5 truncate" title={dive.locationName}>{dive.locationName}</p>
                             )}
                           </div>
                         ) : (
                           <span className="text-xs text-muted-foreground">—</span>
                         )}
                       </td>
-                      <td className="px-6 py-4">
+                      <td className="sticky right-0 bg-card px-6 py-4">
                         <div className="flex items-center justify-end gap-2">
                           <Link to={`/dives/${dive._id}`} title="View dive details"
                             className="p-1.5 text-muted-foreground hover:text-primary rounded transition-colors">
@@ -204,33 +205,35 @@ export default function DivesPage() {
           </div>
 
           {/* Mobile card list */}
-          <div className="sm:hidden space-y-2">
+          <div className="xl:hidden space-y-2">
             {dives.map(dive => {
               const { text, cls } = STATUS[dive.status] || STATUS.pending
               return (
                 <div key={dive._id} className="bg-card rounded-xl border border-border shadow-sm px-4 py-3">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <Link to={`/dives/${dive._id}`} className="font-semibold text-foreground text-sm hover:text-primary transition-colors">
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Link to={`/dives/${dive._id}`} className="font-semibold text-foreground text-sm hover:text-primary transition-colors truncate">
                           {dive.title}
                         </Link>
-                      {dive.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{dive.description}</p>}
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${cls}`}>{text}</span>
+                      </div>
+                      {dive.description && <p className="text-xs text-muted-foreground truncate">{dive.description}</p>}
                       {dive.trip && (
                         <Link to={`/trips/${dive.trip._id}`}
-                          className="inline-flex items-center gap-1 text-xs text-primary mt-1 hover:underline">
+                          className="flex items-center gap-1 text-xs text-primary hover:underline w-fit">
                           {dive.trip.name} <ExternalLink size={10} />
                         </Link>
                       )}
                       {(dive.sensorCount || 0) > 0 && (
-                        <div className="flex items-center gap-1 text-xs text-primary mt-1">
-                          <Activity size={11} />
-                          <span>{dive.sensorCount.toLocaleString()} readings</span>
-                          {dive.locationName && <span className="text-muted-foreground truncate max-w-[140px]" title={dive.locationName}>· {dive.locationName}</span>}
+                        <div className="flex items-center gap-1 text-xs text-primary flex-wrap">
+                          <Activity size={11} className="shrink-0" />
+                          <span className="whitespace-nowrap">{dive.sensorCount.toLocaleString()} readings</span>
+                          {dive.locationName && <span className="text-muted-foreground truncate" title={dive.locationName}>· {dive.locationName}</span>}
                         </div>
                       )}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>{text}</span>
                       <Link to={`/dives/${dive._id}`} title="View details"
                         className="p-1.5 text-muted-foreground hover:text-primary rounded transition-colors">
                         <Eye size={14} />

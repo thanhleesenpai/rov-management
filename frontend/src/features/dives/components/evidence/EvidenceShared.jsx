@@ -453,8 +453,8 @@ export function EvidenceViewer({ evidence, media, diveId, onClose, queryClient, 
             if (v.paused) { v.play().catch(() => {}) }
             else { v.pause(); showEvidenceCenterPauseBriefly() }
           }}
-            className="absolute z-20 p-4 rounded-full bg-white/20 hover:bg-white/30
-                       transition-opacity opacity-100
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-20 p-4 rounded-full
+                       bg-white/20 hover:bg-white/30 transition-opacity opacity-100
                        backdrop-blur-sm border border-white/20">
             {isEvidenceVideoPlaying ? <Pause size={24} className="text-white" /> : <Play size={24} className="text-white" />}
           </button>
@@ -689,9 +689,44 @@ function EvidenceCard({ snap, canEdit, diveId, queryClient, onSeek, onClick, onD
   )
 }
 
-export function EvidencePanel({ snapshots, isOpen, diveId, canEdit, videoRef, queryClient, currentMediaId, onSelectEvidence, confirmDelete, setConfirmDelete }) {
+export function EvidencePanel({ snapshots, isOpen, diveId, canEdit, videoRef, queryClient, currentMediaId, onSelectEvidence, confirmDelete, setConfirmDelete, isHorizontal = false }) {
   // Filter snapshots to only show evidence belonging to current media
   const currentMediaSnapshots = snapshots.filter(s => s.parentMediaId === currentMediaId)
+
+  if (isHorizontal) {
+    if (!isOpen) return null
+    return (
+      <div className="flex-none w-full h-[110px] bg-black/80 flex items-center gap-2 px-3 overflow-x-auto overflow-y-hidden border-t border-white/10 z-40">
+        <div className="shrink-0 flex flex-col justify-center px-3 border-r border-white/10 mr-1 h-[80%]">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Evidence</p>
+          <p className="text-[9px] text-white/30 mt-0.5">{currentMediaSnapshots.length} item{currentMediaSnapshots.length !== 1 ? 's' : ''}</p>
+        </div>
+        {currentMediaSnapshots.length === 0 ? (
+          <div className="flex items-center gap-2 px-4 opacity-40">
+            <Camera size={14} className="text-white/50" />
+            <p className="text-[10px] text-white/50">No evidence yet.</p>
+          </div>
+        ) : (
+          currentMediaSnapshots.map(snap => (
+            <div key={snap._id} className="shrink-0 w-32">
+              <EvidenceCard
+                snap={snap}
+                canEdit={canEdit}
+                diveId={diveId}
+                queryClient={queryClient}
+                onClick={() => onSelectEvidence(snap)}
+                onDelete={() => setConfirmDelete(snap)}
+                onSeek={(t) => {
+                  const v = videoRef.current
+                  if (v && t != null) { v.currentTime = t; v.play().catch(() => {}) }
+                }}
+              />
+            </div>
+          ))
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className={`absolute top-0 right-0 bottom-0 z-10 w-44
@@ -699,7 +734,7 @@ export function EvidencePanel({ snapshots, isOpen, diveId, canEdit, videoRef, qu
                      overflow-y-auto flex flex-col
                      transition-transform duration-200 ease-out
                      ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-      <div className="px-3 py-2.5 border-b border-white/10 shrink-0 sticky top-0 bg-black/60 backdrop-blur-sm">
+      <div className="px-3 py-2.5 border-b border-white/10 shrink-0 sticky top-0 bg-black/60 backdrop-blur-sm z-10">
         <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Evidence</p>
         <p className="text-[8px] text-white/30 mt-0.5">
           {currentMediaSnapshots.length} item{currentMediaSnapshots.length !== 1 ? 's' : ''}

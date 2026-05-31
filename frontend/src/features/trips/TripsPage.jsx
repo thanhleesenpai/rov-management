@@ -161,45 +161,117 @@ export default function TripsPage() {
         />
       ) : (
         <>
-          <div className="grid gap-4">
+          {/* Desktop table */}
+          <div className="hidden xl:block bg-card rounded-xl shadow overflow-hidden border border-border">
+            <table className="w-full text-sm min-w-max">
+              <thead className="bg-muted border-b border-border">
+                <tr>
+                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Name</th>
+                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">ROV</th>
+                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Location</th>
+                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Dates</th>
+                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Status</th>
+                  <th className="sticky right-0 bg-muted text-right px-6 py-3 text-muted-foreground font-medium">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {trips.map(trip => {
+                  const { text, cls } = STATUS[trip.status] || STATUS.planned
+                  return (
+                    <tr key={trip._id} className="hover:bg-muted/50 transition-colors">
+                      <td className="px-6 py-4">
+                        <Link to={`/trips/${trip._id}`} className="font-medium text-foreground hover:text-primary transition-colors">
+                          {trip.name}
+                        </Link>
+                        {trip.description && <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-sm" title={trip.description}>{trip.description}</p>}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-muted-foreground">{trip.rov?.name || '—'}</td>
+                      <td className="px-6 py-4 text-sm text-muted-foreground">
+                        {trip.location ? (
+                          <span className="truncate max-w-xs block" title={trip.location}>{trip.location}</span>
+                        ) : '—'}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-muted-foreground whitespace-nowrap">
+                        {trip.startTime ? (
+                          <span title={trip.endTime ? `${new Date(trip.startTime).toLocaleDateString()} → ${new Date(trip.endTime).toLocaleDateString()}` : new Date(trip.startTime).toLocaleDateString()}>
+                            {new Date(trip.startTime).toLocaleDateString()}
+                            {trip.endTime && ` → ${new Date(trip.endTime).toLocaleDateString()}`}
+                          </span>
+                        ) : '—'}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${cls}`}>{text}</span>
+                      </td>
+                      <td className="sticky right-0 bg-card px-6 py-4">
+                        <div className="flex items-center justify-end gap-2">
+                          <Link to={`/trips/${trip._id}`} className="p-1.5 text-muted-foreground hover:text-primary rounded transition-colors" title="View">
+                            <Eye size={15} />
+                          </Link>
+                          {canEdit && (
+                            <button onClick={() => { setEditing(trip); setShowForm(true) }}
+                              className="p-1.5 text-muted-foreground hover:text-yellow-500 rounded transition-colors" title="Edit">
+                              <Pencil size={15} />
+                            </button>
+                          )}
+                          {canDelete && (
+                            <button onClick={() => setConfirmDelete(trip)}
+                              className="p-1.5 text-muted-foreground hover:text-destructive rounded transition-colors" title="Delete">
+                              <Trash2 size={15} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile card list */}
+          <div className="xl:hidden space-y-2">
             {trips.map(trip => {
               const { text, cls } = STATUS[trip.status] || STATUS.planned
               return (
-                <div key={trip._id} className="bg-card rounded-xl shadow border border-border p-5 flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>{text}</span>
-                      <span className="text-xs text-muted-foreground">ROV: {trip.rov?.name || '—'}</span>
-                    </div>
-                    <h2 className="font-semibold text-foreground truncate">{trip.name}</h2>
-                    {trip.description && <p className="text-sm text-muted-foreground mt-1 truncate">{trip.description}</p>}
-                    <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground flex-wrap">
-                      {trip.location && <span className="flex items-center gap-1"><MapPin size={11} />{trip.location}</span>}
+                <div key={trip._id} className="bg-card rounded-xl border border-border shadow-sm px-4 py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Link to={`/trips/${trip._id}`} className="font-semibold text-foreground text-sm hover:text-primary transition-colors truncate">
+                          {trip.name}
+                        </Link>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${cls}`}>{text}</span>
+                      </div>
+                      {trip.description && <p className="text-xs text-muted-foreground truncate" title={trip.description}>{trip.description}</p>}
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                        {trip.rov && <span>ROV: <span className="text-foreground font-medium">{trip.rov.name}</span></span>}
+                        {trip.location && <span className="truncate" title={trip.location}>📍 {trip.location}</span>}
+                      </div>
                       {trip.startTime && (
-                        <span className="flex items-center gap-1">
-                          <Clock size={11} />
+                        <div className="text-xs text-muted-foreground flex items-center gap-1" title={trip.endTime ? `${new Date(trip.startTime).toLocaleDateString()} → ${new Date(trip.endTime).toLocaleDateString()}` : new Date(trip.startTime).toLocaleDateString()}>
+                          <Clock size={12} className="shrink-0" />
                           {new Date(trip.startTime).toLocaleDateString()}
                           {trip.endTime && ` → ${new Date(trip.endTime).toLocaleDateString()}`}
-                        </span>
+                        </div>
                       )}
                     </div>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <Link to={`/trips/${trip._id}`} className="p-1.5 text-muted-foreground hover:text-primary rounded transition-colors" title="View">
-                      <Eye size={15} />
-                    </Link>
-                    {canEdit && (
-                      <button onClick={() => { setEditing(trip); setShowForm(true) }}
-                        className="p-1.5 text-muted-foreground hover:text-yellow-500 rounded transition-colors" title="Edit">
-                        <Pencil size={15} />
-                      </button>
-                    )}
-                    {canDelete && (
-                      <button onClick={() => setConfirmDelete(trip)}
-                        className="p-1.5 text-muted-foreground hover:text-destructive rounded transition-colors" title="Delete">
-                        <Trash2 size={15} />
-                      </button>
-                    )}
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Link to={`/trips/${trip._id}`} className="p-1.5 text-muted-foreground hover:text-primary rounded transition-colors" title="View">
+                        <Eye size={14} />
+                      </Link>
+                      {canEdit && (
+                        <button onClick={() => { setEditing(trip); setShowForm(true) }}
+                          className="p-1.5 text-muted-foreground hover:text-yellow-500 rounded transition-colors" title="Edit">
+                          <Pencil size={14} />
+                        </button>
+                      )}
+                      {canDelete && (
+                        <button onClick={() => setConfirmDelete(trip)}
+                          className="p-1.5 text-muted-foreground hover:text-destructive rounded transition-colors" title="Delete">
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               )
