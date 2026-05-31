@@ -18,7 +18,7 @@ export default function ConfirmDialog({
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[60] p-4">
-      <div className="bg-card rounded-xl shadow-xl w-full max-w-sm p-6 border border-border">
+      <div className="bg-card rounded-xl shadow-2xl w-full max-w-sm p-6">
         <div className="flex items-center gap-3 mb-3">
           <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${iconCls}`}>
             <AlertTriangle size={18} />

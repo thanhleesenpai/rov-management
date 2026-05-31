@@ -200,6 +200,7 @@ export default function MediaUpload({ diveId, tripId, onClose }) {
                       </label>
                       <input
                         type="datetime-local"
+                        step="1"
                         value={f.recordedAt}
                         onChange={e => setFileField(idx, 'recordedAt', e.target.value)}
                         className="w-full text-xs px-2 py-1 rounded border border-input bg-background
