@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { Download, FileText, Sheet } from 'lucide-react'
 
+import { MarineButton } from '@/components/bespoke/MarineButton'
+
 export default function ExportMenu({ onExportCSV, onExportPDF, loading }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
@@ -13,15 +15,15 @@ export default function ExportMenu({ onExportCSV, onExportPDF, loading }) {
 
   return (
     <div ref={ref} className="relative">
-      <button
+      <MarineButton
+        variant="outline"
+        icon={Download}
         onClick={() => setOpen(v => !v)}
         disabled={loading}
-        className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-lg text-sm text-muted-foreground hover:bg-muted transition-colors disabled:opacity-50"
         title="Export"
       >
-        <Download size={14} />
         <span className="hidden sm:inline">Export</span>
-      </button>
+      </MarineButton>
 
       {open && (
         <div className="absolute right-0 mt-1 w-44 bg-card rounded-xl shadow-lg border border-border z-20 overflow-hidden">

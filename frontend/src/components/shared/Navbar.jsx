@@ -6,6 +6,7 @@ import { useThemeStore } from '@/store/theme.store'
 import api from '@/lib/axios'
 import NotificationBell from './NotificationBell'
 import { useSSE } from '@/hooks/useSSE'
+import Avatar from '@/components/shared/Avatar'
 
 const ROLE_STYLE = {
   admin:    'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
@@ -43,11 +44,8 @@ export default function Navbar({ collapsed, onToggleCollapse, onOpenMobile }) {
     { icon: Settings, label: 'Settings',        action: () => navigate('/profile?tab=settings') },
   ]
 
-  const initials = user?.fullName
-    ?.split(' ').map(w => w[0]).slice(-2).join('').toUpperCase() || '?'
-
   return (
-    <header className="h-16 bg-card border-b border-border flex items-center justify-between px-4 shrink-0 relative z-40">
+    <header className="h-[52px] bg-card border-b border-border flex items-center justify-between px-4 shrink-0 relative z-40">
       {/* Left */}
       <div className="flex items-center gap-2">
         <button onClick={onToggleCollapse}
@@ -98,13 +96,8 @@ export default function Navbar({ collapsed, onToggleCollapse, onOpenMobile }) {
         {/* Avatar dropdown */}
         <div className="relative" ref={dropdownRef}>
           <button onClick={() => setDropdownOpen(v => !v)}
-            className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-lg hover:bg-muted transition-colors">
-            {user?.avatar
-              ? <img src={user.avatar} alt="avatar" className="w-8 h-8 rounded-full object-cover shrink-0" />
-              : <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
-                  <span className="text-primary-foreground text-xs font-bold">{initials}</span>
-                </div>
-            }
+            className="flex items-center gap-2 pl-2 pr-3 py-1 rounded-lg hover:bg-muted transition-colors">
+            <Avatar name={user?.fullName} avatarUrl={user?.avatar} size="md" />
             <div className="hidden sm:block text-left">
               <p className="text-sm font-medium text-foreground leading-tight">{user?.fullName}</p>
               <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${ROLE_STYLE[user?.role]}`}>

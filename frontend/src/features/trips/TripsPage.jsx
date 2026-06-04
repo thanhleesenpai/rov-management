@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
-import { Plus, Eye, Pencil, Trash2, MapPin, Clock, Search, X, Map } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Plus, Eye, PenLine, Trash, MapPin, Clock, Search, X, Map, ChevronRight, ArrowRight } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/axios'
 import { useAuthStore } from '@/store/auth.store'
@@ -11,6 +11,15 @@ import ConfirmDialog from '@/components/shared/ConfirmDialog'
 import Pagination from '@/components/shared/Pagination'
 import ExportMenu from '@/components/shared/ExportMenu'
 import EmptyState from '@/components/shared/EmptyState'
+import { MarineInput } from '@/components/bespoke/MarineInput'
+import { MarineSelect } from '@/components/bespoke/MarineSelect'
+import { MarineDatePicker } from '@/components/bespoke/MarineDatePicker'
+import { 
+  MarineTable, MarineTableHeader, MarineTableBody, 
+  MarineTableRow, MarineTableHead, MarineTableCell, MarineTableStatus,
+  MarineTableActionMenu, MarineTableActionItem
+} from '@/components/bespoke/MarineTable'
+import { MarineButton } from '@/components/bespoke/MarineButton'
 import { exportTripsCSV, exportTripsPDF } from '@/lib/export'
 import { useDebounce } from '@/hooks/useDebounce'
 
@@ -26,6 +35,7 @@ const LIMIT = 10
 export default function TripsPage() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
@@ -96,48 +106,50 @@ export default function TripsPage() {
         <div className="flex items-center gap-2">
           <ExportMenu onExportCSV={handleExportCSV} onExportPDF={handleExportPDF} />
           {canEdit && (
-            <button onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 bg-primary text-primary-foreground px-3 py-2 sm:px-4 rounded-lg hover:bg-primary/90 transition-colors text-sm">
-              <Plus size={16} /> <span className="hidden sm:inline">New Trip</span><span className="sm:hidden">New</span>
-            </button>
+            <MarineButton variant="solid" icon={Plus} onClick={() => setShowForm(true)}>
+              <span className="hidden sm:inline">New Trip</span>
+              <span className="sm:hidden">New</span>
+            </MarineButton>
           )}
         </div>
       </div>
 
-      {/* Search & filters */}
+      {/* Search & filter */}
       <div className="space-y-2 mb-4">
-        <div className="flex flex-wrap gap-2">
-          <div className="relative flex-1 min-w-48">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="relative flex-1">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input type="text" placeholder="Search name, location..."
-              value={search} onChange={e => { setSearch(e.target.value); resetPage() }}
-              className="w-full pl-9 pr-3 py-2 border border-input bg-background text-foreground rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground" />
+            <MarineInput
+              placeholder="Search name, location..."
+              value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
+              className="pl-9 pr-3 w-full"
+            />
           </div>
-          <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); resetPage() }}
-            className="border border-input bg-background text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-            <option value="">All Status</option>
-            <option value="planned">Planned</option>
-            <option value="ongoing">Ongoing</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-          <select value={filterRov} onChange={e => { setFilterRov(e.target.value); resetPage() }}
-            className="border border-input bg-background text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-            <option value="">All ROVs</option>
-            {rovList?.map(r => <option key={r._id} value={r._id}>{r.name}</option>)}
-          </select>
+          <div className="flex gap-2">
+            <div className="w-32 shrink-0">
+              <MarineSelect value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1) }}>
+                <option value="">All Status</option>
+                <option value="planned">Planned</option>
+                <option value="ongoing">Ongoing</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </MarineSelect>
+            </div>
+            <div className="w-32 shrink-0">
+              <MarineSelect value={filterRov} onChange={e => { setFilterRov(e.target.value); setPage(1) }}>
+                <option value="">All ROVs</option>
+                {rovList?.map(r => <option key={r._id} value={r._id}>{r.name}</option>)}
+              </MarineSelect>
+            </div>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-2 flex-1 sm:flex-none">
-            <span className="hidden sm:inline text-xs text-muted-foreground shrink-0">Start date:</span>
-            <input type="date" value={fromDate}
-              onChange={e => { setFromDate(e.target.value); resetPage() }}
-              className="border border-input bg-background text-foreground rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring flex-1 sm:flex-none min-w-0" />
-            <span className="text-xs text-muted-foreground shrink-0">→</span>
-            <input type="date" value={toDate} min={fromDate}
-              onChange={e => { setToDate(e.target.value); resetPage() }}
-              className="border border-input bg-background text-foreground rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring flex-1 sm:flex-none min-w-0" />
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 shrink-0 mr-1 mt-0.5">START DATE:</span>
+            <MarineDatePicker value={fromDate} onChange={e => { setFromDate(e.target.value); resetPage() }} className="w-[120px]" />
+            <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" />
+            <MarineDatePicker value={toDate} min={fromDate} onChange={e => { setToDate(e.target.value); resetPage() }} className="w-[120px]" />
           </div>
           {hasActiveFilter && (
             <button onClick={resetFilters}
@@ -156,120 +168,150 @@ export default function TripsPage() {
           title={search || hasActiveFilter ? 'No trips match your filters' : 'No trips yet'}
           description={!search && !hasActiveFilter && canEdit ? 'Create a trip to start tracking ROV dives.' : undefined}
           action={!search && !hasActiveFilter && canEdit
-            ? <button onClick={() => setShowForm(true)} className="px-4 py-2 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90">Create Trip</button>
+            ? <MarineButton variant="solid" onClick={() => setShowForm(true)}>Create Trip</MarineButton>
             : undefined}
         />
       ) : (
         <>
           {/* Desktop table */}
-          <div className="hidden xl:block bg-card rounded-xl shadow overflow-hidden border border-border">
-            <table className="w-full text-sm min-w-max">
-              <thead className="bg-muted border-b border-border">
-                <tr>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Name</th>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">ROV</th>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Location</th>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Dates</th>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Status</th>
-                  <th className="sticky right-0 bg-muted text-right px-6 py-3 text-muted-foreground font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
+          <div className="hidden xl:block">
+            <MarineTable>
+              <MarineTableHeader>
+                <MarineTableRow>
+                  <MarineTableHead>Name</MarineTableHead>
+                  <MarineTableHead>ROV</MarineTableHead>
+                  <MarineTableHead>Location</MarineTableHead>
+                  <MarineTableHead>Dates</MarineTableHead>
+                  <MarineTableHead>Status</MarineTableHead>
+                  <MarineTableHead align="right">Actions</MarineTableHead>
+                </MarineTableRow>
+              </MarineTableHeader>
+              <MarineTableBody>
                 {trips.map(trip => {
-                  const { text, cls } = STATUS[trip.status] || STATUS.planned
                   return (
-                    <tr key={trip._id} className="hover:bg-muted/50 transition-colors">
-                      <td className="px-6 py-4">
-                        <Link to={`/trips/${trip._id}`} className="font-medium text-foreground hover:text-primary transition-colors">
+                    <MarineTableRow key={trip._id} onClick={() => navigate(`/trips/${trip._id}`)}>
+                      <MarineTableCell>
+                        <Link to={`/trips/${trip._id}`} onClick={e => e.stopPropagation()} className="font-semibold text-foreground hover:text-cyan-600 transition-colors truncate block w-fit">
                           {trip.name}
                         </Link>
-                        {trip.description && <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-sm" title={trip.description}>{trip.description}</p>}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-muted-foreground">{trip.rov?.name || '—'}</td>
-                      <td className="px-6 py-4 text-sm text-muted-foreground">
+                        {trip.description && <p className="text-xs text-slate-500 mt-0.5 truncate max-w-sm" title={trip.description}>{trip.description}</p>}
+                      </MarineTableCell>
+                      <MarineTableCell>
+                        {trip.rov ? (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-[4px]
+                                           border border-slate-200 dark:border-slate-700
+                                           bg-slate-50 dark:bg-slate-800
+                                           font-mono text-[11px] uppercase tracking-wider
+                                           text-slate-600 dark:text-slate-400">
+                            {trip.rov.name}
+                          </span>
+                        ) : <span className="text-slate-400">—</span>}
+                      </MarineTableCell>
+                      <MarineTableCell>
                         {trip.location ? (
                           <span className="truncate max-w-xs block" title={trip.location}>{trip.location}</span>
-                        ) : '—'}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-muted-foreground whitespace-nowrap">
+                        ) : <span className="text-slate-400">—</span>}
+                      </MarineTableCell>
+                      <MarineTableCell isMono>
                         {trip.startTime ? (
                           <span title={trip.endTime ? `${new Date(trip.startTime).toLocaleDateString()} → ${new Date(trip.endTime).toLocaleDateString()}` : new Date(trip.startTime).toLocaleDateString()}>
                             {new Date(trip.startTime).toLocaleDateString()}
                             {trip.endTime && ` → ${new Date(trip.endTime).toLocaleDateString()}`}
                           </span>
-                        ) : '—'}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${cls}`}>{text}</span>
-                      </td>
-                      <td className="sticky right-0 bg-card px-6 py-4">
-                        <div className="flex items-center justify-end gap-2">
-                          <Link to={`/trips/${trip._id}`} className="p-1.5 text-muted-foreground hover:text-primary rounded transition-colors" title="View">
-                            <Eye size={15} />
-                          </Link>
-                          {canEdit && (
-                            <button onClick={() => { setEditing(trip); setShowForm(true) }}
-                              className="p-1.5 text-muted-foreground hover:text-yellow-500 rounded transition-colors" title="Edit">
-                              <Pencil size={15} />
-                            </button>
-                          )}
-                          {canDelete && (
-                            <button onClick={() => setConfirmDelete(trip)}
-                              className="p-1.5 text-muted-foreground hover:text-destructive rounded transition-colors" title="Delete">
-                              <Trash2 size={15} />
-                            </button>
+                        ) : <span className="text-slate-400">—</span>}
+                      </MarineTableCell>
+                      <MarineTableCell>
+                        <MarineTableStatus status={trip.status} label={STATUS[trip.status]?.text || 'Unknown'} />
+                      </MarineTableCell>
+                      <MarineTableCell align="right">
+                        <div className="flex items-center justify-end gap-3">
+                          <ChevronRight size={18} className="text-slate-300 dark:text-slate-500 group-hover:text-cyan-600 group-hover:translate-x-1 transition-all duration-200" />
+                          {(canEdit || canDelete) && (
+                            <MarineTableActionMenu>
+                              {canEdit && (
+                                <MarineTableActionItem onClick={() => { setEditing(trip); setShowForm(true) }}>
+                                  <PenLine size={14} /> Edit
+                                </MarineTableActionItem>
+                              )}
+                              {canDelete && (
+                                <MarineTableActionItem onClick={() => setConfirmDelete(trip)} isDanger>
+                                  <Trash size={14} /> Delete
+                                </MarineTableActionItem>
+                              )}
+                            </MarineTableActionMenu>
                           )}
                         </div>
-                      </td>
-                    </tr>
+                      </MarineTableCell>
+                    </MarineTableRow>
                   )
                 })}
-              </tbody>
-            </table>
+              </MarineTableBody>
+            </MarineTable>
           </div>
 
           {/* Mobile card list */}
           <div className="xl:hidden space-y-2">
             {trips.map(trip => {
-              const { text, cls } = STATUS[trip.status] || STATUS.planned
               return (
-                <div key={trip._id} className="bg-card rounded-xl border border-border shadow-sm px-4 py-3">
+                <div key={trip._id} onClick={() => navigate(`/trips/${trip._id}`)}
+                  className="bg-card rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1 space-y-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <Link to={`/trips/${trip._id}`} className="font-semibold text-foreground text-sm hover:text-primary transition-colors truncate">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm group-hover:text-cyan-600 transition-colors line-clamp-1">
                           {trip.name}
-                        </Link>
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap ${cls}`}>{text}</span>
+                        </span>
+                        <MarineTableStatus status={trip.status} label={STATUS[trip.status]?.text || 'Unknown'} />
                       </div>
-                      {trip.description && <p className="text-xs text-muted-foreground truncate" title={trip.description}>{trip.description}</p>}
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                        {trip.rov && <span>ROV: <span className="text-foreground font-medium">{trip.rov.name}</span></span>}
-                        {trip.location && <span className="truncate" title={trip.location}>📍 {trip.location}</span>}
+                      
+                      {trip.description && <p className="text-xs text-slate-500 line-clamp-2">{trip.description}</p>}
+                      
+                      <div className="flex flex-col gap-1.5 mt-2">
+                        {trip.rov && (
+                          <div className="inline-flex items-center px-1.5 py-0.5 rounded-[4px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-[11px] font-mono uppercase tracking-wider text-slate-600 dark:text-slate-400 w-fit">
+                            ROV: {trip.rov.name}
+                          </div>
+                        )}
+                        
+                        {(trip.location || trip.startTime) && (
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {trip.location && (
+                              <div className="flex items-center gap-1 font-sans text-xs text-slate-500 dark:text-slate-400">
+                                <MapPin size={11} className="shrink-0" />
+                                <span className="line-clamp-1">{trip.location}</span>
+                              </div>
+                            )}
+                            {trip.startTime && (
+                              <div className="flex items-center gap-1 font-mono text-xs tracking-tight text-slate-500 dark:text-slate-400">
+                                <Clock size={11} className="shrink-0" />
+                                <span>
+                                  {new Date(trip.startTime).toLocaleDateString()}
+                                  {trip.endTime && ` → ${new Date(trip.endTime).toLocaleDateString()}`}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      {trip.startTime && (
-                        <div className="text-xs text-muted-foreground flex items-center gap-1" title={trip.endTime ? `${new Date(trip.startTime).toLocaleDateString()} → ${new Date(trip.endTime).toLocaleDateString()}` : new Date(trip.startTime).toLocaleDateString()}>
-                          <Clock size={12} className="shrink-0" />
-                          {new Date(trip.startTime).toLocaleDateString()}
-                          {trip.endTime && ` → ${new Date(trip.endTime).toLocaleDateString()}`}
-                        </div>
-                      )}
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Link to={`/trips/${trip._id}`} className="p-1.5 text-muted-foreground hover:text-primary rounded transition-colors" title="View">
-                        <Eye size={14} />
-                      </Link>
-                      {canEdit && (
-                        <button onClick={() => { setEditing(trip); setShowForm(true) }}
-                          className="p-1.5 text-muted-foreground hover:text-yellow-500 rounded transition-colors" title="Edit">
-                          <Pencil size={14} />
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button onClick={() => setConfirmDelete(trip)}
-                          className="p-1.5 text-muted-foreground hover:text-destructive rounded transition-colors" title="Delete">
-                          <Trash2 size={14} />
-                        </button>
+                    
+                    <div className="flex items-center gap-2 shrink-0 pl-2">
+                      <ChevronRight size={18} className="text-slate-300 dark:text-slate-500 group-hover:text-cyan-600 group-hover:translate-x-1 transition-all duration-200" />
+                      {(canEdit || canDelete) && (
+                        <div onClick={e => e.stopPropagation()}>
+                          <MarineTableActionMenu>
+                            {canEdit && (
+                              <MarineTableActionItem onClick={() => { setEditing(trip); setShowForm(true) }}>
+                                <PenLine size={14} /> Edit
+                              </MarineTableActionItem>
+                            )}
+                            {canDelete && (
+                              <MarineTableActionItem onClick={() => setConfirmDelete(trip)} isDanger>
+                                <Trash size={14} /> Delete
+                              </MarineTableActionItem>
+                            )}
+                          </MarineTableActionMenu>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -286,7 +328,7 @@ export default function TripsPage() {
       {confirmDelete && (
         <ConfirmDialog
           title="Delete Trip"
-          message={`Are you sure you want to delete "${confirmDelete.name}"? All associated jobs will remain.`}
+          message={`Are you sure you want to delete "${confirmDelete.name}"?\n\n⚠️ WARNING: All associated dives in this trip will also be deleted. This action cannot be undone.`}
           loading={deleteMutation.isPending}
           onConfirm={() => deleteMutation.mutate(confirmDelete._id)}
           onCancel={() => setConfirmDelete(null)}

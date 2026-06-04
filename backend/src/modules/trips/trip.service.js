@@ -1,4 +1,5 @@
 const Trip = require('./trip.model');
+const Dive = require('../dives/dive.model');
 
 const getAll = async (params = {}) => {
   const { page = 1, limit = 10, search, status, rovId, fromDate, toDate } = params
@@ -46,7 +47,21 @@ const update = async (id, data) => {
 };
 
 const remove = async (id) => {
-  return Trip.findByIdAndDelete(id);
+  const trip = await Trip.findById(id);
+  if (!trip) throw { statusCode: 404, message: 'Trip not found' };
+
+  // Count dives to delete
+  const diveCount = await Dive.countDocuments({ trip: id });
+
+  // Cascade delete: remove all dives in this trip
+  if (diveCount > 0) {
+    await Dive.deleteMany({ trip: id });
+  }
+
+  // Delete the trip
+  await Trip.findByIdAndDelete(id);
+
+  return { tripDeleted: true, divesDeleted: diveCount };
 };
 
 module.exports = { getAll, getById, create, update, remove };

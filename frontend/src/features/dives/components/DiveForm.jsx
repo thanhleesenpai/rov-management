@@ -4,6 +4,11 @@ import { X } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/axios'
 
+import { MarineSelect } from '@/components/bespoke/MarineSelect'
+import { MarineButton } from '@/components/bespoke/MarineButton'
+import { MarineInput } from '@/components/bespoke/MarineInput'
+import { MarineTextarea } from '@/components/bespoke/MarineTextarea'
+
 const inputCls = 'w-full border border-input bg-background text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground'
 
 export default function DiveForm({ tripId, diveData, onClose }) {
@@ -33,7 +38,7 @@ export default function DiveForm({ tripId, diveData, onClose }) {
       <div className="bg-card rounded-xl shadow-xl w-full max-w-md border border-border">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="font-semibold text-foreground">{isEdit ? 'Edit Dive' : 'New Dive'}</h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X size={18} /></button>
+          <MarineButton variant="icon" icon={X} onClick={onClose} />
         </div>
 
         <form onSubmit={(e) => { e.preventDefault(); setError(''); mutation.mutate(form) }} className="p-6 space-y-4">
@@ -41,33 +46,37 @@ export default function DiveForm({ tripId, diveData, onClose }) {
 
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">Title</label>
-            <input type="text" required value={form.title} className={inputCls}
+            <MarineInput type="text" required value={form.title}
               onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">Status</label>
-            <select value={form.status} className={inputCls}
-              onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+            <MarineSelect value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
               <option value="pending">Pending</option>
               <option value="running">Running</option>
               <option value="done">Done</option>
               <option value="failed">Failed</option>
-            </select>
+            </MarineSelect>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-foreground mb-1">Objectives</label>
+            <MarineTextarea value={form.objectives} rows={3}
+              onChange={e => setForm(f => ({ ...f, objectives: e.target.value }))} />
           </div>
 
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">Description</label>
-            <textarea value={form.description} rows={3} className={`${inputCls} resize-none`}
+            <MarineTextarea value={form.description} rows={3}
               onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">Cancel</button>
-            <button type="submit" disabled={mutation.isPending}
-              className="px-4 py-2 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors">
+            <MarineButton variant="outline" type="button" onClick={onClose}>Cancel</MarineButton>
+            <MarineButton variant="solid" type="submit" disabled={mutation.isPending}>
               {mutation.isPending ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Dive'}
-            </button>
+            </MarineButton>
           </div>
         </form>
       </div>

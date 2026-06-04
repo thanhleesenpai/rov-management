@@ -1,0 +1,27 @@
+flowchart LR
+    Viewer((Viewer))
+    Operator((Operator))
+    Admin((Admin))
+    
+    ViewTrip([Xem Chuyến đi và Dữ liệu])
+    Download([Tải báo cáo xuất bản])
+    ManageTrip([Quản lý Chuyến đi & Lượt lặn])
+    UploadData([Tải lên Cảm biến & Media])
+    TriggerAI([Chạy nhận diện YOLO])
+    CreateSummary([Tạo Tóm tắt nhiệm vụ])
+    ManageUser([Quản trị Người dùng])
+    ManageROV([Quản lý thiết bị ROV])
+    
+    Viewer --> ViewTrip
+    Viewer --> Download
+    
+    Operator --> ManageTrip
+    Operator --> UploadData
+    Operator --> TriggerAI
+    Operator --> CreateSummary
+    
+    Operator -.->|Inherit| Viewer
+    
+    Admin --> ManageUser
+    Admin --> ManageROV
+    Admin -.->|Inherit| Operator

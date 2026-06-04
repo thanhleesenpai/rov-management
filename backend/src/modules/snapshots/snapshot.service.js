@@ -173,7 +173,7 @@ const enqueueAnalysis = async (snapshotId, { model = 'yolov8n', confidence = 0.3
 
   const snap = await Snapshot.findByIdAndUpdate(
     snapshotId,
-    { analysisStatus: 'pending', aiLabels: [] },
+    { analysisStatus: 'pending' },
     { new: true }
   ).populate('createdBy', '_id');
   if (!snap) throw { statusCode: 404, message: 'Snapshot not found' };
@@ -182,6 +182,16 @@ const enqueueAnalysis = async (snapshotId, { model = 'yolov8n', confidence = 0.3
     { snapshotId: snap._id.toString(), userId: snap.createdBy?._id?.toString(), model, confidence },
     { jobId: `snap-${snap._id}-${Date.now()}` }
   );
+  return snap;
+};
+
+const cancelAnalysis = async (snapshotId) => {
+  const snap = await Snapshot.findByIdAndUpdate(
+    snapshotId,
+    { analysisStatus: 'failed' },
+    { new: true }
+  );
+  if (!snap) throw { statusCode: 404, message: 'Snapshot not found' };
   return snap;
 };
 
@@ -255,4 +265,4 @@ const proxyImage = async (snapshotId, res) => {
   Body.pipe(res);
 };
 
-module.exports = { create, getByDive, remove, bulkRemove, enqueueAnalysis, updateNote, getDownloadUrl, streamClipDownload, proxyImage };
+module.exports = { create, getByDive, remove, bulkRemove, enqueueAnalysis, updateNote, getDownloadUrl, streamClipDownload, proxyImage, cancelAnalysis };

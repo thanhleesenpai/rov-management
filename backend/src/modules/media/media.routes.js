@@ -28,6 +28,7 @@ router.delete('/bulk', authorize('admin'), ctrl.bulkDelete);
 
 // Trigger (re-)analysis với model + confidence tuỳ chọn (operator/admin)
 router.post('/:id/analyze', authorize('admin', 'operator'), ctrl.analyze);
+router.post('/:id/analyze/cancel', authorize('admin', 'operator'), ctrl.cancelAnalyze);
 
 // Cập nhật metadata (operator/admin) — phải đặt SAU các route /:id/... cụ thể
 router.patch('/:id', authorize('admin', 'operator'), ctrl.update);

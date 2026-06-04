@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 
 export default function ConfirmDialog({
   title, message, onConfirm, onCancel, loading,
-  confirmLabel, variant = 'danger',
+  confirmLabel, variant = 'danger', confirmDisabled = false,
 }) {
   const isWarning = variant === 'warning'
 
@@ -32,7 +32,7 @@ export default function ConfirmDialog({
             className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors">
             Cancel
           </button>
-          <button onClick={onConfirm} disabled={loading}
+          <button onClick={onConfirm} disabled={loading || confirmDisabled}
             className={`px-4 py-2 text-sm rounded-lg disabled:opacity-50 transition-colors ${btnCls}`}>
             {loading ? 'Processing...' : (confirmLabel || defaultLabel)}
           </button>

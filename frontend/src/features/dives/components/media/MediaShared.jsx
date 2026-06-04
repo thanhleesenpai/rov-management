@@ -44,7 +44,7 @@ export function ThumbVertical({ media, active, onClick, label, canEdit, onDelete
                      bg-slate-800 cursor-pointer hover:border-white/40 transition-colors
                      ${selectMode && selected ? 'border-blue-500' : 'border-white/20'}
                      ${active && !selectMode ? 'border-white' : ''}`}
-         onClick={() => selectMode ? onSelect() : onClick()}>
+         onClick={(e) => selectMode ? onSelect() : onClick(e)}>
       {type === 'image' && url
         ? <img src={url} alt="" className="w-full h-full object-cover aspect-video" />
         : type === 'video' && url
@@ -127,7 +127,7 @@ export function RecordedAtEditor({ media, diveId, onCancel, onDone }) {
           value={val}
           onChange={e => setVal(e.target.value)}
           style={{ colorScheme: 'dark' }}
-          className="w-full text-[10px] px-1.5 py-1 rounded border border-white/20
+          className="w-full min-w-0 text-[10px] px-1.5 py-1 rounded border border-white/20
                      bg-white/5 text-white/70 focus:outline-none focus:border-blue-400" />
         <div className="flex gap-1 mt-0.5">
           <button onClick={onCancel} disabled={saving}
@@ -194,7 +194,7 @@ function relTime(date) {
   return `${Math.floor(s / 3600)}h ago`
 }
 
-export function AIAnalyzePopover({ media, diveId, canUse, portalTarget }) {
+export function AIAnalyzePopover({ media, diveId, canUse, portalTarget, onWillOpen, closeSignal, onOpenChange }) {
   const queryClient  = useQueryClient()
   const [open,       setOpen]       = useState(false)
   const [selModel,   setSelModel]   = useState('yolov8n')
@@ -211,27 +211,38 @@ export function AIAnalyzePopover({ media, diveId, canUse, portalTarget }) {
     enabled: canUse,
   })
 
+  // Notify parent whenever open changes (so parent can keep popupOpen in sync)
+  useEffect(() => { onOpenChange?.(open) }, [open])
+
+  // Close when parent signals (another popup opened)
+  useEffect(() => {
+    if (closeSignal) setOpen(false)
+  }, [closeSignal])
+
   const reposition = useCallback(() => {
     if (!btnRef.current) return
     const r = btnRef.current.getBoundingClientRect()
     const target = portalTarget
+    const popW = Math.min(256, window.innerWidth - 16)
     if (target && target !== document.body) {
-      // Fullscreen: compute coords relative to the container element
       const cr = target.getBoundingClientRect()
       setPos({
         top:  r.bottom - cr.top + 6,
-        left: Math.min(r.right - cr.left - 260, cr.width - 272),
+        left: Math.max(8, Math.min(r.right - cr.left - popW, cr.width - popW - 8)),
       })
     } else {
       setPos({
         top:  r.bottom + 6,
-        left: Math.min(r.right - 260, window.innerWidth - 272),
+        left: Math.max(8, Math.min(r.right - popW, window.innerWidth - popW - 8)),
       })
     }
   }, [portalTarget])
 
   const toggle = () => {
-    if (!open) reposition()
+    if (!open) {
+      onWillOpen?.()
+      reposition()
+    }
     setOpen(v => !v)
   }
 
@@ -256,9 +267,14 @@ export function AIAnalyzePopover({ media, diveId, canUse, portalTarget }) {
     if (!media?._id || running) return
     setRunning(true)
     try {
-      await api.post(`/media/${media._id}/analyze`, { model: selModel, confidence: conf })
-      queryClient.invalidateQueries({ queryKey: ['media', diveId] })
-      setOpen(false)
+      if (isPending) {
+        await api.post(`/media/${media._id}/analyze/cancel`)
+        queryClient.invalidateQueries({ queryKey: ['media', diveId] })
+      } else {
+        await api.post(`/media/${media._id}/analyze`, { model: selModel, confidence: conf })
+        queryClient.invalidateQueries({ queryKey: ['media', diveId] })
+        setOpen(false)
+      }
     } catch {}
     setRunning(false)
   }
@@ -281,33 +297,37 @@ export function AIAnalyzePopover({ media, diveId, canUse, portalTarget }) {
               : 'text-white/80 hover:text-white'
         }`}>
         <Sparkles size={10} />
-        <span className="hidden sm:inline">{isPending ? 'Analyzing' : 'Analyze'}</span>
+        <span className="hidden xl:inline">{isPending ? 'Analyzing' : 'Analyze'}</span>
       </button>
 
       {open && createPortal(
         <div ref={popRef}
           style={{ top: pos.top, left: pos.left }}
-          className={`z-[9999] w-64 rounded-xl shadow-2xl overflow-hidden
-                     bg-[#0d1117]/96 backdrop-blur-xl border border-white/12 text-white
+          className={`z-[9999] w-64 max-w-[calc(100vw-16px)] rounded-xl shadow-2xl overflow-hidden
+                     bg-slate-900 border border-slate-700 text-white
+                     max-h-[75vh] flex flex-col
                      ${portalTarget && portalTarget !== document.body ? 'absolute' : 'fixed'}`}>
 
           {/* Header */}
-          <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
-            <Sparkles size={13} className="text-violet-400 shrink-0" />
-            <span className="text-sm font-semibold">AI Analysis</span>
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-700 shrink-0">
+            <Sparkles size={12} className="text-violet-400 shrink-0" />
+            <span className="text-[13px] font-semibold">AI Analysis</span>
             {media.analysisStatus && (
               <span className={`ml-auto text-[10px] font-medium capitalize
                                ${statusColor[media.analysisStatus] ?? 'text-white/40'}`}>
                 {media.analysisStatus}
                 {media.updatedAt ? ` · ${relTime(media.updatedAt)}` : ''}
               </span>
-            )}         
+            )}
           </div>
 
+          {/* Scrollable body */}
+          <div className="overflow-y-auto flex-1 min-h-0">
+
           {/* Model selector */}
-          <div className="px-4 pt-2 pb-2">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-white/50 mb-1.5">Model</p>
-            <div className="space-y-1 max-h-[180px] overflow-y-auto">
+          <div className="px-3 pt-2 pb-1">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-white/50 mb-1">Model</p>
+            <div className="space-y-0.5 max-h-[100px] overflow-y-auto">
               {models.map(mod => {
                 const name       = typeof mod === 'string' ? mod : mod.name
                 const label      = mod.label ?? name
@@ -316,7 +336,7 @@ export function AIAnalyzePopover({ media, diveId, canUse, portalTarget }) {
                 const isSelected = selModel === name
                 return (
                   <button key={name} onClick={() => setSelModel(name)}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg
+                    className={`w-full flex items-center gap-2 px-2.5 py-1 rounded-lg
                                 text-left transition-colors
                                 ${isSelected
                                   ? 'bg-violet-500/20 border border-violet-400/30'
@@ -339,29 +359,32 @@ export function AIAnalyzePopover({ media, diveId, canUse, portalTarget }) {
           </div>
 
           {/* Confidence slider */}
-          <div className="px-4 pb-3">
-            <div className="flex items-center justify-between mb-2">
+          <div className="px-3 pb-2">
+            <div className="flex items-center justify-between mb-1.5">
               <p className="text-[10px] font-bold uppercase tracking-widest text-white/35">Confidence</p>
               <span className="text-sm font-bold tabular-nums text-violet-300">{conf.toFixed(2)}</span>
             </div>
             <input type="range" min={0.10} max={0.90} step={0.05}
               value={conf} onChange={e => setConf(parseFloat(e.target.value))}
               className="w-full cursor-pointer accent-violet-400" />
-            <div className="flex justify-between text-[9px] text-white/25 mt-1 px-0.5">
+            <div className="flex justify-between text-[9px] text-white/25 mt-0.5 px-0.5">
               <span>0.10 · Nhạy</span>
               <span>0.90 · Chặt</span>
             </div>
           </div>
 
-          {/* Run button */}
-          <div className="px-4 pb-4">
-            <button onClick={run} disabled={running || isPending}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg
+          </div>{/* end scrollable body */}
+
+          {/* Run button — sticky at bottom */}
+          <div className="px-3 pb-3 shrink-0">
+            <button onClick={run} disabled={running}
+              className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg
                          font-semibold text-sm transition-colors
-                         bg-violet-600 hover:bg-violet-500
-                         disabled:opacity-50 disabled:cursor-not-allowed">
-              {running || isPending
-                ? <><Loader size={13} className="animate-spin" /> Running…</>
+                         ${isPending || running
+                           ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 hover:text-red-300 border border-red-500/30'
+                           : 'bg-violet-600 hover:bg-violet-500 text-white'}`}>
+              {isPending || running
+                ? <><X size={13} /> Cancel Analysis</>
                 : <><Sparkles size={13} /> Run Analysis</>}
             </button>
           </div>

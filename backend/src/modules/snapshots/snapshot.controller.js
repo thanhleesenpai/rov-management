@@ -52,6 +52,13 @@ const analyze = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const cancelAnalyze = async (req, res, next) => {
+  try {
+    await snapshotService.cancelAnalysis(req.params.id);
+    return success(res, null, 'Analysis cancelled');
+  } catch (err) { next(err); }
+};
+
 const getDownloadUrl = async (req, res, next) => {
   try {
     const result = await snapshotService.getDownloadUrl(req.params.id);
@@ -80,4 +87,4 @@ const proxyImage = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-module.exports = { create, getByDive, remove, bulkDelete, analyze, updateNote, getDownloadUrl, downloadClip, proxyImage };
+module.exports = { create, getByDive, remove, bulkDelete, analyze, cancelAnalyze, updateNote, getDownloadUrl, downloadClip, proxyImage };

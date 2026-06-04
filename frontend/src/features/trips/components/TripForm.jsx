@@ -4,6 +4,11 @@ import { X, MapPin, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/axios'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
+import { MarineSelect } from '@/components/bespoke/MarineSelect'
+import { MarineButton } from '@/components/bespoke/MarineButton'
+import { MarineInput } from '@/components/bespoke/MarineInput'
+import { MarineTextarea } from '@/components/bespoke/MarineTextarea'
+import { MarineDatePicker } from '@/components/bespoke/MarineDatePicker'
 
 const inputCls = 'w-full border border-input bg-background text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground'
 
@@ -93,11 +98,10 @@ function LocationSearch({ name, gpsLocation, onChange }) {
 
   return (
     <div ref={containerRef} className="relative">
-      <input
+      <MarineInput
         value={query}
         onChange={e => handleInput(e.target.value)}
         placeholder="Search or paste coordinates (16.05, 108.22)"
-        className={inputCls}
         autoComplete="off"
       />
 
@@ -206,25 +210,24 @@ export default function TripForm({ tripData, onClose }) {
       <div className="bg-card rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto border border-border">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-card">
           <h2 className="font-semibold text-foreground">{isEdit ? 'Edit Trip' : 'New Trip'}</h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X size={18} /></button>
+          <MarineButton variant="icon" icon={X} onClick={onClose} />
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && <p className="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded">{error}</p>}
 
           {field('Trip Name', (
-            <input type="text" required value={form.name} className={inputCls}
+            <MarineInput type="text" required value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
           ))}
 
           {field('ROV', (
-            <select required value={form.rov} className={inputCls}
-              onChange={e => setForm(f => ({ ...f, rov: e.target.value }))}>
+            <MarineSelect value={form.rov} onChange={e => setForm(f => ({ ...f, rov: e.target.value }))}>
               <option value="">-- Select ROV --</option>
               {rovs.map(r => (
                 <option key={r._id} value={r._id}>{r.name} ({r.model})</option>
               ))}
-            </select>
+            </MarineSelect>
           ))}
 
           {field('Location', (
@@ -237,39 +240,36 @@ export default function TripForm({ tripData, onClose }) {
 
           <div className="grid grid-cols-2 gap-4">
             {field('Start Time', (
-              <input type="datetime-local" value={form.startTime} className={inputCls}
+              <MarineDatePicker value={form.startTime}
                 onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))} />
             ))}
             {field('End Time', (
-              <input type="datetime-local" value={form.endTime} className={inputCls}
+              <MarineDatePicker value={form.endTime}
                 onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))} />
             ))}
           </div>
 
           {field('Status', (
-            <select value={form.status} className={inputCls}
-              onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
+            <MarineSelect value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}>
               <option value="planned">Planned</option>
               <option value="ongoing">Ongoing</option>
               <option value="completed">Completed</option>
               <option value="cancelled">Cancelled</option>
-            </select>
+            </MarineSelect>
           ))}
 
           {field('Description', (
-            <textarea value={form.description} rows={3} className={`${inputCls} resize-none`}
+            <MarineTextarea value={form.description} rows={3}
               onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
           ))}
 
           <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={onClose}
-              className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+            <MarineButton variant="outline" type="button" onClick={onClose}>
               Cancel
-            </button>
-            <button type="submit" disabled={mutation.isPending}
-              className="px-4 py-2 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors">
+            </MarineButton>
+            <MarineButton variant="solid" type="submit" disabled={mutation.isPending}>
               {mutation.isPending ? 'Saving...' : isEdit ? 'Save Changes' : 'Create Trip'}
-            </button>
+            </MarineButton>
           </div>
         </form>
       </div>

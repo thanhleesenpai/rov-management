@@ -1,0 +1,14 @@
+stateDiagram-v2
+    [*] --> TaoChuyenDi
+    TaoChuyenDi: Khởi tạo Trip & Dive
+    TaoChuyenDi --> UploadDuLieu
+    UploadDuLieu: Upload Video & Cảm biến CSV
+    UploadDuLieu --> ChayAI
+    ChayAI: Kích hoạt YOLOv8 qua Bull Queue
+    ChayAI --> DongBo
+    DongBo: Phân tích Video & Cảm biến
+    DongBo --> ChuyenDiHoanTat
+    ChuyenDiHoanTat: Đóng trạng thái Chuyến đi
+    ChuyenDiHoanTat --> TaoBaoCao
+    TaoBaoCao: Dùng Gemini tạo Tóm tắt
+    TaoBaoCao --> [*]

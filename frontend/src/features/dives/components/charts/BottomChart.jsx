@@ -8,9 +8,9 @@ import { Activity } from 'lucide-react'
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const ENV_METRICS = [
-  { key: 'depth',    label: 'Depth',    unit: 'm',   color: '#3b82f6' },
+  { key: 'depth',    label: 'Depth',    unit: 'm',   color: '#0891b2' },
   { key: 'temp',     label: 'Temp',     unit: '°C',  color: '#f59e0b' },
-  { key: 'pressure', label: 'Pressure', unit: 'bar', color: '#10b981' },
+  { key: 'pressure', label: 'Pressure', unit: 'bar', color: '#0d9488' },
 ]
 
 const NAV_METRICS = [
@@ -36,7 +36,7 @@ export function fmtTime(ts) {
   const d = new Date(ts)
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
-const AXIS = { tick: { fontSize: 9, fill: '#9ca3af' }, axisLine: false, tickLine: false }
+const AXIS = { tick: { fontSize: 9, fill: '#9ca3af', fontFamily: 'JetBrains Mono, monospace' }, axisLine: false, tickLine: false }
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
@@ -48,7 +48,7 @@ const ChartTooltip = ({ active, payload }) => {
         <div key={i} className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full shrink-0" style={{ background: p.color }} />
           <span className="text-muted-foreground">{p.name}:</span>
-          <span className="font-semibold text-foreground tabular-nums">
+          <span className="font-semibold font-mono text-foreground tabular-nums">
             {typeof p.value === 'number' ? p.value.toFixed(2) : p.value}
           </span>
         </div>

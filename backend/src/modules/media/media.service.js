@@ -159,7 +159,7 @@ const enqueueAnalysis = async (mediaId, { model = 'yolov8n', confidence = 0.3 } 
 
   const media = await Media.findByIdAndUpdate(
     mediaId,
-    { analysisStatus: 'pending', labels: [] },
+    { analysisStatus: 'pending' },
     { new: true }
   ).populate('uploadedBy', '_id');
   if (!media) throw { statusCode: 404, message: 'Media not found' };
@@ -171,4 +171,14 @@ const enqueueAnalysis = async (mediaId, { model = 'yolov8n', confidence = 0.3 } 
   return media;
 };
 
-module.exports = { createPresignedUploadUrl, confirmUpload, getByDive, getByTrip, createViewUrl, remove, bulkRemove, reorder, moveToDive, getPublicUrl, update, enqueueAnalysis };
+const cancelAnalysis = async (mediaId) => {
+  const media = await Media.findByIdAndUpdate(
+    mediaId,
+    { analysisStatus: 'failed' },
+    { new: true }
+  );
+  if (!media) throw { statusCode: 404, message: 'Media not found' };
+  return media;
+};
+
+module.exports = { createPresignedUploadUrl, confirmUpload, getByDive, getByTrip, createViewUrl, remove, bulkRemove, reorder, moveToDive, getPublicUrl, update, enqueueAnalysis, cancelAnalysis };

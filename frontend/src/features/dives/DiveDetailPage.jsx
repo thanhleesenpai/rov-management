@@ -75,7 +75,12 @@ export default function DiveDetailPage() {
   const [isCapturingPhoto, setIsCapturingPhoto] = useState(false)
   const [flash, setFlash] = useState(false)
   const [showMoreMenu, setShowMoreMenu] = useState(false)
+  const [moreMenuPortalPos, setMoreMenuPortalPos] = useState(null)
+  const [analyzePopoverOpen, setAnalyzePopoverOpen] = useState(false)
+  const [analyzeCloseSignal, setAnalyzeCloseSignal] = useState(0)
   const [showSyncEditor, setShowSyncEditor] = useState(false)
+  const [syncEditorPos, setSyncEditorPos] = useState(null)
+  const [fileInfoPos, setFileInfoPos] = useState(null)
   const [showFileInfo, setShowFileInfo] = useState(false)
   const [downloadingMedia, setDownloadingMedia] = useState(false)
   const [deletingMedia, setDeletingMedia] = useState(false)
@@ -102,6 +107,9 @@ export default function DiveDetailPage() {
   const chartContainerRef = useRef(null)
   const exportRef = useRef(null)
   const moreMenuRef = useRef(null)
+  const moreMenuPortalRef = useRef(null)
+  const syncEditorPortalRef = useRef(null)
+  const fileInfoPortalRef = useRef(null)
   const toolbarTimeoutRef = useRef(null)
   const evidenceToolbarTimeoutRef = useRef(null)
   const mobileToolbarTimeoutRef = useRef(null)
@@ -210,13 +218,13 @@ export default function DiveDetailPage() {
     queryKey: ['media', id],
     queryFn: () => api.get(`/media/dive/${id}`).then(r => r.data),
     staleTime: 5 * 60 * 1000,
-    refetchInterval: (data) => data?.some?.(m => m.analysisStatus === 'pending') ? 4000 : false,
+    refetchInterval: (query) => query.state.data?.some?.(m => m.analysisStatus === 'pending') ? 4000 : false,
   })
   const { data: snapshots = [] } = useQuery({
     queryKey: ['snapshots', id],
     queryFn: () => api.get(`/snapshots/dive/${id}`).then(r => r.data),
     staleTime: 30000,
-    refetchInterval: (data) => data?.some?.(s => s.analysisStatus === 'pending') ? 4000 : false,
+    refetchInterval: (query) => query.state.data?.some?.(s => s.analysisStatus === 'pending') ? 4000 : false,
   })
 
 
@@ -230,7 +238,7 @@ export default function DiveDetailPage() {
   })
 
   // Compute whether ANY popup is open (for navigation bar visibility)
-  const popupOpen = showMoreMenu || showSyncEditor || showFileInfo || isPlaylistOpen || isEvidencePanelOpen || activeEvidence
+  const popupOpen = showMoreMenu || showSyncEditor || showFileInfo || isPlaylistOpen || isEvidencePanelOpen || activeEvidence || analyzePopoverOpen
 
   const anomalySet = useMemo(() => {
     if (!sensorData?.anomalies) return new Set()
@@ -511,16 +519,32 @@ export default function DiveDetailPage() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // Close menu dropdown on outside click
+  // Close menu dropdown on outside click (check both button ref and portal ref)
   useEffect(() => {
+    if (!showMoreMenu) return
     const handler = (e) => {
-      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target)) setShowMoreMenu(false)
+      if (!moreMenuRef.current?.contains(e.target) &&
+          !moreMenuPortalRef.current?.contains(e.target))
+        setShowMoreMenu(false)
     }
-    if (showMoreMenu) {
-      document.addEventListener('mousedown', handler)
-      return () => document.removeEventListener('mousedown', handler)
-    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
   }, [showMoreMenu])
+
+  // Close sync-editor / file-info portals on outside click
+  useEffect(() => {
+    if (!showSyncEditor && !showFileInfo) return
+    const handler = (e) => {
+      if (!syncEditorPortalRef.current?.contains(e.target) &&
+          !fileInfoPortalRef.current?.contains(e.target) &&
+          !moreMenuRef.current?.contains(e.target)) {
+        setShowSyncEditor(false)
+        setShowFileInfo(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showSyncEditor, showFileInfo])
 
   const exportCsv = () => {
     if (!chartData.length) return
@@ -728,7 +752,7 @@ export default function DiveDetailPage() {
             {false && activeEvidence && activeEvidence.parentMediaId === media?._id && (
               <div className="absolute inset-0 z-30 rounded-xl overflow-hidden flex flex-col">
                 {/* Header with action buttons */}
-                <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 shrink-0 bg-black/60">
+                <div className="flex items-center justify-between px-3 py-2 border-b border-white/10 shrink-0 bg-slate-950/90">
                   {/* Left: Back + Timestamp */}
                   <button onClick={() => { setActiveEvidence(null); setShowEvidenceDetections(false) }}
                     className="flex items-center gap-1.5 text-[11px] font-bold text-white/80 hover:text-white transition-colors">
@@ -934,7 +958,7 @@ export default function DiveDetailPage() {
 
                 {/* AI labels footer - class groups like main video */}
                 {evidenceClassGroups.length > 0 && (
-                  <div className="px-3 py-2 border-t border-white/10 bg-black/60 shrink-0">
+                  <div className="px-3 py-2 border-t border-white/10 bg-slate-950/90 shrink-0">
                     <div className="flex flex-wrap gap-1.5">
                       {evidenceClassGroups.map(g => {
                         const isHigh = g.maxConf > 0.8
@@ -969,16 +993,16 @@ export default function DiveDetailPage() {
 
             {/* Top gradient overlay — hidden until hover, then reveals filename + buttons */}
             {media && !activeEvidence && (
-              <div className={`absolute top-0 inset-x-0 z-20 flex items-center justify-between
+              <div className={`absolute top-0 inset-x-0 z-20 flex items-center gap-2
                             px-3 py-2.5
                             bg-gradient-to-b from-black/60 to-transparent
                             transition-opacity duration-200 ${popupOpen || showToolbar ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-                <span className="text-[11px] text-white/55 truncate max-w-[140px] pointer-events-none">
+                <span className="text-[11px] text-white/55 truncate flex-1 min-w-0 pointer-events-none">
                   {media.originalName}
                 </span>
-                <div className="flex items-center gap-1 flex-wrap sm:flex-nowrap pointer-events-auto">
+                <div className="flex items-center gap-1 shrink-0 pointer-events-auto">
                   {/* Group 1: Detect + Analyze */}
-                  <div className="flex items-center gap-0.5 bg-black/50 border border-white/15 rounded-full px-1.5 py-1 backdrop-blur-sm">
+                  <div className="flex items-center gap-0.5 bg-slate-950/80 border border-white/15 rounded-full px-1.5 py-1">
                     {media?.analysisStatus === 'done' && (
                       <button onClick={() => setShowDetections(v => !v)}
                         title={showDetections ? 'Hide detections' : 'Show detections'}
@@ -987,16 +1011,19 @@ export default function DiveDetailPage() {
                           : 'text-white/80 hover:text-white'
                           }`}>
                         {showDetections ? <EyeOff size={10} /> : <Eye size={10} />}
-                        <span className="hidden sm:inline">Detect</span>
+                        <span className="hidden xl:inline">Detect</span>
                       </button>
                     )}
                     <AIAnalyzePopover media={media} diveId={id} canUse={canUpload}
-                      portalTarget={isFullscreen ? containerRef.current : document.body} />
+                      portalTarget={isFullscreen ? containerRef.current : document.body}
+                      closeSignal={analyzeCloseSignal}
+                      onWillOpen={() => { setShowMoreMenu(false); setShowSyncEditor(false); setShowFileInfo(false) }}
+                      onOpenChange={setAnalyzePopoverOpen} />
                   </div>
 
                   {/* Group 2: Photo + Clip + Evidence (video only) */}
                   {canUpload && media && resolveType(media) === 'video' && (
-                    <div className="flex items-center gap-0.5 bg-black/50 border border-white/15 rounded-full px-1.5 py-1 backdrop-blur-sm">
+                    <div className="flex items-center gap-0.5 bg-slate-950/80 border border-white/15 rounded-full px-1.5 py-1">
                       <button onClick={capturePhoto} disabled={isCapturingPhoto}
                         title="Capture photo"
                         className={`p-1 rounded-full transition-colors ${isCapturingPhoto
@@ -1017,7 +1044,7 @@ export default function DiveDetailPage() {
                           <Clapperboard size={10} />
                         )}
                       </button>
-                      <button onClick={() => { const next = !isEvidencePanelOpen; setIsEvidencePanelOpen(next); if (next) { setIsPlaylistOpen(false); setShowMoreMenu(false) } }}
+                      <button onClick={() => { const next = !isEvidencePanelOpen; setIsEvidencePanelOpen(next); if (next) { setIsPlaylistOpen(false); setShowMoreMenu(false); setAnalyzeCloseSignal(v => v + 1) } }}
                         title={`Evidence (${snapshots.length})`}
                         className={`flex items-center gap-0.5 px-1 py-1 rounded-full text-[10px] font-bold transition-colors ${isEvidencePanelOpen
                           ? 'bg-emerald-500/90 text-white'
@@ -1031,7 +1058,7 @@ export default function DiveDetailPage() {
 
                   {/* Group 3: Playlist */}
                   {mediaList.length > 1 && (
-                    <button onClick={() => { const next = !isPlaylistOpen; setIsPlaylistOpen(next); if (next) { setIsEvidencePanelOpen(false); setShowMoreMenu(false) } }}
+                    <button onClick={() => { const next = !isPlaylistOpen; setIsPlaylistOpen(next); if (next) { setIsEvidencePanelOpen(false); setShowMoreMenu(false); setAnalyzeCloseSignal(v => v + 1) } }}
                       title={isPlaylistOpen ? 'Hide playlist' : `Playlist (${mediaList.length})`}
                       className={`flex items-center gap-1 px-2 py-1.5 rounded-full text-[11px] font-bold
                                transition-colors select-none backdrop-blur-sm border
@@ -1039,13 +1066,23 @@ export default function DiveDetailPage() {
                           ? 'bg-slate-600/80 border-slate-500 text-white'
                           : 'bg-black/50 border-white/15 text-white/80 hover:text-white'}`}>
                       <Film size={11} />
-                      <span className="hidden sm:inline">{isPlaylistOpen ? 'Hide' : mediaList.length}</span>
+                      <span className="hidden xl:inline">{isPlaylistOpen ? 'Hide' : mediaList.length}</span>
                     </button>
                   )}
 
                   {/* Group 4: Menu */}
                   <div ref={moreMenuRef} className="relative">
-                    <button onClick={() => setShowMoreMenu(v => !v)}
+                    <button onClick={() => {
+                      if (!showMoreMenu) {
+                        const rect = moreMenuRef.current?.getBoundingClientRect()
+                        if (rect) {
+                          const w = Math.min(160, window.innerWidth - 16)
+                          setMoreMenuPortalPos({ top: rect.bottom + 6, left: Math.max(8, Math.min(rect.right - w, window.innerWidth - w - 8)) })
+                        }
+                        setAnalyzeCloseSignal(v => v + 1)
+                      }
+                      setShowMoreMenu(v => !v)
+                    }}
                       title="More options"
                       className={`flex items-center justify-center p-1.5 rounded-full text-[11px] font-bold
                                transition-colors select-none backdrop-blur-sm border
@@ -1054,84 +1091,6 @@ export default function DiveDetailPage() {
                           : 'bg-black/50 border-white/15 text-white/80 hover:text-white'}`}>
                       <MoreVertical size={13} />
                     </button>
-                    {showMoreMenu && !showSyncEditor && !showFileInfo && (
-                      <div className="absolute top-full right-0 mt-1.5 w-40 z-50
-                                    bg-slate-900 border border-slate-700 rounded-lg shadow-lg overflow-hidden">
-                        <button onClick={handleDownloadMedia} disabled={downloadingMedia}
-                          className="w-full px-3 py-2 text-xs text-slate-300 hover:bg-slate-800
-                                   transition-colors disabled:opacity-50 flex items-center gap-2 text-left">
-                          {downloadingMedia ? <Loader size={10} className="animate-spin" /> : <Download size={10} />}
-                          Download
-                        </button>
-                        {media && resolveType(media) === 'video' && canUpload && (
-                          <button onClick={() => { setShowSyncEditor(true); setShowFileInfo(false); setIsPlaylistOpen(false); setIsEvidencePanelOpen(false) }}
-                            className="w-full px-3 py-2 text-xs text-slate-300 hover:bg-slate-800
-                                     transition-colors flex items-center gap-2 text-left">
-                            <Clock size={10} />
-                            Sync time
-                          </button>
-                        )}
-                        <button onClick={() => { setShowFileInfo(true); setShowSyncEditor(false); setIsPlaylistOpen(false); setIsEvidencePanelOpen(false) }}
-                          className="w-full px-3 py-2 text-xs text-slate-300 hover:bg-slate-800
-                                   transition-colors flex items-center gap-2 text-left">
-                          <Info size={10} />
-                          File info
-                        </button>
-                        {canUpload && (
-                          <>
-                            <div className="border-t border-slate-700" />
-                            <button onClick={() => setConfirmDelete(media)}
-                              className="w-full px-3 py-2 text-xs text-rose-400 hover:bg-rose-500/20
-                                       transition-colors flex items-center gap-2 text-left">
-                              <Trash2 size={10} />
-                              Delete
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Sync time editor — appears below the more menu when toggled */}
-                    {showSyncEditor && media && resolveType(media) === 'video' && (
-                      <div className="absolute top-full right-0 mt-1.5 z-50 bg-slate-900 border border-slate-700 rounded-lg shadow-lg p-2 w-48">
-                        <RecordedAtEditor media={media} diveId={id}
-                          onCancel={() => { setShowSyncEditor(false); setShowMoreMenu(false) }}
-                          onDone={() => { setShowSyncEditor(false); setShowMoreMenu(false) }}
-                        />
-                      </div>
-                    )}
-
-                    {/* File info — appears below the more menu when toggled */}
-                    {showFileInfo && media && (
-                      <div className="absolute top-full right-0 mt-1.5 z-50 bg-slate-900 border border-slate-700 rounded-lg shadow-lg p-3 w-56 text-[11px] space-y-2">
-                        <div>
-                          <p className="text-white/50 uppercase text-[9px] tracking-wider">Name</p>
-                          <p className="text-white truncate">{media.originalName}</p>
-                        </div>
-                        <div>
-                          <p className="text-white/50 uppercase text-[9px] tracking-wider">Type</p>
-                          <p className="text-white">{media.type || 'unknown'}</p>
-                        </div>
-                        <div>
-                          <p className="text-white/50 uppercase text-[9px] tracking-wider">Size</p>
-                          <p className="text-white">{(media.size / 1024 / 1024).toFixed(2)} MB</p>
-                        </div>
-                        {media.duration && (
-                          <div>
-                            <p className="text-white/50 uppercase text-[9px] tracking-wider">Duration</p>
-                            <p className="text-white">{fmtVideoTime(media.duration)}</p>
-                          </div>
-                        )}
-                        <div>
-                          <p className="text-white/50 uppercase text-[9px] tracking-wider">Uploaded</p>
-                          <p className="text-white">{new Date(media.createdAt).toLocaleString()}</p>
-                        </div>
-                        <button onClick={() => { setShowFileInfo(false); setShowMoreMenu(false) }}
-                          className="w-full mt-2 px-2 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 text-white">
-                          Close
-                        </button>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
@@ -1231,11 +1190,11 @@ export default function DiveDetailPage() {
             {/* Playlist overlay ─ slides in from right as an absolute panel */}
             {!canShowHorizontalPlaylist && (
               <div className={`absolute top-0 right-0 bottom-0 z-10 w-44
-                           bg-black/90 backdrop-blur-sm border-l border-white/10
+                           bg-slate-950/95 border-l border-white/10
                            overflow-y-auto flex flex-col
                            transition-transform duration-200 ease-out
                            ${isPlaylistOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-                <div className="pt-[52px] px-3 pb-2.5 border-b border-white/10 shrink-0 sticky top-0 bg-black/60 backdrop-blur-sm z-10 flex flex-col gap-1.5">
+                <div className="pt-[52px] px-3 pb-2.5 border-b border-white/10 shrink-0 sticky top-0 bg-slate-950/90 flex flex-col gap-1.5">
                   <div className="flex items-center justify-between">
                     <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Playlist</p>
                     {canUpload && mediaList.length > 0 && !playlistSelectMode && (
@@ -1341,7 +1300,7 @@ export default function DiveDetailPage() {
 
           {/* Horizontal Playlist (Bottom of Center Column) */}
           {canShowHorizontalPlaylist && isPlaylistOpen && mediaList.length > 1 && (
-            <div className="flex-none w-full h-[110px] bg-black/80 flex items-center gap-2 px-3 overflow-x-auto overflow-y-hidden border-t border-white/10 z-40">
+            <div className="flex-none w-full h-[110px] bg-slate-950/95 flex items-center gap-2 px-3 overflow-x-auto overflow-y-hidden border-t border-white/10 z-40">
               <div className="shrink-0 flex flex-col justify-center px-3 border-r border-white/10 mr-1 h-[80%] min-w-[80px]">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-white/50 mb-1">Playlist</p>
                 
@@ -1440,6 +1399,106 @@ export default function DiveDetailPage() {
         isDark={true}
         hasSensor={hasSensor}
       />
+
+      {/* ── video overlay portals (fixed — escape overflow-hidden + stacking context) ── */}
+      {showMoreMenu && moreMenuPortalPos && createPortal(
+        <div ref={moreMenuPortalRef}
+          style={{ top: moreMenuPortalPos.top, left: moreMenuPortalPos.left }}
+          className="fixed z-[9999] w-40 bg-slate-900 border border-slate-700 rounded-lg shadow-lg overflow-hidden">
+          <button onClick={handleDownloadMedia} disabled={downloadingMedia}
+            className="w-full px-3 py-2 text-xs text-slate-300 hover:bg-slate-800
+                       transition-colors disabled:opacity-50 flex items-center gap-2 text-left">
+            {downloadingMedia ? <Loader size={10} className="animate-spin" /> : <Download size={10} />}
+            Download
+          </button>
+          {media && resolveType(media) === 'video' && canUpload && (
+            <button onClick={() => {
+              const rect = moreMenuRef.current?.getBoundingClientRect()
+              if (rect) {
+                const w = Math.min(192, window.innerWidth - 16)
+                setSyncEditorPos({ top: rect.bottom + 6, left: Math.max(8, Math.min(rect.right - w, window.innerWidth - w - 8)) })
+              }
+              setShowSyncEditor(true); setShowFileInfo(false); setShowMoreMenu(false); setIsPlaylistOpen(false); setIsEvidencePanelOpen(false); setAnalyzeCloseSignal(v => v + 1)
+            }}
+              className="w-full px-3 py-2 text-xs text-slate-300 hover:bg-slate-800
+                         transition-colors flex items-center gap-2 text-left">
+              <Clock size={10} />
+              Sync time
+            </button>
+          )}
+          <button onClick={() => {
+            const rect = moreMenuRef.current?.getBoundingClientRect()
+            if (rect) {
+              const w = Math.min(224, window.innerWidth - 16)
+              setFileInfoPos({ top: rect.bottom + 6, left: Math.max(8, Math.min(rect.right - w, window.innerWidth - w - 8)) })
+            }
+            setShowFileInfo(true); setShowSyncEditor(false); setShowMoreMenu(false); setIsPlaylistOpen(false); setIsEvidencePanelOpen(false); setAnalyzeCloseSignal(v => v + 1)
+          }}
+            className="w-full px-3 py-2 text-xs text-slate-300 hover:bg-slate-800
+                       transition-colors flex items-center gap-2 text-left">
+            <Info size={10} />
+            File info
+          </button>
+          {canUpload && media && (
+            <>
+              <div className="border-t border-slate-700" />
+              <button onClick={() => { setConfirmDelete(media); setShowMoreMenu(false) }}
+                className="w-full px-3 py-2 text-xs text-rose-400 hover:bg-rose-500/20
+                           transition-colors flex items-center gap-2 text-left">
+                <Trash2 size={10} />
+                Delete
+              </button>
+            </>
+          )}
+        </div>,
+        document.body
+      )}
+
+      {showSyncEditor && syncEditorPos && media && resolveType(media) === 'video' && createPortal(
+        <div ref={syncEditorPortalRef}
+          style={{ top: syncEditorPos.top, left: syncEditorPos.left }}
+          className="fixed z-[9999] bg-slate-900 border border-slate-700 rounded-lg shadow-lg p-2 w-48 max-w-[calc(100vw-16px)]">
+          <RecordedAtEditor media={media} diveId={id}
+            onCancel={() => setShowSyncEditor(false)}
+            onDone={() => setShowSyncEditor(false)}
+          />
+        </div>,
+        document.body
+      )}
+
+      {showFileInfo && fileInfoPos && media && createPortal(
+        <div ref={fileInfoPortalRef}
+          style={{ top: fileInfoPos.top, left: fileInfoPos.left }}
+          className="fixed z-[9999] bg-slate-900 border border-slate-700 rounded-lg shadow-lg p-3 w-56 max-w-[calc(100vw-16px)] text-[11px] space-y-2">
+          <div>
+            <p className="text-white/50 uppercase text-[9px] tracking-wider">Name</p>
+            <p className="text-white truncate">{media.originalName}</p>
+          </div>
+          <div>
+            <p className="text-white/50 uppercase text-[9px] tracking-wider">Type</p>
+            <p className="text-white">{media.type || 'unknown'}</p>
+          </div>
+          <div>
+            <p className="text-white/50 uppercase text-[9px] tracking-wider">Size</p>
+            <p className="text-white">{(media.size / 1024 / 1024).toFixed(2)} MB</p>
+          </div>
+          {media.duration && (
+            <div>
+              <p className="text-white/50 uppercase text-[9px] tracking-wider">Duration</p>
+              <p className="text-white">{fmtVideoTime(media.duration)}</p>
+            </div>
+          )}
+          <div>
+            <p className="text-white/50 uppercase text-[9px] tracking-wider">Uploaded</p>
+            <p className="text-white">{new Date(media.createdAt).toLocaleString()}</p>
+          </div>
+          <button onClick={() => setShowFileInfo(false)}
+            className="w-full mt-2 px-2 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 text-white">
+            Close
+          </button>
+        </div>,
+        document.body
+      )}
 
       {/* ── modals ── */}
       {showForm && (

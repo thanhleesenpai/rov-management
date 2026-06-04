@@ -1,0 +1,19 @@
+flowchart LR
+    Operator((Operator))
+    
+    CreateTrip([Tạo Chuyến đi mới])
+    AddDive([Thêm Lượt lặn])
+    UploadCSV([Tải lên file Sensor CSV])
+    UploadMedia([Tải lên Video/Ảnh S3])
+    ViewSync([Xem đồng bộ Video & Biểu đồ])
+    ExtractEv([Trích xuất bằng chứng])
+    
+    Operator --> CreateTrip
+    Operator --> AddDive
+    Operator --> UploadCSV
+    Operator --> UploadMedia
+    Operator --> ViewSync
+    Operator --> ExtractEv
+    
+    UploadCSV -.->|<<extend>>| ViewSync
+    ExtractEv -.->|<<include>>| ViewSync

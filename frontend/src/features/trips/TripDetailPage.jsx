@@ -191,7 +191,7 @@ export default function TripDetailPage() {
               <Clock size={16} className="text-primary mt-0.5 shrink-0" />
               <div>
                 <p className="text-muted-foreground text-xs mb-0.5">Start Time</p>
-                <p className="font-medium text-foreground">{new Date(trip.startTime).toLocaleString()}</p>
+                <p className="font-medium text-foreground">{new Date(trip.startTime).toLocaleDateString()}</p>
               </div>
             </div>
           )}
@@ -201,7 +201,7 @@ export default function TripDetailPage() {
               <Clock size={16} className="text-primary mt-0.5 shrink-0" />
               <div>
                 <p className="text-muted-foreground text-xs mb-0.5">End Time</p>
-                <p className="font-medium text-foreground">{new Date(trip.endTime).toLocaleString()}</p>
+                <p className="font-medium text-foreground">{new Date(trip.endTime).toLocaleDateString()}</p>
               </div>
             </div>
           )}

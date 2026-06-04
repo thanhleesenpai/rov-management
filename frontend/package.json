@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -14,11 +14,13 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@tanstack/react-query": "^5.45.0",
     "axios": "^1.7.2",
+    "date-fns": "^4.4.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.400.0",
     "react": "^18.3.1",
+    "react-day-picker": "^10.0.1",
     "react-dom": "^18.3.1",
     "react-dropzone": "^15.0.0",
     "react-hook-form": "^7.52.0",

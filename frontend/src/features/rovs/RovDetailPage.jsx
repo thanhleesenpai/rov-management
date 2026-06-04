@@ -164,7 +164,7 @@ export default function RovDetailPage() {
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${ts.cls}`}>
                           {ts.text}
                         </span>
-                        <span className="text-sm font-medium text-foreground truncate">{trip.name}</span>
+                        <span className="text-sm font-medium text-foreground truncate">Trip: {trip.name}</span>
                       </div>
                       <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground flex-wrap">
                         {trip.location && (

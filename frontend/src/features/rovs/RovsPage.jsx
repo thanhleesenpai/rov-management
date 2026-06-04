@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
-import { Plus, Pencil, Trash2, Eye, Search, Anchor } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Plus, PenLine, Trash, Eye, Search, Anchor, ChevronRight } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/axios'
 import { useAuthStore } from '@/store/auth.store'
@@ -13,6 +13,14 @@ import ExportMenu from '@/components/shared/ExportMenu'
 import EmptyState from '@/components/shared/EmptyState'
 import { exportRovsCSV, exportRovsPDF } from '@/lib/export'
 import { useDebounce } from '@/hooks/useDebounce'
+import { MarineInput } from '@/components/bespoke/MarineInput'
+import { MarineSelect } from '@/components/bespoke/MarineSelect'
+import { MarineButton } from '@/components/bespoke/MarineButton'
+import { 
+  MarineTable, MarineTableHeader, MarineTableBody, 
+  MarineTableRow, MarineTableHead, MarineTableCell, MarineTableStatus,
+  MarineTableActionMenu, MarineTableActionItem
+} from '@/components/bespoke/MarineTable'
 
 const STATUS_LABEL = {
   active:      { text: 'Active',      cls: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
@@ -25,9 +33,11 @@ const LIMIT = 10
 export default function RovsPage() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [rovTripCount, setRovTripCount] = useState(0)
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [page, setPage] = useState(1)
@@ -42,8 +52,17 @@ export default function RovsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id) => api.delete(`/rovs/${id}`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['rovs'] }); toast.success('ROV deleted'); setConfirmDelete(null) },
-    onError: () => toast.error('Failed to delete ROV')
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['rovs'] }); toast.success('ROV deleted'); setConfirmDelete(null); setRovTripCount(0) },
+    onError: (err) => {
+      const message = err?.response?.data?.message || err?.message || 'Failed to delete ROV';
+      if (message.includes('being used') || message.includes('trip')) {
+        toast.error(message, { duration: 5000 });
+      } else {
+        toast.error(message);
+      }
+      setConfirmDelete(null);
+      setRovTripCount(0);
+    }
   })
 
   const canEdit = ['admin', 'operator'].includes(user?.role)
@@ -52,6 +71,18 @@ export default function RovsPage() {
 
   const rovs = data?.data || []
   const isEmpty = !isLoading && rovs.length === 0
+
+  const handleDeleteClick = async (rov) => {
+    try {
+      const res = await api.get(`/trips?rovId=${rov._id}&limit=1`);
+      const tripCount = res?.data?.total || 0;
+      setRovTripCount(tripCount);
+      setConfirmDelete(rov);
+    } catch {
+      setRovTripCount(0);
+      setConfirmDelete(rov);
+    }
+  }
 
   const fetchAllRovs = () => api.get('/rovs', { params: { limit: 1000, search: debouncedSearch || undefined, status: filterStatus || undefined } })
   const handleExportCSV = async () => { const res = await fetchAllRovs(); exportRovsCSV(res?.data?.data || []) }
@@ -64,31 +95,33 @@ export default function RovsPage() {
         <div className="flex items-center gap-2">
           <ExportMenu onExportCSV={handleExportCSV} onExportPDF={handleExportPDF} />
           {canEdit && (
-            <button onClick={() => setShowForm(true)}
-              className="flex items-center gap-2 bg-primary text-primary-foreground px-3 py-2 sm:px-4 rounded-lg hover:bg-primary/90 transition-colors text-sm">
-              <Plus size={15} /> <span className="hidden sm:inline">Add ROV</span><span className="sm:hidden">Add</span>
-            </button>
+            <MarineButton variant="solid" icon={Plus} onClick={() => setShowForm(true)}>
+              <span className="hidden sm:inline">Add ROV</span><span className="sm:hidden">Add</span>
+            </MarineButton>
           )}
         </div>
       </div>
 
       {/* Search & filter */}
-      <div className="flex gap-2 mb-4">
+      <div className="flex flex-col sm:flex-row gap-2 mb-4">
         <div className="relative flex-1">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            type="text" placeholder="Search name, model, serial..."
+          <MarineInput
+            placeholder="Search name, model, serial..."
             value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
-            className="w-full pl-9 pr-3 py-2 border border-input bg-background text-foreground rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground"
+            className="w-full pl-9 pr-3"
           />
         </div>
-        <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1) }}
-          className="border border-input bg-background text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring shrink-0">
-          <option value="">All Status</option>
-          <option value="active">Active</option>
-          <option value="maintenance">Maintenance</option>
-          <option value="retired">Retired</option>
-        </select>
+        <div className="flex gap-2">
+          <div className="w-32 shrink-0">
+            <MarineSelect value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1) }}>
+              <option value="">All Status</option>
+              <option value="active">Active</option>
+              <option value="maintenance">Maintenance</option>
+              <option value="retired">Retired</option>
+            </MarineSelect>
+          </div>
+        </div>
       </div>
 
       {isLoading ? (
@@ -101,94 +134,109 @@ export default function RovsPage() {
           title={search || filterStatus ? 'No ROVs match your filters' : 'No ROVs yet'}
           description={!search && !filterStatus && canEdit ? 'Get started by adding your first ROV.' : undefined}
           action={!search && !filterStatus && canEdit
-            ? <button onClick={() => setShowForm(true)} className="px-4 py-2 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90">Add ROV</button>
+            ? <MarineButton variant="solid" onClick={() => setShowForm(true)}>Add ROV</MarineButton>
             : undefined}
         />
       ) : (
         <>
           {/* Desktop table */}
-          <div className="hidden xl:block bg-card rounded-xl shadow overflow-hidden border border-border">
-            <table className="w-full text-sm min-w-max">
-              <thead className="bg-muted border-b border-border">
-                <tr>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Name</th>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Model</th>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Serial Number</th>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Status</th>
-                  <th className="sticky right-0 bg-muted text-right px-6 py-3 text-muted-foreground font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {rovs.map(rov => {
-                  const { text, cls } = STATUS_LABEL[rov.status] || STATUS_LABEL.active
-                  return (
-                    <tr key={rov._id} className="hover:bg-muted/50 transition-colors">
-                      <td className="px-6 py-4 font-medium text-foreground min-w-[150px]">{rov.name}</td>
-                      <td className="px-6 py-4 text-muted-foreground min-w-[120px] truncate" title={rov.model}>{rov.model}</td>
-                      <td className="px-6 py-4 text-muted-foreground font-mono text-xs min-w-[140px] truncate" title={rov.serialNumber}>{rov.serialNumber}</td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${cls}`}>{text}</span>
-                      </td>
-                      <td className="sticky right-0 bg-card px-6 py-4">
-                        <div className="flex items-center justify-end gap-2">
-                          <Link to={`/rovs/${rov._id}`} className="p-1.5 text-muted-foreground hover:text-primary rounded" title="View">
-                            <Eye size={15} />
-                          </Link>
-                          {canEdit && (
-                            <button onClick={() => { setEditing(rov); setShowForm(true) }}
-                              className="p-1.5 text-muted-foreground hover:text-yellow-500 rounded" title="Edit">
-                              <Pencil size={15} />
-                            </button>
-                          )}
-                          {canDelete && (
-                            <button onClick={() => setConfirmDelete(rov)}
-                              className="p-1.5 text-muted-foreground hover:text-destructive rounded" title="Delete">
-                              <Trash2 size={15} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
+          <div className="hidden xl:block">
+            <MarineTable>
+              <MarineTableHeader>
+                <MarineTableRow>
+                  <MarineTableHead>Name</MarineTableHead>
+                  <MarineTableHead>Model</MarineTableHead>
+                  <MarineTableHead>Serial Number</MarineTableHead>
+                  <MarineTableHead>Status</MarineTableHead>
+                  <MarineTableHead align="right">Actions</MarineTableHead>
+                </MarineTableRow>
+              </MarineTableHeader>
+              <MarineTableBody>
+                {rovs.map(rov => (
+                  <MarineTableRow key={rov._id} onClick={() => navigate(`/rovs/${rov._id}`)}>
+                    <MarineTableCell>
+                      <span className="font-semibold text-foreground">{rov.name}</span>
+                    </MarineTableCell>
+                    <MarineTableCell isMono>
+                      <span title={rov.model}>{rov.model || '—'}</span>
+                    </MarineTableCell>
+                    <MarineTableCell isMono>
+                      <span title={rov.serialNumber}>{rov.serialNumber || '—'}</span>
+                    </MarineTableCell>
+                    <MarineTableCell>
+                      <MarineTableStatus status={rov.status} label={STATUS_LABEL[rov.status]?.text || 'Unknown'} />
+                    </MarineTableCell>
+                    <MarineTableCell align="right">
+                      <div className="flex items-center justify-end gap-3">
+                        <ChevronRight size={18} className="text-slate-300 dark:text-slate-500 group-hover:text-cyan-600 group-hover:translate-x-1 transition-all duration-200" />
+                        {(canEdit || canDelete) && (
+                          <MarineTableActionMenu>
+                            {canEdit && (
+                              <MarineTableActionItem onClick={() => { setEditing(rov); setShowForm(true) }}>
+                                <PenLine size={14} /> Edit
+                              </MarineTableActionItem>
+                            )}
+                            {canDelete && (
+                              <MarineTableActionItem onClick={() => handleDeleteClick(rov)} isDanger>
+                                <Trash size={14} /> Delete
+                              </MarineTableActionItem>
+                            )}
+                          </MarineTableActionMenu>
+                        )}
+                      </div>
+                    </MarineTableCell>
+                  </MarineTableRow>
+                ))}
+              </MarineTableBody>
+            </MarineTable>
           </div>
 
           {/* Mobile card list */}
           <div className="xl:hidden space-y-2">
             {rovs.map(rov => {
-              const { text, cls } = STATUS_LABEL[rov.status] || STATUS_LABEL.active
               return (
-                <div key={rov._id} className="bg-card rounded-xl border border-border shadow-sm px-4 py-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-foreground text-sm">{rov.name}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        <span>Model:</span> {rov.model}
-                      </p>
-                      {rov.serialNumber && (
-                        <p className="text-xs text-muted-foreground font-mono mt-0.5">
-                          <span className="not-italic font-sans">S/N:</span> {rov.serialNumber}
-                        </p>
-                      )}
+                <div key={rov._id} onClick={() => navigate(`/rovs/${rov._id}`)}
+                  className="bg-card rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className="font-semibold text-slate-700 dark:text-slate-200 text-sm group-hover:text-cyan-600 transition-colors line-clamp-1">
+                          {rov.name}
+                        </span>
+                        <MarineTableStatus status={rov.status} label={STATUS_LABEL[rov.status]?.text || 'Unknown'} />
+                      </div>
+                      
+                      <div className="flex flex-col gap-1.5 mt-2">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-sans font-semibold uppercase tracking-wider text-[10px] text-slate-500 dark:text-slate-400 shrink-0">MODEL</span>
+                          <span className="font-mono text-xs tracking-tight text-slate-500 dark:text-slate-400 truncate">{rov.model || '—'}</span>
+                        </div>
+                        {rov.serialNumber && (
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-sans font-semibold uppercase tracking-wider text-[10px] text-slate-500 dark:text-slate-400 shrink-0">S/N</span>
+                            <span className="font-mono text-xs tracking-tight text-slate-500 dark:text-slate-400 truncate">{rov.serialNumber}</span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>{text}</span>
-                      <Link to={`/rovs/${rov._id}`} className="p-1.5 text-muted-foreground hover:text-primary rounded">
-                        <Eye size={14} />
-                      </Link>
-                      {canEdit && (
-                        <button onClick={() => { setEditing(rov); setShowForm(true) }}
-                          className="p-1.5 text-muted-foreground hover:text-yellow-500 rounded">
-                          <Pencil size={14} />
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button onClick={() => setConfirmDelete(rov)}
-                          className="p-1.5 text-muted-foreground hover:text-destructive rounded">
-                          <Trash2 size={14} />
-                        </button>
+                    
+                    <div className="flex items-center gap-2 shrink-0 pl-2">
+                      <ChevronRight size={18} className="text-slate-300 dark:text-slate-500 group-hover:text-cyan-600 group-hover:translate-x-1 transition-all duration-200" />
+                      {(canEdit || canDelete) && (
+                        <div onClick={e => e.stopPropagation()}>
+                          <MarineTableActionMenu>
+                            {canEdit && (
+                              <MarineTableActionItem onClick={() => { setEditing(rov); setShowForm(true) }}>
+                                <PenLine size={14} /> Edit
+                              </MarineTableActionItem>
+                            )}
+                            {canDelete && (
+                              <MarineTableActionItem onClick={() => handleDeleteClick(rov)} isDanger>
+                                <Trash size={14} /> Delete
+                              </MarineTableActionItem>
+                            )}
+                          </MarineTableActionMenu>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -209,10 +257,14 @@ export default function RovsPage() {
       {confirmDelete && (
         <ConfirmDialog
           title="Delete ROV"
-          message={`Are you sure you want to delete "${confirmDelete.name}"? This action cannot be undone.`}
+          message={rovTripCount > 0
+            ? `⚠️ Cannot delete "${confirmDelete.name}" — it is being used in ${rovTripCount} trip(s).\n\nSet its status to "Maintenance" or "Retired" instead.`
+            : `Delete "${confirmDelete.name}"? This action cannot be undone.`
+          }
           loading={deleteMutation.isPending}
           onConfirm={() => deleteMutation.mutate(confirmDelete._id)}
-          onCancel={() => setConfirmDelete(null)}
+          onCancel={() => { setConfirmDelete(null); setRovTripCount(0) }}
+          confirmDisabled={rovTripCount > 0}
         />
       )}
     </div>

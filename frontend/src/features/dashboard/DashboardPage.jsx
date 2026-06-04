@@ -1,33 +1,30 @@
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
-import { Map, Briefcase, Anchor, Users, Clock } from 'lucide-react'
+import { useNavigate, Link } from 'react-router-dom'
+import { Map, Briefcase, Anchor, Users, Clock, ChevronRight } from 'lucide-react'
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  LineChart, Line, Legend
+  AreaChart, Area, Legend
 } from 'recharts'
 import { useAuthStore } from '@/store/auth.store'
+import { useThemeStore } from '@/store/theme.store'
 import { Skeleton } from '@/components/shared/Skeleton'
 import api from '@/lib/axios'
-import { TRIP_COLORS, DIVE_COLORS, ROV_PALETTE } from '@/lib/chartColors'
-
-const STATUS_TRIP = {
-  planned:   { text: 'Planned',   cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
-  ongoing:   { text: 'Ongoing',   cls: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
-  completed: { text: 'Completed', cls: 'bg-muted text-muted-foreground' },
-  cancelled: { text: 'Cancelled', cls: 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300' }
-}
+import { TRIP_COLORS, DIVE_COLORS, ROV_PALETTE, LINE_COLORS } from '@/lib/chartColors'
+import { MarineTableStatus } from '@/components/bespoke/MarineTable'
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-card border border-border rounded-lg shadow-lg px-3 py-2 text-xs">
-      {label && <p className="font-semibold text-muted-foreground mb-1">{label}</p>}
+    <div className="bg-slate-900/90 backdrop-blur-sm border border-slate-700/80 rounded-lg shadow-xl px-3 py-2.5">
+      {label && (
+        <p className="font-mono text-[10px] uppercase tracking-wider text-slate-500 mb-2">{label}</p>
+      )}
       {payload.map((p, i) => (
-        <div key={i} className="flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full" style={{ background: p.color || p.fill }} />
-          <span className="text-muted-foreground capitalize">{p.name}:</span>
-          <span className="font-semibold text-foreground">{p.value}</span>
+        <div key={i} className="flex items-center gap-2 mb-1 last:mb-0">
+          <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: p.color || p.fill }} />
+          <span className="font-mono text-xs text-slate-400 capitalize">{p.name}</span>
+          <span className="font-mono text-xs font-semibold text-white ml-auto pl-4">{p.value}</span>
         </div>
       ))}
     </div>
@@ -58,7 +55,7 @@ function StatusPie({ data, colorMap }) {
     <div className="flex items-center gap-4">
       <ResponsiveContainer width="50%" height={140}>
         <PieChart>
-          <Pie data={entries} dataKey="value" cx="50%" cy="50%" innerRadius={35} outerRadius={60} paddingAngle={2}>
+          <Pie data={entries} dataKey="value" cx="50%" cy="50%" innerRadius={48} outerRadius={60} paddingAngle={3}>
             {entries.map((e, i) => <Cell key={i} fill={e.color} />)}
           </Pie>
           <Tooltip content={<CustomTooltip />} />
@@ -86,8 +83,11 @@ const AXIS_PROPS = {
 }
 
 export default function DashboardPage() {
-const { user } = useAuthStore()
+  const { user } = useAuthStore()
+  const { isDark } = useThemeStore()
   const navigate = useNavigate()
+  // Near-invisible gridlines: very dark on dark bg, very light on light bg
+  const gridColor = isDark ? '#1e293b' : '#e2e8f0'
   const isAdmin = user?.role === 'admin'
 
   const qOpts = { staleTime: 0, refetchOnWindowFocus: true }
@@ -154,7 +154,7 @@ const { user } = useAuthStore()
                 </div>
               </div>
               {value === null ? <Skeleton className="h-7 w-10" /> : (
-                <p className={`text-2xl sm:text-3xl font-bold ${c.text}`}>{value}</p>
+                <p className="text-2xl sm:text-3xl font-mono font-bold text-cyan-500 dark:text-cyan-400">{value}</p>
               )}
             </button>
           )
@@ -170,8 +170,8 @@ const { user } = useAuthStore()
         <ChartCard title="Dives by Status" {...chartProps}>
           {stats && (
             <ResponsiveContainer width="100%" height={140}>
-              <BarChart data={diveBarData} barSize={28} margin={{ top: 0, right: 4, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--border))" vertical={false} />
+              <BarChart data={diveBarData} maxBarSize={32} margin={{ top: 0, right: 4, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
                 <XAxis dataKey="name" {...AXIS_PROPS} />
                 <YAxis {...AXIS_PROPS} allowDecimals={false} />
                 <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgb(var(--muted))' }} />
@@ -188,9 +188,9 @@ const { user } = useAuthStore()
             <p className="text-xs text-muted-foreground text-center py-10">No data</p>
           ) : (
             <ResponsiveContainer width="100%" height={140}>
-              <BarChart data={stats.rovUtilization} barSize={20} layout="vertical"
+              <BarChart data={stats.rovUtilization} maxBarSize={28} layout="vertical"
                 margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--border))" horizontal={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke={gridColor} horizontal={false} />
                 <XAxis type="number" {...AXIS_PROPS} allowDecimals={false} />
                 <YAxis type="category" dataKey="name" width={64} tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgb(var(--muted))' }} />
@@ -208,16 +208,36 @@ const { user } = useAuthStore()
         <ChartCard title="Activity (last 6 months)" {...chartProps}>
           {stats && (
             <ResponsiveContainer width="100%" height={160}>
-              <LineChart data={stats.activityTimeline} margin={{ top: 4, right: 16, left: -20, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--border))" vertical={false} />
+              <AreaChart data={stats.activityTimeline} margin={{ top: 4, right: 16, left: -20, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="grad-trips" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor={LINE_COLORS.trips} stopOpacity={0.30} />
+                    <stop offset="95%" stopColor={LINE_COLORS.trips} stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="grad-dives" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor={LINE_COLORS.dives} stopOpacity={0.25} />
+                    <stop offset="95%" stopColor={LINE_COLORS.dives} stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="grad-media" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor={LINE_COLORS.media} stopOpacity={0.20} />
+                    <stop offset="95%" stopColor={LINE_COLORS.media} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="4 4" stroke={gridColor} vertical={false} />
                 <XAxis dataKey="name" {...AXIS_PROPS} />
                 <YAxis {...AXIS_PROPS} allowDecimals={false} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                <Line type="monotone" dataKey="trips" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                <Line type="monotone" dataKey="dives" stroke="#22c55e" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-                <Line type="monotone" dataKey="media" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-              </LineChart>
+                <Area type="monotone" dataKey="trips" stroke={LINE_COLORS.trips} strokeWidth={2}
+                  fill="url(#grad-trips)" fillOpacity={1}
+                  dot={{ r: 2, fill: LINE_COLORS.trips }} activeDot={{ r: 4 }} />
+                <Area type="monotone" dataKey="dives" stroke={LINE_COLORS.dives} strokeWidth={2}
+                  fill="url(#grad-dives)" fillOpacity={1}
+                  dot={{ r: 2, fill: LINE_COLORS.dives }} activeDot={{ r: 4 }} />
+                <Area type="monotone" dataKey="media" stroke={LINE_COLORS.media} strokeWidth={2}
+                  fill="url(#grad-media)" fillOpacity={1}
+                  dot={{ r: 2, fill: LINE_COLORS.media }} activeDot={{ r: 4 }} />
+              </AreaChart>
             </ResponsiveContainer>
           )}
         </ChartCard>
@@ -227,7 +247,10 @@ const { user } = useAuthStore()
       <div className="bg-card rounded-xl shadow-sm border border-border p-5 sm:p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-sm font-semibold text-foreground">Recent Trips</h2>
-          <button onClick={() => navigate('/trips')} className="text-xs text-primary hover:underline">View all</button>
+          <Link to="/trips"
+            className="flex items-center gap-0.5 text-xs text-muted-foreground hover:text-primary transition-colors">
+            View all <ChevronRight size={13} />
+          </Link>
         </div>
 
         {trips === undefined || allTrips === undefined ? (
@@ -240,14 +263,26 @@ const { user } = useAuthStore()
         ) : (
           <div className="divide-y divide-border">
             {recentTrips.map(trip => {
-              const { text, cls } = STATUS_TRIP[trip.status] || STATUS_TRIP.planned
+              const label = trip.status.charAt(0).toUpperCase() + trip.status.slice(1)
               return (
                 <button key={trip._id} onClick={() => navigate(`/trips/${trip._id}`)}
                   className="w-full flex items-center justify-between px-3 py-3 rounded-lg hover:bg-muted transition-colors text-left">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${cls}`}>{text}</span>
-                    <span className="text-sm font-medium text-foreground truncate">{trip.name}</span>
-                    {trip.rov?.name && <span className="text-xs text-muted-foreground hidden sm:inline shrink-0">{trip.rov.name}</span>}
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <MarineTableStatus status={trip.status} label={label} />
+                    <span className="inline-flex items-center px-1.5 py-0.5 rounded-[4px] shrink-0
+                                     border border-slate-200 dark:border-slate-700
+                                     bg-slate-50 dark:bg-slate-800
+                                     text-[11px] font-mono uppercase tracking-wider
+                                     text-slate-600 dark:text-slate-400
+                                     max-w-[160px] truncate">
+                      Trip: {trip.name}
+                    </span>
+                    {trip.rov?.name && (
+                      <span className="text-xs hidden sm:inline shrink-0">
+                        <span className="text-muted-foreground">ROV: </span>
+                        <span className="font-mono text-foreground">{trip.rov.name}</span>
+                      </span>
+                    )}
                   </div>
                   <div className="flex items-center gap-1 text-xs text-muted-foreground shrink-0 ml-2">
                     <Clock size={11} />

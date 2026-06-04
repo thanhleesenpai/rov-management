@@ -1,0 +1,24 @@
+\documentclass[../DoAn.tex]{subfiles}
+\begin{document}
+\section{Kết luận}
+Đồ án đã xuất sắc hoàn thành mục tiêu thiết kế và xây dựng "Phân hệ quản lý thông tin nhiệm vụ ROV". Vượt ra ngoài giới hạn của một ứng dụng lưu trữ và quản lý video thông thường, hệ thống đã giải quyết thành công bài toán phân mảnh dữ liệu thực địa bằng cách cung cấp cơ chế đồng bộ hóa mượt mà giữa hình ảnh và các thông số môi trường (áp suất, độ sâu, nhiệt độ) theo thời gian thực. 
+
+So với các giải pháp hiện hành trên thị trường (như QGroundControl hay BlueOS vốn chỉ tập trung vào khâu điều khiển phần cứng trực tiếp), điểm sáng lớn nhất của đồ án nằm ở khâu phân tích hậu kỳ (Post-mission Analytics) trên nền tảng web đa người dùng. Việc kiến trúc thành công dịch vụ vi mô (microservice) tích hợp mô hình nhận diện vật thể học sâu YOLOv8 kết hợp với cơ chế hàng đợi bất đồng bộ (Bull Queue) đã giúp tự động hóa quá trình dò tìm bất thường dưới nước mà không gây ảnh hưởng đến hiệu năng của máy chủ web chính. Cùng với đó, bước tiến táo bạo trong việc ứng dụng Mô hình ngôn ngữ lớn (Gemini 2.5 Flash) để tự động sinh báo cáo tổng kết đã giúp giảm thiểu hàng giờ đồng hồ làm việc thủ công của con người.
+
+Nhìn chung, hệ thống đã chứng minh được tính khả thi trong việc số hóa và tự động hóa quy trình quản lý dữ liệu cho các đội vận hành phương tiện dưới nước. Tuy nhiên, hệ thống vẫn còn một số điểm chưa hoàn thiện, chủ yếu nằm ở việc chưa có các bài kiểm thử thực tế với lượng dữ liệu lên tới hàng Terabytes, cũng như mô hình YOLOv8 hiện tại mới chỉ dừng ở mức nhận diện các nhóm vật thể cơ bản được huấn luyện sẵn (Pre-trained), chưa phân loại được các sinh vật hoặc sự cố đường ống đặc thù.
+
+\section{Hướng phát triển}
+Dựa trên những kết quả đã đạt được, hệ thống có nhiều tiềm năng mở rộng trong tương lai để trở thành một nền tảng toàn diện hơn. Định hướng phát triển được chia làm hai mũi nhọn:
+
+\textbf{1. Hoàn thiện các chức năng hiện tại:}
+\begin{itemize}
+    \item \textbf{Tinh chỉnh mô hình học sâu (Fine-Tuning):} Tiến hành thu thập thêm các tập dữ liệu dưới nước chuyên biệt và huấn luyện lại mô hình YOLOv8 để có khả năng nhận dạng chính xác các cấu kiện kỹ thuật (vết nứt cáp ngầm, ăn mòn kim loại) hoặc các loài sinh vật biển đặc hữu.
+    \item \textbf{Tối ưu hóa lưu trữ:} Triển khai cơ chế phân mảnh video (HLS/DASH) kết hợp với thuật toán nén thông số cảm biến để tối ưu tốc độ tải trang cho người dùng có kết nối mạng kém.
+\end{itemize}
+
+\textbf{2. Nghiên cứu các hướng đi mới:}
+\begin{itemize}
+    \item \textbf{Phân tích thời gian thực (Real-time Edge Computing):} Thay vì đợi nhiệm vụ kết thúc và tải dữ liệu lên web một cách thụ động, hướng tới việc tích hợp các mô-đun truyền tải vệ tinh (như Starlink) hoặc sóng âm dưới nước để đẩy trực tiếp luồng dữ liệu (Livestream) và cảnh báo từ ROV về hệ thống trung tâm ngay khi đang lặn.
+    \item \textbf{Quản lý bầy đàn (Swarm Management):} Mở rộng kiến trúc cơ sở dữ liệu để hỗ trợ theo dõi, điều phối và vẽ bản đồ 3D từ dữ liệu của nhiều ROV cùng hoạt động đồng thời trong một khu vực địa lý lớn.
+\end{itemize}
+\end{document}

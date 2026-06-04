@@ -1,0 +1,38 @@
+\documentclass[../DoAn.tex]{subfiles}
+\begin{document}
+
+Chương 3 trình bày các cơ sở lý thuyết và công nghệ được lựa chọn để giải quyết những yêu cầu khắt khe đã đặt ra trong Chương 2. Thay vì mô tả dàn trải, chương này tập trung phân tích lý do hệ thống ưu tiên lựa chọn một công nghệ cụ thể dựa trên việc so sánh với các giải pháp thay thế khác, đặc biệt hướng đến các vấn đề cốt lõi như hiệu năng, xử lý dữ liệu lớn, tính linh hoạt và khả năng ứng dụng trí tuệ nhân tạo.
+
+\section{Công nghệ phát triển Giao diện Người dùng (Frontend)}
+\label{section:3.1}
+Đặc tả ở phần 2.4 đặt ra yêu cầu giao diện (Cockpit) phải đáp ứng theo dõi video và biểu đồ cảm biến mà không giật lag.
+
+\textbf{ReactJS và Zustand:} ReactJS được lựa chọn làm thư viện phát triển giao diện chính nhờ cơ chế Virtual DOM giúp tối ưu hóa việc cập nhật các biểu đồ dữ liệu liên tục thay đổi mà không cần tải lại toàn trang. So với các giải pháp như VueJS hay Angular, hệ sinh thái của React cung cấp khả năng tích hợp linh hoạt hơn với các thư viện vẽ biểu đồ chuyên sâu như Recharts và Leaflet. Để quản lý trạng thái đồng bộ phức tạp giữa trình phát video và dữ liệu cảm biến, đồ án sử dụng Zustand thay vì Redux. Redux mang lại khả năng quản lý tốt nhưng cấu trúc (boilerplate) cồng kềnh, trong khi Zustand cung cấp một giải pháp quản lý trạng thái toàn cục tinh gọn, tốc độ truy xuất cực nhanh và ít bị nghẽn cổ chai khi dữ liệu luân chuyển liên tục.
+
+\section{Công nghệ Máy chủ và Cơ sở dữ liệu (Backend)}
+\label{section:3.2}
+Khối lượng dữ liệu thực địa từ ROV sinh ra rất lớn, đòi hỏi hệ thống lưu trữ và xử lý máy chủ phải cực kỳ linh hoạt và hiệu quả (đáp ứng yêu cầu phi chức năng ở phần 2.4).
+
+\textbf{Node.js và Express.js:} Node.js với mô hình I/O không đồng bộ hướng sự kiện (Event-driven, non-blocking I/O) là sự lựa chọn tối ưu để xây dựng các luồng truyền tải thời gian thực như Server-Sent Events (SSE) \cite{LectureA}. So với các mô hình đa luồng truyền thống như Spring Boot (Java) hay Django (Python), Node.js xử lý hàng nghìn kết nối đồng thời với mức tiêu thụ tài nguyên phần cứng thấp hơn nhiều.
+
+\textbf{MongoDB và Amazon Web Services (AWS S3):} MongoDB, với thiết kế NoSQL hướng tài liệu, hoàn toàn phù hợp để lưu trữ dữ liệu cảm biến (Sensor Data). Cấu trúc của các tệp nhật ký cảm biến đôi khi bị thay đổi (bổ sung thêm cảm biến độ mặn, con quay hồi chuyển) khiến cho các hệ cơ sở dữ liệu quan hệ (như MySQL, PostgreSQL) trở nên cứng nhắc và chi phí thiết kế lại bảng rất cao. Đối với các tệp phương tiện (video, ảnh), thay vì lưu trực tiếp vào ổ cứng máy chủ gây nguy cơ quá tải, hệ thống tích hợp dịch vụ lưu trữ đám mây AWS S3. Cơ chế URL chỉ định trước (Presigned URL) cho phép trình duyệt của người dùng tải trực tiếp tệp tin lên vùng chứa của AWS mà không cần đi xuyên qua máy chủ Node.js, qua đó giảm tải toàn bộ băng thông mạng cho hệ thống chính.
+
+\section{Cơ chế Xử lý ngầm và Giao tiếp Thời gian thực}
+\label{section:3.3}
+Luồng phân tích AI và nhận diện video tốn rất nhiều thời gian xử lý. Việc bắt người dùng chờ đợi phản hồi từ máy chủ HTTP (chặn luồng) là không thể chấp nhận được.
+
+\textbf{Redis và Bull Queue:} Để giải quyết bài toán này, các tác vụ AI được đẩy vào một hàng đợi tác vụ (Message Queue) mang tên Bull Queue, hoạt động trên nền tảng cơ sở dữ liệu khóa-giá trị Redis in-memory. So với các hệ thống đồ sộ như RabbitMQ hay Apache Kafka, Redis và Bull Queue nhẹ nhàng hơn, cực kỳ dễ cài đặt, đáp ứng tốc độ phản hồi tính bằng mili-giây và phù hợp hoàn hảo với một ứng dụng web tầm trung. Đồng thời, Redis cũng đóng vai trò làm Danh sách đen (Blacklist) để vô hiệu hóa tức thời các mã xác thực JWT khi người dùng đăng xuất, tăng cường tính bảo mật.
+
+\textbf{Server-Sent Events (SSE):} Sau khi các tiến trình ngầm phân tích xong, máy chủ cần báo lại cho trình duyệt. Thông thường, WebSockets là giải pháp phổ biến. Tuy nhiên, do bản chất bài toán chỉ cần giao tiếp một chiều (máy chủ đẩy thông báo xuống trình duyệt, trình duyệt không đẩy luồng ngược lại), Server-Sent Events (SSE) qua giao thức HTTP/1.1 được lựa chọn. SSE đơn giản, tiết kiệm tài nguyên máy chủ hơn và được hỗ trợ cơ chế tự động kết nối lại (auto-reconnect) mặc định từ trình duyệt mà không cần lập trình viên phải xử lý thủ công như WebSockets.
+
+\section{Công nghệ Trí tuệ Nhân tạo (AI)}
+\label{section:3.4}
+Như đã trình bày ở phần Khảo sát, thiếu sót lớn nhất của các phần mềm hiện có là không có khả năng tự động phân tích và tóm tắt.
+
+\textbf{YOLOv8 (You Only Look Once phiên bản 8):} Để nhận diện vật thể dưới nước từ hàng chục nghìn khung hình video, YOLOv8 được chọn làm hạt nhân của dịch vụ vi mô (microservice) AI. YOLOv8 kết hợp giữa tốc độ trích xuất đặc trưng đáng kinh ngạc và độ chính xác cao. So với các phiên bản tiền nhiệm như YOLOv5 hay các họ mô hình Faster R-CNN nặng nề, YOLOv8 cung cấp khả năng dò tìm (tracking) ổn định, dễ dàng tích hợp qua FastAPI (Python) và chỉ tiêu thụ rất ít RAM. Mô hình này rất phù hợp để triển khai trực tiếp ngay trên các thiết bị giới hạn tài nguyên tính toán (Edge AI) hoặc máy chủ ảo giá rẻ.
+
+\textbf{Mô hình Ngôn ngữ Lớn (Gemini 2.5 Flash):} Việc tóm tắt chuyến đi cần tổng hợp lượng lớn dữ liệu rời rạc thành văn bản tự nhiên. API của Gemini 2.5 Flash được sử dụng bởi ưu điểm vượt trội về độ trễ thấp và cửa sổ ngữ cảnh (context window) khổng lồ. So với các phiên bản ChatGPT thông thường, Gemini Flash đem lại sự cân bằng hoàn hảo giữa hiệu năng và chi phí xử lý văn bản quy mô lớn.
+
+Chương 3 đã giải thích rõ lý do tại sao hệ sinh thái công nghệ (React, Node.js, MongoDB, Redis, YOLOv8) lại được ưu tiên lựa chọn để đáp ứng đúng các bài toán đặt ra ở phần Khảo sát. Việc kết hợp chặt chẽ giữa các công nghệ hiện đại này chính là nền móng để hệ thống bước vào giai đoạn thiết kế kiến trúc chi tiết, được trình bày trong Chương 4.
+
+\end{document}

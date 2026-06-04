@@ -3,10 +3,17 @@ const { success } = require('../../utils/response.util');
 const notifService = require('../notifications/notification.service');
 const audit = require('../audit/audit.service');
 
+const { freshenAvatar } = require('../../utils/avatar.util');
+
 const getAllUsers = async (req, res, next) => {
   try {
     const data = await userService.getAllUsers(req.query);
-    return success(res, data);
+    const users = await Promise.all(data.users.map(async u => {
+      const obj = u.toObject();
+      obj.avatar = await freshenAvatar(obj.avatar);
+      return obj;
+    }));
+    return success(res, { ...data, users });
   } catch (err) {
     next(err);
   }

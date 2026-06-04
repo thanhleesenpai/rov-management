@@ -1,20 +1,30 @@
 import { useState, useRef, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/store/auth.store'
-import { ShieldCheck, User, ToggleLeft, ToggleRight, Pencil, X, Search, CheckSquare, ChevronDown } from 'lucide-react'
+import { ShieldCheck, User, ToggleLeft, ToggleRight, PenLine, X, Search, CheckSquare, ChevronDown } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/axios'
 import { TableSkeleton } from '@/components/shared/Skeleton'
 import Pagination from '@/components/shared/Pagination'
 import ExportMenu from '@/components/shared/ExportMenu'
+import Avatar from '@/components/shared/Avatar'
 import { exportUsersCSV, exportUsersPDF } from '@/lib/export'
 import EmptyState from '@/components/shared/EmptyState'
 import { useDebounce } from '@/hooks/useDebounce'
 
+import { MarineInput } from '@/components/bespoke/MarineInput'
+import { MarineSelect } from '@/components/bespoke/MarineSelect'
+import { MarineButton } from '@/components/bespoke/MarineButton'
+import {
+  MarineTable, MarineTableHeader, MarineTableBody,
+  MarineTableRow, MarineTableHead, MarineTableCell, MarineTableStatus,
+  MarineTableActionMenu, MarineTableActionItem
+} from '@/components/bespoke/MarineTable'
+
 const ROLE_STYLE = {
-  admin:    'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300',
-  operator: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
-  viewer:   'bg-muted text-muted-foreground'
+  admin:    'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
+  operator: 'border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400',
+  viewer:   'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'
 }
 
 const ROLES = ['viewer', 'operator', 'admin']
@@ -28,15 +38,14 @@ function UserEditForm({ user, onClose, onSave, isSelf, saving }) {
       <div className="bg-card rounded-xl shadow-xl w-full max-w-sm border border-border">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="font-semibold text-foreground">Edit User</h2>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground"><X size={18} /></button>
+          <MarineButton variant="icon" icon={X} onClick={onClose} />
         </div>
         <div className="p-6 space-y-4">
           <p className="text-xs text-muted-foreground">{user.email}</p>
           <div>
             <label className="block text-sm font-medium text-foreground mb-1">Full Name</label>
-            <input type="text" required value={form.fullName}
-              onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))}
-              className="w-full border border-input bg-background text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+            <MarineInput type="text" required value={form.fullName}
+              onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))} />
           </div>
           {isSelf ? (
             <div className="bg-yellow-50 border border-yellow-200 dark:bg-yellow-900/20 dark:border-yellow-800 rounded-lg px-3 py-2 text-xs text-yellow-700 dark:text-yellow-300">
@@ -45,22 +54,60 @@ function UserEditForm({ user, onClose, onSave, isSelf, saving }) {
           ) : (
             <div>
               <label className="block text-sm font-medium text-foreground mb-1">Role</label>
-              <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}
-                className="w-full border border-input bg-background text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+              <MarineSelect value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
                 {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
+              </MarineSelect>
             </div>
           )}
           <div className="flex justify-end gap-2 pt-2">
-            <button onClick={onClose} disabled={saving} className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors">Cancel</button>
-            <button onClick={() => onSave(user._id, form)} disabled={saving}
-              className="px-4 py-2 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors">
+            <MarineButton variant="outline" onClick={onClose} disabled={saving}>Cancel</MarineButton>
+            <MarineButton variant="solid" onClick={() => onSave(user._id, form)} disabled={saving}>
               {saving ? 'Saving...' : 'Save Changes'}
-            </button>
+            </MarineButton>
           </div>
         </div>
       </div>
     </div>
+  )
+}
+
+function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confirmText, isDanger }) {
+  if (!isOpen) return null
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-card rounded-xl shadow-xl w-full max-w-sm border border-border overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border">
+          <h2 className="font-semibold text-foreground">{title}</h2>
+          <MarineButton variant="icon" icon={X} onClick={onClose} />
+        </div>
+        <div className="p-6">
+          <p className="text-sm text-slate-600 dark:text-slate-300">{message}</p>
+        </div>
+        <div className="px-6 py-4 bg-muted/30 border-t border-border flex justify-end gap-2">
+          <MarineButton variant="outline" onClick={onClose}>Cancel</MarineButton>
+          <MarineButton variant={isDanger ? 'danger' : 'solid'} onClick={() => { onConfirm(); onClose() }}>
+            {confirmText}
+          </MarineButton>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function UserToggle({ isActive, onClick }) {
+  return (
+    <button 
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      className="flex items-center gap-2 focus:outline-none group"
+    >
+      <div className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-cyan-500/50 ${isActive ? 'bg-cyan-500' : 'bg-slate-200 dark:bg-slate-700'}`}>
+        <span className="sr-only">Toggle status</span>
+        <span className={`pointer-events-none absolute left-0.5 inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${isActive ? 'translate-x-4' : 'translate-x-0'}`} />
+      </div>
+      <span className={`text-xs font-medium transition-colors ${isActive ? 'text-cyan-700 dark:text-cyan-400' : 'text-slate-500 dark:text-slate-400'}`}>
+        {isActive ? 'Active' : 'Disabled'}
+      </span>
+    </button>
   )
 }
 
@@ -99,10 +146,11 @@ export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState('')
   const [page, setPage] = useState(1)
   const [editingUser, setEditingUser] = useState(null)
+  const [toggleConfirm, setToggleConfirm] = useState(null)
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState(new Set())
 
-  const debouncedSearch = useDebounce(search)
+  const debouncedSearch = useDebounce(search, 300)
 
   const { data, isLoading } = useQuery({
     queryKey: ['users', { page, search: debouncedSearch, role: roleFilter }],
@@ -164,24 +212,26 @@ export default function UsersPage() {
       </div>
 
       {!selectMode ? (
-        <div className="flex flex-wrap gap-2 mb-4">
+        <div className="flex flex-col sm:flex-row gap-2 mb-4">
           <div className="relative flex-1 min-w-48">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input type="text" placeholder="Search name or email..." value={search}
+            <MarineInput placeholder="Search name or email..." value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }}
-              className="w-full pl-9 pr-3 py-2 border border-input bg-background text-foreground rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground" />
+              className="pl-9 pr-3 w-full" />
           </div>
-          <select value={roleFilter} onChange={e => { setRoleFilter(e.target.value); setPage(1) }}
-            className="border border-input bg-background text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-            <option value="">All Roles</option>
-            <option value="admin">Admin</option>
-            <option value="operator">Operator</option>
-            <option value="viewer">Viewer</option>
-          </select>
-          <button onClick={() => setSelectMode(true)}
-            className="flex items-center gap-1.5 px-3 py-2 border border-border rounded-lg text-sm text-muted-foreground hover:bg-muted transition-colors">
-            <CheckSquare size={14} /> Select
-          </button>
+          <div className="flex gap-2">
+            <div className="w-32 shrink-0">
+              <MarineSelect value={roleFilter} onChange={e => { setRoleFilter(e.target.value); setPage(1) }}>
+                <option value="">All Roles</option>
+                <option value="admin">Admin</option>
+                <option value="operator">Operator</option>
+                <option value="viewer">Viewer</option>
+              </MarineSelect>
+            </div>
+            <MarineButton variant="outline" onClick={() => setSelectMode(true)} icon={CheckSquare}>
+              Select
+            </MarineButton>
+          </div>
         </div>
       ) : (
         <div className="flex items-center gap-2 mb-4 p-3 bg-primary/5 rounded-xl border border-primary/20">
@@ -191,21 +241,18 @@ export default function UsersPage() {
           <div className="flex items-center gap-2 ml-auto flex-wrap">
             {someSelected && (
               <>
-                <button onClick={() => bulkStatusMutation.mutate({ ids: selectedIds, isActive: true })} disabled={isBulkPending}
-                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-green-50 text-green-700 border border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors disabled:opacity-50 font-medium">
-                  <ToggleRight size={13} /> Activate
-                </button>
-                <button onClick={() => bulkStatusMutation.mutate({ ids: selectedIds, isActive: false })} disabled={isBulkPending}
-                  className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-red-50 text-red-600 border border-red-200 dark:bg-red-900/20 dark:text-red-300 dark:border-red-800 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors disabled:opacity-50 font-medium">
-                  <ToggleLeft size={13} /> Deactivate
-                </button>
+                <MarineButton variant="solid" onClick={() => bulkStatusMutation.mutate({ ids: selectedIds, isActive: true })} disabled={isBulkPending}>
+                  Activate Selected
+                </MarineButton>
+                <MarineButton variant="danger" onClick={() => bulkStatusMutation.mutate({ ids: selectedIds, isActive: false })} disabled={isBulkPending}>
+                  Disable Selected
+                </MarineButton>
                 <RoleDropdown disabled={isBulkPending} onSelect={(role) => bulkRoleMutation.mutate({ ids: selectedIds, role })} />
               </>
             )}
-            <button onClick={exitSelectMode}
-              className="px-3 py-1.5 text-xs text-muted-foreground bg-card border border-border rounded-lg hover:bg-muted transition-colors font-medium">
-              Cancel
-            </button>
+            <MarineButton variant="outline" onClick={exitSelectMode}>
+              Cancel Selection
+            </MarineButton>
           </div>
         </div>
       )}
@@ -218,118 +265,122 @@ export default function UsersPage() {
         <EmptyState icon={User} title="No users found" description="Try adjusting your search or filter." />
       ) : (
         <>
-          {/* Desktop table */}
-          <div className="hidden xl:block bg-card rounded-xl shadow overflow-hidden border border-border">
-            <table className="w-full text-sm min-w-max">
-              <thead className="bg-muted border-b border-border">
-                <tr>
+          <div className="hidden xl:block">
+            <MarineTable>
+              <MarineTableHeader>
+                <MarineTableRow>
                   {selectMode && (
-                    <th className="px-4 py-3 w-10">
+                    <MarineTableHead className="w-10">
                       <input type="checkbox" checked={allSelected} onChange={toggleSelectAll}
-                        className="w-4 h-4 rounded accent-blue-600 cursor-pointer" />
-                    </th>
+                        className="w-4 h-4 rounded accent-cyan-600 cursor-pointer" />
+                    </MarineTableHead>
                   )}
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">User</th>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Role</th>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Status</th>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Last Login</th>
-                  {!selectMode && <th className="sticky right-0 bg-muted text-right px-6 py-3 text-muted-foreground font-medium">Actions</th>}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
+                  <MarineTableHead>User</MarineTableHead>
+                  <MarineTableHead>Role</MarineTableHead>
+                  <MarineTableHead>Status</MarineTableHead>
+                  <MarineTableHead>Last Login</MarineTableHead>
+                  {!selectMode && <MarineTableHead align="right">Actions</MarineTableHead>}
+                </MarineTableRow>
+              </MarineTableHeader>
+              <MarineTableBody>
                 {users.map(u => (
-                  <tr key={u._id}
-                    className={`transition-colors ${selectMode ? 'cursor-pointer hover:bg-primary/5' : 'hover:bg-muted/50'} ${selected.has(u._id) ? 'bg-primary/5' : ''}`}
+                  <MarineTableRow key={u._id}
+                    className={`${selectMode ? 'cursor-pointer' : ''} ${selected.has(u._id) ? 'bg-cyan-50/50 dark:bg-cyan-900/10' : ''}`}
                     onClick={selectMode ? () => toggleSelect(u._id) : undefined}>
                     {selectMode && (
-                      <td className="px-4 py-4">
+                      <MarineTableCell>
                         <input type="checkbox" checked={selected.has(u._id)} onChange={() => toggleSelect(u._id)}
                           onClick={e => e.stopPropagation()}
-                          className="w-4 h-4 rounded accent-blue-600 cursor-pointer" />
-                      </td>
+                          className="w-4 h-4 rounded accent-cyan-600 cursor-pointer" />
+                      </MarineTableCell>
                     )}
-                    <td className="px-6 py-4 min-w-[200px]">
+                    <MarineTableCell>
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                          <User size={14} className="text-primary" />
-                        </div>
+                        <Avatar name={u.fullName} avatarUrl={u.avatar} size="md" />
                         <div className="min-w-0">
-                          <p className="font-medium text-foreground truncate">{u.fullName}</p>
-                          <p className="text-xs text-muted-foreground truncate" title={u.email}>{u.email}</p>
+                          <p className="font-semibold text-slate-800 dark:text-slate-100 truncate">{u.fullName}</p>
+                          <p className="font-mono text-xs tracking-tight text-slate-500 dark:text-slate-400 truncate" title={u.email}>{u.email}</p>
                         </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`flex items-center gap-1 w-fit px-2 py-1 rounded-full text-xs font-medium ${ROLE_STYLE[u.role]}`}>
-                        <ShieldCheck size={11} /> {u.role}
+                    </MarineTableCell>
+                    <MarineTableCell>
+                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded-[4px] border text-[11px] font-mono uppercase tracking-wider transition-colors ${ROLE_STYLE[u.role] || 'border-slate-200 text-slate-600 bg-slate-50'}`}>
+                        {u.role}
                       </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${u.isActive ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300'}`}>
-                        {u.isActive ? 'Active' : 'Disabled'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-xs text-muted-foreground whitespace-nowrap" title={u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleString() : ''}>
-                      {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString() : '—'}
-                    </td>
+                    </MarineTableCell>
+                    <MarineTableCell>
+                      <UserToggle 
+                        isActive={u.isActive} 
+                        onClick={() => setToggleConfirm({ user: u, newState: !u.isActive })} 
+                      />
+                    </MarineTableCell>
+                    <MarineTableCell isMono>
+                      {u.lastLoginAt ? new Date(u.lastLoginAt).toLocaleDateString() : <span className="text-slate-400">—</span>}
+                    </MarineTableCell>
                     {!selectMode && (
-                      <td className="sticky right-0 bg-card px-6 py-4">
-                        <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => setEditingUser(u)} className="p-1.5 text-muted-foreground hover:text-yellow-500 rounded transition-colors" title="Edit">
-                            <Pencil size={15} />
-                          </button>
-                          <button onClick={() => toggleMutation.mutate(u._id)} disabled={toggleMutation.isPending}
-                            title={u.isActive ? 'Disable' : 'Enable'}
-                            className={`p-1.5 rounded transition-colors ${u.isActive ? 'text-green-500 hover:text-destructive' : 'text-muted-foreground hover:text-green-500'}`}>
-                            {u.isActive ? <ToggleRight size={20} /> : <ToggleLeft size={20} />}
-                          </button>
+                      <MarineTableCell align="right">
+                        <div className="flex items-center justify-end gap-3">
+                          <MarineTableActionMenu>
+                            <MarineTableActionItem onClick={() => setEditingUser(u)}>
+                              <PenLine size={14} /> Edit
+                            </MarineTableActionItem>
+                          </MarineTableActionMenu>
                         </div>
-                      </td>
+                      </MarineTableCell>
                     )}
-                  </tr>
+                  </MarineTableRow>
                 ))}
-              </tbody>
-            </table>
+              </MarineTableBody>
+            </MarineTable>
           </div>
 
-          {/* Mobile card list */}
           <div className="xl:hidden space-y-2">
             {users.map(u => (
               <div key={u._id}
-                className={`bg-card rounded-xl border shadow-sm px-4 py-3 transition-colors ${selectMode ? 'cursor-pointer' : ''} ${selected.has(u._id) ? 'border-primary bg-primary/5' : 'border-border'}`}
+                className={`bg-card rounded-xl border shadow-sm p-4 transition-colors group ${selectMode ? 'cursor-pointer' : ''} ${selected.has(u._id) ? 'border-cyan-500 bg-cyan-50/50 dark:border-cyan-600 dark:bg-cyan-900/10' : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
                 onClick={selectMode ? () => toggleSelect(u._id) : undefined}>
-                <div className="flex items-center justify-between gap-2">
-                  {selectMode && (
-                    <input type="checkbox" checked={selected.has(u._id)} onChange={() => toggleSelect(u._id)}
-                      onClick={e => e.stopPropagation()}
-                      className="w-4 h-4 rounded accent-blue-600 cursor-pointer shrink-0" />
-                  )}
-                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                      <User size={15} className="text-primary" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="font-semibold text-sm text-foreground truncate">{u.fullName}</p>
-                      <p className="text-xs text-muted-foreground truncate">{u.email}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${ROLE_STYLE[u.role]}`}>{u.role}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${u.isActive ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' : 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300'}`}>
-                      {u.isActive ? 'Active' : 'Off'}
-                    </span>
-                    {!selectMode && (
-                      <>
-                        <button onClick={() => setEditingUser(u)} className="p-1.5 text-muted-foreground hover:text-yellow-500 rounded transition-colors">
-                          <Pencil size={14} />
-                        </button>
-                        <button onClick={() => toggleMutation.mutate(u._id)} disabled={toggleMutation.isPending}
-                          className={`p-1.5 rounded transition-colors ${u.isActive ? 'text-green-500 hover:text-destructive' : 'text-muted-foreground hover:text-green-500'}`}>
-                          {u.isActive ? <ToggleRight size={19} /> : <ToggleLeft size={19} />}
-                        </button>
-                      </>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    {selectMode ? (
+                      <div className="pt-1">
+                        <input type="checkbox" checked={selected.has(u._id)} onChange={() => toggleSelect(u._id)}
+                          onClick={e => e.stopPropagation()}
+                          className="w-4 h-4 rounded accent-cyan-600 cursor-pointer shrink-0" />
+                      </div>
+                    ) : (
+                      <div className="pt-0.5 shrink-0">
+                        <Avatar name={u.fullName} avatarUrl={u.avatar} size="md" />
+                      </div>
                     )}
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div>
+                        <p className="font-semibold text-sm text-slate-800 dark:text-slate-100 line-clamp-1">{u.fullName}</p>
+                        <p className="font-mono text-xs tracking-tight text-slate-500 dark:text-slate-400 line-clamp-1">{u.email}</p>
+                      </div>
+                      
+                      <div className="flex flex-wrap items-center gap-3">
+                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-[4px] border text-[11px] font-mono uppercase tracking-wider transition-colors ${ROLE_STYLE[u.role] || 'border-slate-200 text-slate-600 bg-slate-50'}`}>
+                          {u.role}
+                        </span>
+                        <UserToggle 
+                          isActive={u.isActive} 
+                          onClick={() => setToggleConfirm({ user: u, newState: !u.isActive })} 
+                        />
+                      </div>
+                    </div>
                   </div>
+                  
+                  {!selectMode && (
+                    <div className="flex items-center gap-2 shrink-0 pl-2 mt-1">
+                      <div onClick={e => e.stopPropagation()}>
+                        <MarineTableActionMenu>
+                          <MarineTableActionItem onClick={() => setEditingUser(u)}>
+                            <PenLine size={14} /> Edit
+                          </MarineTableActionItem>
+                        </MarineTableActionMenu>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -341,11 +392,24 @@ export default function UsersPage() {
       )}
 
       {editingUser && (
-        <UserEditForm user={editingUser} isSelf={editingUser._id === currentUser?._id}
-          saving={editMutation.isPending}
-          onClose={() => setEditingUser(null)}
-          onSave={(id, formData) => editMutation.mutate({ id, data: formData })} />
+        <UserEditForm user={editingUser} onClose={() => setEditingUser(null)}
+          onSave={(id, data) => editMutation.mutate({ id, data })}
+          isSelf={currentUser?._id === editingUser._id} saving={editMutation.isPending} />
       )}
+
+      <ConfirmModal 
+        isOpen={!!toggleConfirm}
+        onClose={() => setToggleConfirm(null)}
+        onConfirm={() => {
+          if (toggleConfirm) toggleMutation.mutate(toggleConfirm.user._id)
+        }}
+        title={toggleConfirm?.newState ? 'Activate User' : 'Disable User'}
+        message={toggleConfirm?.newState 
+          ? `Are you sure you want to grant access to ${toggleConfirm?.user?.fullName}?` 
+          : `Are you sure you want to disable access for ${toggleConfirm?.user?.fullName}? They will no longer be able to log in.`}
+        confirmText={toggleConfirm?.newState ? 'Activate' : 'Disable'}
+        isDanger={!toggleConfirm?.newState}
+      />
     </div>
   )
 }

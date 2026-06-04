@@ -4,32 +4,32 @@
 
 @layer base {
   :root {
-    --background: 249 250 251;      /* gray-50  */
-    --foreground: 17 24 39;         /* gray-900 */
+    --background: 248 250 252;      /* slate-50  */
+    --foreground: 15 23 42;         /* slate-900 */
     --card: 255 255 255;            /* white    */
-    --card-foreground: 17 24 39;    /* gray-900 */
-    --muted: 243 244 246;           /* gray-100 */
-    --muted-foreground: 107 114 128;/* gray-500 */
-    --border: 229 231 235;          /* gray-200 */
-    --input: 229 231 235;           /* gray-200 */
-    --ring: 59 130 246;             /* blue-500 */
-    --primary: 37 99 235;           /* blue-600 */
+    --card-foreground: 15 23 42;    /* slate-900 */
+    --muted: 241 245 249;           /* slate-100 */
+    --muted-foreground: 100 116 139;/* slate-500 */
+    --border: 226 232 240;          /* slate-200 */
+    --input: 226 232 240;           /* slate-200 */
+    --ring: 8 145 178;              /* cyan-600 */
+    --primary: 8 145 178;           /* cyan-600 */
     --primary-foreground: 255 255 255;
     --destructive: 220 38 38;       /* red-600  */
     --destructive-foreground: 255 255 255;
   }
 
   .dark {
-    --background: 17 24 39;         /* gray-900 */
-    --foreground: 249 250 251;      /* gray-50  */
-    --card: 31 41 55;               /* gray-800 */
-    --card-foreground: 249 250 251; /* gray-50  */
-    --muted: 55 65 81;              /* gray-700 */
-    --muted-foreground: 156 163 175;/* gray-400 */
-    --border: 55 65 81;             /* gray-700 */
-    --input: 55 65 81;              /* gray-700 */
-    --ring: 96 165 250;             /* blue-400 */
-    --primary: 59 130 246;          /* blue-500 */
+    --background: 15 23 42;         /* slate-900 */
+    --foreground: 248 250 252;      /* slate-50  */
+    --card: 30 41 59;               /* slate-800 */
+    --card-foreground: 248 250 252; /* slate-50  */
+    --muted: 51 65 85;              /* slate-700 */
+    --muted-foreground: 148 163 184;/* slate-400 */
+    --border: 51 65 85;             /* slate-700 */
+    --input: 51 65 85;              /* slate-700 */
+    --ring: 6 182 212;              /* cyan-500 */
+    --primary: 6 182 212;           /* cyan-500 */
     --primary-foreground: 255 255 255;
     --destructive: 239 68 68;       /* red-500  */
     --destructive-foreground: 255 255 255;
@@ -51,4 +51,26 @@
   .dark {
     color-scheme: dark;
   }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3); /* slate-400 with opacity */
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(71, 85, 105, 0.5); /* slate-600 with opacity */
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(71, 85, 105, 0.8);
 }

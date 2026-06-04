@@ -1,5 +1,6 @@
 import { useMediaUrl, resolveType, DetectionSVG } from '../media/MediaShared'
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { 
   File, FileText, CheckCircle2, AlertTriangle, X, Play, Pause, 
@@ -223,18 +224,27 @@ export function EvidenceViewer({ evidence, media, diveId, onClose, queryClient, 
   }, [])
 
   const handleEvidenceAnalyze = useCallback(async () => {
-    if (!evidence?._id || evidence.analysisStatus === 'pending') return
+    if (!evidence?._id) return
+    
     try {
-      await api.post(`/snapshots/${evidence._id}/analyze`, {
-        model: evidenceAnalyzeModel,
-        confidence: evidenceAnalyzeConf
-      })
-      queryClient.invalidateQueries({ queryKey: ['snapshots', diveId] })
-      setEvidenceAnalyzeOpen(false)
+      if (evidence.analysisStatus === 'pending') {
+        // Cancel analysis
+        await api.post(`/snapshots/${evidence._id}/analyze/cancel`)
+        queryClient.invalidateQueries({ queryKey: ['snapshots', diveId] })
+      } else {
+        // Start analysis
+        await api.post(`/snapshots/${evidence._id}/analyze`, {
+          model: evidenceAnalyzeModel,
+          confidence: evidenceAnalyzeConf
+        })
+        queryClient.invalidateQueries({ queryKey: ['snapshots', diveId] })
+        setEvidenceAnalyzeOpen(false)
+      }
     } catch (err) {
-      console.error('Evidence analysis failed:', err)
+      console.error('Evidence analysis action failed:', err)
+      toast.error('Failed to ' + (evidence.analysisStatus === 'pending' ? 'cancel' : 'start') + ' analysis')
     }
-  }, [evidence?._id, evidence.analysisStatus, diveId, evidenceAnalyzeModel, evidenceAnalyzeConf, queryClient])
+  }, [evidence, diveId, evidenceAnalyzeModel, evidenceAnalyzeConf, queryClient])
 
   // Close analyze popup on outside click
   useEffect(() => {
@@ -405,7 +415,7 @@ export function EvidenceViewer({ evidence, media, diveId, onClose, queryClient, 
                     showEvidenceDetect ? 'bg-blue-500/90 text-white' : 'text-white/80 hover:text-white'
                   }`}>
                   {showEvidenceDetect ? <EyeOff size={10} /> : <Eye size={10} />}
-                  <span className="hidden sm:inline">Detect</span>
+                  <span className="hidden xl:inline">Detect</span>
                 </button>
               )}
 
@@ -419,14 +429,14 @@ export function EvidenceViewer({ evidence, media, diveId, onClose, queryClient, 
                   evidenceAnalyzeOpen ? 'bg-blue-500/90 text-white' : evidence.analysisStatus === 'pending' ? 'bg-blue-500/60 text-white animate-pulse' : 'text-white/80 hover:text-white'
                 }`}>
                 {evidence.analysisStatus === 'pending' ? <Loader size={10} className="animate-spin" /> : <Sparkles size={10} />}
-                <span className="hidden sm:inline">{evidence.analysisStatus === 'pending' ? 'Analyzing' : 'Analyze'}</span>
+                <span className="hidden xl:inline">{evidence.analysisStatus === 'pending' ? 'Analyzing' : 'Analyze'}</span>
               </button>
 
               {/* Download PNG button */}
               <button onClick={() => handleEvidenceDownload('png')}
                 className="flex items-center gap-0.5 px-1.5 py-1 rounded-full text-[10px] font-bold text-white/80 hover:text-white transition-colors">
                 <Download size={10} />
-                <span className="hidden sm:inline">PNG</span>
+                <span className="hidden xl:inline">PNG</span>
               </button>
 
               {/* Download MP4 button - only for clips */}
@@ -434,7 +444,7 @@ export function EvidenceViewer({ evidence, media, diveId, onClose, queryClient, 
                 <button onClick={() => handleEvidenceDownload('mp4')}
                   className="flex items-center gap-0.5 px-1.5 py-1 rounded-full text-[10px] font-bold text-white/80 hover:text-white transition-colors">
                   <Download size={10} />
-                  <span className="hidden sm:inline">MP4</span>
+                  <span className="hidden xl:inline">MP4</span>
                 </button>
               )}
             </div>
@@ -465,11 +475,11 @@ export function EvidenceViewer({ evidence, media, diveId, onClose, queryClient, 
         {/* Analyze popover — matches AIAnalyzePopover style */}
         {evidenceAnalyzeOpen && createPortal(
           <div ref={evidenceAnalyzePopRef}
-            className="z-[9999] w-64 rounded-xl shadow-2xl overflow-hidden
-                       bg-[#0d1117]/96 backdrop-blur-xl border border-white/12 text-white fixed"
+            className="z-[9999] w-64 max-w-[calc(100vw-16px)] rounded-xl shadow-2xl overflow-hidden
+                       bg-slate-900 border border-slate-700 text-white fixed"
             style={{ top: evidenceAnalyzePos.top, left: evidenceAnalyzePos.left }}>
             {/* Header */}
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10">
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-700">
               <Sparkles size={13} className="text-violet-400 shrink-0" />
               <span className="text-sm font-semibold">AI Analysis</span>
               {evidence.analysisStatus && (
@@ -481,16 +491,16 @@ export function EvidenceViewer({ evidence, media, diveId, onClose, queryClient, 
             </div>
 
             {/* Model selector */}
-            <div className="px-4 pt-2 pb-2">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-white/50 mb-1.5">Model</p>
-              <div className="space-y-1 max-h-[180px] overflow-y-auto">
+            <div className="px-3 pt-2 pb-1">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-white/50 mb-1">Model</p>
+              <div className="space-y-0.5 max-h-[100px] overflow-y-auto">
                 {models.map(mod => {
                   const name = typeof mod === 'string' ? mod : mod.name
                   const label = mod.label ?? name
                   const isSelected = evidenceAnalyzeModel === name
                   return (
                     <button key={name} onClick={() => setEvidenceAnalyzeModel(name)}
-                      className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg
+                      className={`w-full flex items-center gap-2 px-2.5 py-1 rounded-lg
                                   text-left transition-colors
                                   ${isSelected
                                     ? 'bg-violet-500/20 border border-violet-400/30'
@@ -509,29 +519,30 @@ export function EvidenceViewer({ evidence, media, diveId, onClose, queryClient, 
             </div>
 
             {/* Confidence slider */}
-            <div className="px-4 pb-3">
-              <div className="flex items-center justify-between mb-2">
+            <div className="px-3 pb-2">
+              <div className="flex items-center justify-between mb-1.5">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-white/35">Confidence</p>
                 <span className="text-sm font-bold tabular-nums text-violet-300">{evidenceAnalyzeConf.toFixed(2)}</span>
               </div>
               <input type="range" min={0.10} max={0.90} step={0.05}
                 value={evidenceAnalyzeConf} onChange={e => setEvidenceAnalyzeConf(parseFloat(e.target.value))}
                 className="w-full cursor-pointer accent-violet-400" />
-              <div className="flex justify-between text-[9px] text-white/25 mt-1 px-0.5">
+              <div className="flex justify-between text-[9px] text-white/25 mt-0.5 px-0.5">
                 <span>0.10 · Nhạy</span>
                 <span>0.90 · Chặt</span>
               </div>
             </div>
 
             {/* Run button */}
-            <div className="px-4 pb-4">
-              <button onClick={handleEvidenceAnalyze} disabled={evidence.analysisStatus === 'pending'}
-                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-lg
+            <div className="px-3 pb-3">
+              <button onClick={handleEvidenceAnalyze}
+                className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg
                            font-semibold text-sm transition-colors
-                           bg-violet-600 hover:bg-violet-500
-                           disabled:opacity-50 disabled:cursor-not-allowed">
+                           ${evidence.analysisStatus === 'pending'
+                             ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30 hover:text-red-300 border border-red-500/30'
+                             : 'bg-violet-600 hover:bg-violet-500 text-white'}`}>
                 {evidence.analysisStatus === 'pending'
-                  ? <><Loader size={13} className="animate-spin" /> Running…</>
+                  ? <><X size={13} /> Cancel Analysis</>
                   : <><Sparkles size={13} /> Run Analysis</>}
               </button>
             </div>
@@ -730,7 +741,7 @@ export function EvidencePanel({ snapshots, isOpen, diveId, canEdit, videoRef, qu
   if (isHorizontal) {
     if (!isOpen) return null
     return (
-      <div className="flex-none w-full h-[110px] bg-black/80 flex items-center gap-2 px-3 overflow-x-auto overflow-y-hidden border-t border-white/10 z-40">
+      <div className="flex-none w-full h-[110px] bg-slate-950/95 flex items-center gap-2 px-3 overflow-x-auto overflow-y-hidden border-t border-white/10 z-40">
         <div className="shrink-0 flex flex-col justify-center px-3 border-r border-white/10 mr-1 h-[80%] min-w-[80px]">
           <p className="text-[10px] font-bold uppercase tracking-widest text-white/50 mb-1">Evidence</p>
           
@@ -793,11 +804,11 @@ export function EvidencePanel({ snapshots, isOpen, diveId, canEdit, videoRef, qu
 
   return (
     <div className={`absolute top-0 right-0 bottom-0 z-10 w-44
-                     bg-black/90 backdrop-blur-sm border-l border-white/10
+                     bg-slate-950/95 border-l border-white/10
                      overflow-y-auto flex flex-col
                      transition-transform duration-200 ease-out
                      ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-      <div className="pt-[52px] px-3 pb-2.5 border-b border-white/10 shrink-0 sticky top-0 bg-black/60 backdrop-blur-sm z-10 flex flex-col gap-1.5">
+      <div className="pt-[52px] px-3 pb-2.5 border-b border-white/10 shrink-0 sticky top-0 bg-slate-950/90 flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
           <p className="text-[10px] font-bold uppercase tracking-widest text-white/50">Evidence</p>
           {canEdit && currentMediaSnapshots.length > 0 && !selectMode && (

@@ -4,6 +4,10 @@ export default {
   content: ['./index.html', './src/**/*.{js,jsx,ts,tsx}'],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Inter', 'sans-serif'],
+        mono: ['JetBrains Mono', 'monospace'],
+      },
       colors: {
         // Semantic surface tokens
         background: 'rgb(var(--background) / <alpha-value>)',
