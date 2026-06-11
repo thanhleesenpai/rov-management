@@ -5,24 +5,32 @@ import {
 } from 'recharts'
 import { Activity } from 'lucide-react'
 
-// ─── Constants ───────────────────────────────────────────────────────────────
+// ─── Metric definitions ───────────────────────────────────────────────────────
 
+// Environment: water/environment sensors
 const ENV_METRICS = [
-  { key: 'depth',    label: 'Depth',    unit: 'm',   color: '#0891b2' },
-  { key: 'temp',     label: 'Temp',     unit: '°C',  color: '#f59e0b' },
-  { key: 'pressure', label: 'Pressure', unit: 'bar', color: '#0d9488' },
+  { key: 'depth',    label: 'Depth',      unit: 'm',   color: '#0891b2' },
+  { key: 'temp',     label: 'Water Temp', unit: '°C',  color: '#f59e0b' },
+  { key: 'humidity', label: 'Humidity',   unit: '%',   color: '#10b981' },
+  { key: 'pressure', label: 'Pressure',   unit: 'bar', color: '#6366f1' },
 ]
 
+// Navigation: orientation
 const NAV_METRICS = [
   { key: 'yaw',   label: 'Yaw',   color: '#8b5cf6' },
   { key: 'pitch', label: 'Pitch', color: '#06b6d4' },
   { key: 'roll',  label: 'Roll',  color: '#f97316' },
 ]
 
-const POWER_METRICS = [
-  { key: 'battery_percent', label: 'Battery', unit: '%', color: '#3b82f6', axis: 'left'  },
-  { key: 'humidity',        label: 'Humidity', unit: '%', color: '#10b981', axis: 'left'  },
-  { key: 'voltage',         label: 'Voltage',  unit: 'V', color: '#f59e0b', axis: 'right' },
+// System: machine / power / control
+// axis: 'left' (0–100 range) | 'right' (V / °C)
+const SYS_METRICS = [
+  { key: 'battery_percent', label: 'Battery',      unit: '%',  color: '#3b82f6', axis: 'left'  },
+  { key: 'lightLevel',      label: 'Light Level',  unit: '%',  color: '#facc15', axis: 'left'  },
+  { key: 'powerLevel',      label: 'Power Level',  unit: '%',  color: '#a855f7', axis: 'left'  },
+  { key: 'cameraTilt',      label: 'Camera Tilt',  unit: '°',  color: '#64748b', axis: 'left'  },
+  { key: 'voltage',         label: 'Voltage',      unit: 'V',  color: '#f59e0b', axis: 'right' },
+  { key: 'temperature',     label: 'Temperature',  unit: '°C', color: '#f43f5e', axis: 'right' },
 ]
 
 const MOCK_YPR = Array.from({ length: 24 }, (_, i) => ({
@@ -36,9 +44,10 @@ export function fmtTime(ts) {
   const d = new Date(ts)
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
+
 const AXIS = { tick: { fontSize: 9, fill: '#9ca3af', fontFamily: 'JetBrains Mono, monospace' }, axisLine: false, tickLine: false }
 
-// ─── Sub-components ──────────────────────────────────────────────────────────
+// ─── Shared sub-components ────────────────────────────────────────────────────
 
 const ChartTooltip = ({ active, payload }) => {
   if (!active || !payload?.length) return null
@@ -63,26 +72,62 @@ function AnomalyDot({ cx, cy, payload, dataKey, anomalySet }) {
   return <circle cx={cx} cy={cy} r={4} fill="#ef4444" stroke="#fff" strokeWidth={2} />
 }
 
+function LegendToggle({ metrics, hidden, setHidden, chartData, showDemoNote }) {
+  return (
+    <div className="hidden sm:flex items-center gap-3 mr-4 flex-wrap">
+      {metrics.map(({ key, label, color }) => {
+        const hasData = chartData.some(d => d[key] != null)
+        if (!hasData) return null
+        return (
+          <button key={key}
+            onClick={() => setHidden(h => ({ ...h, [key]: !h[key] }))}
+            style={{ opacity: hidden[key] ? 0.25 : 1 }}
+            className="flex items-center gap-1.5 text-[10px] transition-opacity select-none">
+            <span className="w-4 h-0.5 rounded inline-block" style={{ background: color }} />
+            <span className="text-muted-foreground">{label}</span>
+          </button>
+        )
+      })}
+      {showDemoNote && <span className="text-[9px] text-muted-foreground italic ml-1">demo data</span>}
+    </div>
+  )
+}
+
 // ─── BottomChart ─────────────────────────────────────────────────────────────
 
 export function BottomChart({
-  chartExpanded,
-  chartTab,
-  setChartTab,
-  hidden,
-  setHidden,
-  hasNavData,
-  hasPowerData,
-  chartData,
-  syncIdx,
-  anomalySet,
-  isDark,
-  hasSensor
+  chartExpanded, chartTab, setChartTab,
+  hidden, setHidden,
+  hasNavData, hasPowerData,
+  chartData, syncIdx, anomalySet,
+  isDark, hasSensor,
+  extraRight,   // extra node rendered at far-right of tab bar
+  variant = 'bottom',  // 'bottom' | 'inline'
 }) {
+  const brushProps = {
+    dataKey: 'timestamp', height: 18, travellerWidth: 5, tickFormatter: fmtTime,
+    stroke: isDark ? '#374151' : '#e5e7eb',
+    fill:   isDark ? '#1f2937' : '#f9fafb',
+    tick: { fontSize: 8, fill: '#9ca3af' },
+  }
+
+  const refLine = (yAxisId) =>
+    syncIdx != null && chartData[syncIdx] ? (
+      <ReferenceLine yAxisId={yAxisId}
+        x={chartData[syncIdx].timestamp}
+        stroke="#ef4444" strokeWidth={1.5} strokeDasharray="4 2"
+        label={{ value: '▶', position: 'insideTopRight', fill: '#ef4444', fontSize: 10 }}
+      />
+    ) : null
+
+  const outerCls = variant === 'inline'
+    ? `flex-none flex flex-col bg-card border border-border rounded-xl
+       transition-[height] duration-300 ${chartExpanded ? 'h-80' : 'h-44'}`
+    : `flex-none flex flex-col bg-card border-t border-border
+       transition-[height] duration-300 ${chartExpanded ? 'h-80' : 'h-44'}`
+
   return (
-    <div className={`flex-none flex flex-col bg-card border-t border-border
-                     transition-[height] duration-300
-                     ${chartExpanded ? 'h-80' : 'h-44'}`}>
+    <div className={outerCls}>
 
       {/* Tab bar */}
       <div className="h-9 flex-none flex items-center px-4 border-b border-border shrink-0">
@@ -103,107 +148,69 @@ export function BottomChart({
 
         <div className="flex-1" />
 
-        {/* Legend toggles */}
+        {extraRight && <div className="mr-2">{extraRight}</div>}
+
         {chartTab === 'env' && (
-          <div className="hidden sm:flex items-center gap-3 mr-4">
-            {ENV_METRICS.map(({ key, label, color }) => (
-              <button key={key}
-                onClick={() => setHidden(h => ({ ...h, [key]: !h[key] }))}
-                style={{ opacity: hidden[key] ? 0.25 : 1 }}
-                className="flex items-center gap-1.5 text-[10px] transition-opacity select-none">
-                <span className="w-4 h-0.5 rounded inline-block" style={{ background: color }} />
-                <span className="text-muted-foreground">{label}</span>
-              </button>
-            ))}
-          </div>
+          <LegendToggle metrics={ENV_METRICS} hidden={hidden} setHidden={setHidden} chartData={chartData} />
         )}
         {chartTab === 'nav' && (
-          <div className="hidden sm:flex items-center gap-3 mr-4">
-            {NAV_METRICS.map(({ key, label, color }) => (
-              <div key={key} className="flex items-center gap-1.5 text-[10px] opacity-50">
-                <span className="w-4 h-0.5 rounded inline-block" style={{ background: color }} />
-                <span className="text-muted-foreground">{label}</span>
-              </div>
-            ))}
-            {!hasNavData && (
-              <span className="text-[9px] text-muted-foreground italic ml-1">demo data</span>
-            )}
-          </div>
+          <LegendToggle
+            metrics={NAV_METRICS}
+            hidden={hidden} setHidden={setHidden}
+            chartData={hasNavData ? chartData : MOCK_YPR.map(d => ({ yaw: d.yaw, pitch: d.pitch, roll: d.roll }))}
+            showDemoNote={!hasNavData}
+          />
         )}
         {chartTab === 'power' && (
-          <div className="hidden sm:flex items-center gap-3 mr-4">
-            {POWER_METRICS.map(({ key, label, color }) => (
-              <button key={key}
-                onClick={() => setHidden(h => ({ ...h, [key]: !h[key] }))}
-                style={{ opacity: hidden[key] ? 0.25 : 1 }}
-                className="flex items-center gap-1.5 text-[10px] transition-opacity select-none">
-                <span className="w-4 h-0.5 rounded inline-block" style={{ background: color }} />
-                <span className="text-muted-foreground">{label}</span>
-              </button>
-            ))}
-          </div>
+          <LegendToggle metrics={SYS_METRICS} hidden={hidden} setHidden={setHidden} chartData={chartData} />
         )}
       </div>
 
       <div className="flex-1 min-h-0 relative p-3">
-        {chartTab === 'env' ? (
+
+        {/* ── ENVIRONMENT ────────────────────────────────── */}
+        {chartTab === 'env' && (
           chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={chartData} margin={{ top: 4, right: 36, left: -12, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="gD" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3b82f6" stopOpacity={0.2}/><stop offset="100%" stopColor="#3b82f6" stopOpacity={0}/></linearGradient>
-                  <linearGradient id="gT" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#f59e0b" stopOpacity={0.2}/><stop offset="100%" stopColor="#f59e0b" stopOpacity={0}/></linearGradient>
-                  <linearGradient id="gP" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#10b981" stopOpacity={0.2}/><stop offset="100%" stopColor="#10b981" stopOpacity={0}/></linearGradient>
+                  {ENV_METRICS.map(({ key, color }) => (
+                    <linearGradient key={key} id={`g_${key}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor={color} stopOpacity={0.18} />
+                      <stop offset="100%" stopColor={color} stopOpacity={0} />
+                    </linearGradient>
+                  ))}
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--border))" vertical={false} />
                 <XAxis dataKey="timestamp" tickFormatter={fmtTime} {...AXIS} interval="preserveStartEnd" />
                 <YAxis {...AXIS} width={28} />
                 <Tooltip content={<ChartTooltip />} />
-
                 {syncIdx != null && chartData[syncIdx] && (
-                  <ReferenceLine
-                    x={chartData[syncIdx].timestamp}
+                  <ReferenceLine x={chartData[syncIdx].timestamp}
                     stroke="#ef4444" strokeWidth={1.5} strokeDasharray="4 2"
                     label={{ value: '▶', position: 'insideTopRight', fill: '#ef4444', fontSize: 10 }}
                   />
                 )}
-
-                <Brush
-                  dataKey="timestamp" height={18} travellerWidth={5} tickFormatter={fmtTime}
-                  stroke={isDark ? '#374151' : '#e5e7eb'}
-                  fill={isDark ? '#1f2937' : '#f9fafb'}
-                  tick={{ fontSize: 8, fill: '#9ca3af' }}
-                />
-
-                {!hidden.depth && (
-                  <Area type="monotone" dataKey="depth" name="Depth"
-                    stroke="#3b82f6" strokeWidth={1.5} fill="url(#gD)"
-                    dot={(p) => <AnomalyDot {...p} dataKey="depth" anomalySet={anomalySet} />}
-                    activeDot={{ r: 4 }} isAnimationActive={false} />
-                )}
-                {!hidden.temp && (
-                  <Area type="monotone" dataKey="temp" name="Temp"
-                    stroke="#f59e0b" strokeWidth={1.5} fill="url(#gT)"
-                    dot={(p) => <AnomalyDot {...p} dataKey="temp" anomalySet={anomalySet} />}
-                    activeDot={{ r: 4 }} isAnimationActive={false} />
-                )}
-                {!hidden.pressure && (
-                  <Area type="monotone" dataKey="pressure" name="Pressure"
-                    stroke="#10b981" strokeWidth={1.5} fill="url(#gP)"
-                    dot={(p) => <AnomalyDot {...p} dataKey="pressure" anomalySet={anomalySet} />}
-                    activeDot={{ r: 4 }} isAnimationActive={false} />
-                )}
+                <Brush {...brushProps} />
+                {ENV_METRICS.map(({ key, label, color }) => {
+                  const hasData = chartData.some(d => d[key] != null)
+                  if (!hasData || hidden[key]) return null
+                  return (
+                    <Area key={key} type="monotone" dataKey={key} name={label}
+                      stroke={color} strokeWidth={1.5} fill={`url(#g_${key})`}
+                      dot={(p) => <AnomalyDot {...p} dataKey={key} anomalySet={anomalySet} />}
+                      activeDot={{ r: 4 }} isAnimationActive={false} connectNulls />
+                  )
+                })}
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center gap-2">
-              <Activity size={22} className="text-muted-foreground/30" />
-              <p className="text-xs text-muted-foreground">
-                {hasSensor ? 'No readings found' : 'No sensor data uploaded yet'}
-              </p>
-            </div>
+            <EmptyState hasSensor={hasSensor} />
           )
-        ) : chartTab === 'nav' ? (
+        )}
+
+        {/* ── NAVIGATION ────────────────────────────────── */}
+        {chartTab === 'nav' && (
           <div className="relative w-full h-full">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
@@ -216,35 +223,22 @@ export function BottomChart({
                   {...AXIS} interval="preserveStartEnd" />
                 <YAxis {...AXIS} width={28} unit="°" />
                 <Tooltip content={<ChartTooltip />} />
-
                 {hasNavData && syncIdx != null && chartData[syncIdx] && (
-                  <ReferenceLine
-                    x={chartData[syncIdx].timestamp}
-                    stroke="#ef4444"
-                    strokeWidth={1.5}
-                    strokeDasharray="4 2"
+                  <ReferenceLine x={chartData[syncIdx].timestamp}
+                    stroke="#ef4444" strokeWidth={1.5} strokeDasharray="4 2"
                     label={{ value: '▶', position: 'insideTopRight', fill: '#ef4444', fontSize: 10 }}
                   />
                 )}
-
-                <Line type="monotone" dataKey="yaw"   stroke="#8b5cf6" strokeWidth={1.5}
-                  dot={false} name="Yaw"   isAnimationActive={false} />
-                <Line type="monotone" dataKey="pitch" stroke="#06b6d4" strokeWidth={1.5}
-                  dot={false} name="Pitch" isAnimationActive={false} />
-                <Line type="monotone" dataKey="roll"  stroke="#f97316" strokeWidth={1.5}
-                  dot={false} name="Roll"  isAnimationActive={false} />
-
-                {hasNavData && (
-                  <Brush
-                    dataKey="timestamp"
-                    height={18}
-                    travellerWidth={5}
-                    tickFormatter={fmtTime}
-                    stroke={isDark ? '#374151' : '#e5e7eb'}
-                    fill={isDark ? '#1f2937' : '#f9fafb'}
-                    tick={{ fontSize: 8, fill: '#9ca3af' }}
-                  />
+                {!hidden.yaw && (
+                  <Line type="monotone" dataKey="yaw"   name="Yaw"   stroke="#8b5cf6" strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
                 )}
+                {!hidden.pitch && (
+                  <Line type="monotone" dataKey="pitch" name="Pitch" stroke="#06b6d4" strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
+                )}
+                {!hidden.roll && (
+                  <Line type="monotone" dataKey="roll"  name="Roll"  stroke="#f97316" strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
+                )}
+                {hasNavData && <Brush {...brushProps} />}
               </LineChart>
             </ResponsiveContainer>
             {!hasNavData && (
@@ -253,64 +247,46 @@ export function BottomChart({
               </div>
             )}
           </div>
-        ) : (
-          /* ── POWER TAB ─────────────────────────────────────────── */
+        )}
+
+        {/* ── SYSTEM ────────────────────────────────────── */}
+        {chartTab === 'power' && (
           hasPowerData ? (
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 4, right: 36, left: -12, bottom: 0 }}>
+              <LineChart data={chartData} margin={{ top: 4, right: 44, left: -12, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--border))" vertical={false} />
-                <XAxis dataKey="timestamp" tickFormatter={fmtTime}
-                  {...AXIS} interval="preserveStartEnd" />
+                <XAxis dataKey="timestamp" tickFormatter={fmtTime} {...AXIS} interval="preserveStartEnd" />
                 <YAxis yAxisId="left"  {...AXIS} width={28} unit="%" domain={[0, 100]} />
                 <YAxis yAxisId="right" {...AXIS} width={32} unit="V" orientation="right" />
                 <Tooltip content={<ChartTooltip />} />
-
-                {syncIdx != null && chartData[syncIdx] && (
-                  <ReferenceLine yAxisId="left"
-                    x={chartData[syncIdx].timestamp}
-                    stroke="#ef4444" strokeWidth={1.5} strokeDasharray="4 2"
-                    label={{ value: '▶', position: 'insideTopRight', fill: '#ef4444', fontSize: 10 }}
-                  />
-                )}
-
-                {!hidden.battery_percent && (
-                  <Line yAxisId="left" type="monotone" dataKey="battery_percent"
-                    name="Battery" stroke="#3b82f6" strokeWidth={1.5}
-                    dot={false} isAnimationActive={false} />
-                )}
-                {!hidden.humidity && (
-                  <Line yAxisId="left" type="monotone" dataKey="humidity"
-                    name="Humidity" stroke="#10b981" strokeWidth={1.5}
-                    dot={false} isAnimationActive={false} />
-                )}
-                {!hidden.voltage && (
-                  <Line yAxisId="right" type="monotone" dataKey="voltage"
-                    name="Voltage" stroke="#f59e0b" strokeWidth={1.5}
-                    dot={(p) => <AnomalyDot {...p} dataKey="voltage" anomalySet={anomalySet} />}
-                    activeDot={{ r: 4 }} isAnimationActive={false} />
-                )}
-
-                <Brush
-                  dataKey="timestamp"
-                  height={18}
-                  travellerWidth={5}
-                  tickFormatter={fmtTime}
-                  stroke={isDark ? '#374151' : '#e5e7eb'}
-                  fill={isDark ? '#1f2937' : '#f9fafb'}
-                  tick={{ fontSize: 8, fill: '#9ca3af' }}
-                />
+                {refLine('left')}
+                {SYS_METRICS.map(({ key, label, color, axis }) => {
+                  const hasData = chartData.some(d => d[key] != null)
+                  if (!hasData || hidden[key]) return null
+                  return (
+                    <Line key={key} yAxisId={axis} type="monotone" dataKey={key} name={label}
+                      stroke={color} strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls />
+                  )
+                })}
+                <Brush {...brushProps} />
               </LineChart>
             </ResponsiveContainer>
           ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center gap-2">
-              <Activity size={22} className="text-muted-foreground/30" />
-              <p className="text-xs text-muted-foreground">
-                {hasSensor ? 'No power data in this file' : 'No sensor data uploaded yet'}
-              </p>
-            </div>
+            <EmptyState hasSensor={hasSensor} message="No system data in this file" />
           )
         )}
       </div>
+    </div>
+  )
+}
+
+function EmptyState({ hasSensor, message }) {
+  return (
+    <div className="w-full h-full flex flex-col items-center justify-center gap-2">
+      <Activity size={22} className="text-muted-foreground/30" />
+      <p className="text-xs text-muted-foreground">
+        {message ?? (hasSensor ? 'No readings found' : 'No sensor data uploaded yet')}
+      </p>
     </div>
   )
 }

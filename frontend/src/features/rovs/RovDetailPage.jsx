@@ -1,11 +1,15 @@
 import { useState } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, Pencil, Map, Clock, CheckCircle2, Anchor, MapPin, Eye } from 'lucide-react'
+import { ArrowLeft, Pencil, Map, Clock, CheckCircle2, Anchor, MapPin, Eye, ChevronRight } from 'lucide-react'
 import api from '@/lib/axios'
 import { useAuthStore } from '@/store/auth.store'
 import RovForm from './components/RovForm'
 import { Skeleton } from '@/components/shared/Skeleton'
+import { 
+  MarineTable, MarineTableHeader, MarineTableBody, 
+  MarineTableRow, MarineTableHead, MarineTableCell, MarineTableStatus 
+} from '@/components/bespoke/MarineTable'
 
 const STATUS_LABEL = {
   active:      { text: 'Active',      cls: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
@@ -63,87 +67,82 @@ export default function RovDetailPage() {
 
   return (
     <div>
-      <button onClick={() => navigate('/rovs')}
-        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-6 transition-colors">
-        <ArrowLeft size={16} /> Back to ROVs
-      </button>
-
-      <div className="bg-card rounded-xl shadow border border-border p-6">
-
+      <div className="space-y-6">
         {/* ── Header ── */}
-        <div className="flex items-start justify-between mb-6">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
+        <div>
+          <button onClick={() => navigate('/rovs')}
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors">
+            <ArrowLeft size={16} /> Back to ROVs
+          </button>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-foreground">{rov.name}</h1>
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-medium ${cls}`}>{text}</span>
             </div>
-            <h1 className="text-2xl font-bold text-foreground">{rov.name}</h1>
-            <p className="text-muted-foreground text-sm mt-0.5">{rov.model}</p>
-          </div>
-          {canEdit && (
-            <button onClick={() => setShowForm(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-sm text-muted-foreground hover:bg-muted transition-colors">
-              <Pencil size={14} /> Edit
-            </button>
-          )}
-        </div>
-
-        {/* ── Info grid ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm mb-6">
-          <div className="bg-muted rounded-lg p-4">
-            <p className="text-muted-foreground text-xs mb-1">Serial Number</p>
-            <p className="font-mono font-medium text-foreground">{rov.serialNumber}</p>
-          </div>
-          <div className="bg-muted rounded-lg p-4">
-            <p className="text-muted-foreground text-xs mb-1">Registered</p>
-            <p className="text-foreground">{new Date(rov.createdAt).toLocaleDateString()}</p>
+            {canEdit && (
+              <button onClick={() => setShowForm(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 border border-border bg-card shadow-sm rounded-md text-sm text-muted-foreground hover:bg-muted transition-colors">
+                <Pencil size={14} /> Edit
+              </button>
+            )}
           </div>
         </div>
 
-        {rov.specs && Object.keys(rov.specs).length > 0 && (
-          <div className="mb-6">
-            <p className="text-xs text-muted-foreground mb-2">Specs</p>
-            <div className="bg-muted rounded-lg p-4 text-sm grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1">
-              {Object.entries(rov.specs).map(([k, v]) => (
-                <div key={k} className="flex gap-2">
-                  <span className="text-muted-foreground capitalize shrink-0">{k}:</span>
-                  <span className="text-foreground font-medium">{String(v)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {rov.notes && (
-          <div className="mb-6 pt-4 border-t border-border text-sm text-muted-foreground whitespace-pre-wrap">
-            {rov.notes}
-          </div>
-        )}
-
-        {/* ── Stats ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6 pt-4 border-t border-border">
+        {/* ── Stats (KPI Metrics) ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
             { icon: Map,          label: 'Total Trips',  value: tripsLoading ? '…' : trips.length,          color: 'text-blue-500',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
             { icon: CheckCircle2, label: 'Completed',    value: tripsLoading ? '…' : completedTrips,        color: 'text-green-500',  bg: 'bg-green-50 dark:bg-green-900/20' },
             { icon: Anchor,       label: 'Active Now',   value: tripsLoading ? '…' : ongoingTrips,          color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20' },
             { icon: Clock,        label: 'Total Hours',  value: tripsLoading ? '…' : calcTotalHours(trips), color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20' },
           ].map(({ icon: Icon, label, value, color, bg }) => (
-            <div key={label} className="bg-muted rounded-xl p-4">
+            <div key={label} className="bg-card border border-border rounded-md p-4 shadow-sm">
               <div className="flex items-center gap-3">
                 <div className={`w-9 h-9 ${bg} rounded-lg flex items-center justify-center shrink-0`}>
                   <Icon size={16} className={color} />
                 </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">{label}</p>
-                  <p className="font-bold text-foreground text-lg leading-tight">{value}</p>
+                <div className="flex flex-col">
+                  <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-0.5">{label}</span>
+                  <span className="font-mono text-lg font-medium text-foreground leading-tight">{value}</span>
                 </div>
               </div>
             </div>
           ))}
         </div>
 
+        {/* ── Info grid (Unified Card) ── */}
+        <div className="bg-card border border-border rounded-lg shadow-sm p-5">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-1">Model</span>
+              <span className="text-sm font-mono text-foreground">{rov.model || '—'}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-1">Serial Number</span>
+              <span className="text-sm font-mono text-foreground">{rov.serialNumber}</span>
+            </div>
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-1">Registered</span>
+              <span className="text-sm font-mono text-foreground">{new Date(rov.createdAt).toLocaleDateString()}</span>
+            </div>
+            {rov.specs && Object.entries(rov.specs).map(([k, v]) => (
+              <div key={k} className="flex flex-col">
+                <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-1">{k}</span>
+                <span className="text-sm font-mono text-foreground">{String(v)}</span>
+              </div>
+            ))}
+          </div>
+          {rov.notes && (
+            <div className="mt-6 pt-6 border-t border-border">
+              <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-2 block">Notes</span>
+              <span className="text-sm font-normal text-foreground whitespace-pre-wrap">{rov.notes}</span>
+            </div>
+          )}
+        </div>
+
         {/* ── Trip history ── */}
-        <div className="pt-4 border-t border-border">
-          <h2 className="text-sm font-semibold text-foreground mb-4">Trip History</h2>
+        <div>
+          <h2 className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-3">Trip History</h2>
 
           {tripsLoading ? (
             <div className="space-y-2">
@@ -154,45 +153,109 @@ export default function RovDetailPage() {
               No trips recorded for this ROV.
             </div>
           ) : (
-            <div className="divide-y divide-border">
-              {trips.map(trip => {
-                const ts = TRIP_STATUS[trip.status] || TRIP_STATUS.planned
-                return (
-                  <div key={trip._id} className="flex items-center justify-between py-3 gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium shrink-0 ${ts.cls}`}>
-                          {ts.text}
-                        </span>
-                        <span className="text-sm font-medium text-foreground truncate">Trip: {trip.name}</span>
-                      </div>
-                      <div className="flex items-center gap-3 mt-0.5 text-xs text-muted-foreground flex-wrap">
-                        {trip.location && (
-                          <span className="flex items-center gap-1"><MapPin size={10} />{trip.location}</span>
-                        )}
-                        {trip.startTime && (
-                          <span className="flex items-center gap-1">
-                            <Clock size={10} />
-                            {new Date(trip.startTime).toLocaleDateString()}
-                            {trip.endTime && ` → ${new Date(trip.endTime).toLocaleDateString()}`}
-                          </span>
-                        )}
+            <>
+              {/* Desktop table */}
+              <div className="hidden xl:block">
+                <MarineTable>
+                  <MarineTableHeader>
+                    <MarineTableRow>
+                      <MarineTableHead>Trip Name</MarineTableHead>
+                      <MarineTableHead>Location</MarineTableHead>
+                      <MarineTableHead>Dates</MarineTableHead>
+                      <MarineTableHead>Status</MarineTableHead>
+                      <MarineTableHead align="right"></MarineTableHead>
+                    </MarineTableRow>
+                  </MarineTableHeader>
+                  <MarineTableBody>
+                    {trips.map(trip => {
+                      const ts = TRIP_STATUS[trip.status] || TRIP_STATUS.planned
+                      return (
+                        <MarineTableRow key={trip._id} onClick={() => navigate(`/trips/${trip._id}`)}>
+                          <MarineTableCell>
+                            <Link to={`/trips/${trip._id}`} onClick={e => e.stopPropagation()} className="text-sm font-medium text-foreground hover:text-cyan-600 transition-colors truncate block w-fit">
+                              {trip.name}
+                            </Link>
+                          </MarineTableCell>
+                          <MarineTableCell>
+                            {trip.location ? (
+                              <span className="truncate max-w-xs block" title={trip.location}>{trip.location}</span>
+                            ) : <span className="text-slate-400">—</span>}
+                          </MarineTableCell>
+                          <MarineTableCell isMono>
+                            {trip.startTime ? (
+                              <span title={trip.endTime ? `${new Date(trip.startTime).toLocaleDateString()} → ${new Date(trip.endTime).toLocaleDateString()}` : new Date(trip.startTime).toLocaleDateString()}>
+                                {new Date(trip.startTime).toLocaleDateString()}
+                                {trip.endTime && ` → ${new Date(trip.endTime).toLocaleDateString()}`}
+                              </span>
+                            ) : <span className="text-slate-400">—</span>}
+                          </MarineTableCell>
+                          <MarineTableCell>
+                            <MarineTableStatus status={trip.status} label={ts.text} />
+                          </MarineTableCell>
+                          <MarineTableCell align="right">
+                            <ChevronRight size={18} className="text-slate-300 dark:text-slate-500 group-hover:text-cyan-600 group-hover:translate-x-1 transition-all duration-200 ml-auto" />
+                          </MarineTableCell>
+                        </MarineTableRow>
+                      )
+                    })}
+                  </MarineTableBody>
+                </MarineTable>
+              </div>
+
+              {/* Mobile card list */}
+              <div className="xl:hidden space-y-2">
+                {trips.map(trip => {
+                  const ts = TRIP_STATUS[trip.status] || TRIP_STATUS.planned
+                  return (
+                    <div key={trip._id} onClick={() => navigate(`/trips/${trip._id}`)}
+                      className="bg-card rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1 space-y-2">
+                          <div className="flex items-center justify-between gap-2 flex-wrap">
+                            <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors truncate max-w-[160px] sm:max-w-xs">
+                              {trip.name}
+                            </span>
+                            <MarineTableStatus status={trip.status} label={ts.text} />
+                          </div>
+                          
+                          {(trip.location || trip.startTime) && (
+                            <div className="flex flex-col gap-1.5 mt-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                {trip.location && (
+                                  <div className="flex items-center gap-1 font-sans text-xs text-slate-500 dark:text-slate-400">
+                                    <MapPin size={11} className="shrink-0" />
+                                    <span className="truncate max-w-[120px]">{trip.location}</span>
+                                  </div>
+                                )}
+                                {trip.startTime && (
+                                  <div className="flex items-center gap-1 font-mono text-xs tracking-tight text-slate-500 dark:text-slate-400">
+                                    <Clock size={11} className="shrink-0" />
+                                    <span>
+                                      {new Date(trip.startTime).toLocaleDateString()}
+                                      {trip.endTime && ` → ${new Date(trip.endTime).toLocaleDateString()}`}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="flex items-center gap-2 shrink-0 pl-2 self-center">
+                          <ChevronRight size={18} className="text-slate-300 dark:text-slate-500 group-hover:text-cyan-600 group-hover:translate-x-1 transition-all duration-200" />
+                        </div>
                       </div>
                     </div>
-                    <Link to={`/trips/${trip._id}`}
-                      className="p-1.5 text-muted-foreground hover:text-primary rounded shrink-0 transition-colors"
-                      title="View trip">
-                      <Eye size={15} />
-                    </Link>
-                  </div>
-                )
-              })}
-            </div>
+                  )
+                })}
+              </div>
+            </>
           )}
         </div>
 
-        <div className="mt-4 pt-4 border-t border-border text-xs text-muted-foreground">
-          Created {new Date(rov.createdAt).toLocaleDateString()}
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">Created</span>
+          <span className="text-sm font-mono text-foreground">{new Date(rov.createdAt).toLocaleDateString()}</span>
         </div>
       </div>
 

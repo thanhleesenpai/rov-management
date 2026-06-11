@@ -65,6 +65,8 @@ export default function MediaUpload({ diveId, tripId, onClose }) {
   const setFileField = (idx, field, value) =>
     setFiles(prev => prev.map((f, i) => i === idx ? { ...f, [field]: value } : f))
 
+  const ROV_DATA_EXTS = /\.(sonar|csv|json)$/i
+
   const onDrop = useCallback((accepted, rejected) => {
     rejected.forEach(({ file, errors }) => {
       const msg = errors[0]?.code === 'file-too-large'
@@ -72,7 +74,13 @@ export default function MediaUpload({ diveId, tripId, onClose }) {
         : `${file.name}: Không hỗ trợ định dạng này`
       toast.error(msg)
     })
-    const newFiles = accepted.map(file => ({
+    const [rovFiles, mediaFiles] = accepted.reduce(
+      ([rov, med], f) => ROV_DATA_EXTS.test(f.name) ? [[...rov, f], med] : [rov, [...med, f]],
+      [[], []]
+    )
+    if (rovFiles.length > 0)
+      toast.warning(`${rovFiles.map(f => f.name).join(', ')}: Dùng nút Upload ROV Data (icon ổ cứng) để upload file này`)
+    const newFiles = mediaFiles.map(file => ({
       file, status: 'idle', progress: 0, error: null, recordedAt: '',
     }))
     setFiles(prev => [...prev, ...newFiles])

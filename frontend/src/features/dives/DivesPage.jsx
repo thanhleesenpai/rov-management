@@ -88,7 +88,7 @@ export default function DivesPage() {
       {/* Search & filter */}
       <div className="space-y-2 mb-4">
         <div className="flex flex-col sm:flex-row gap-2">
-          <div className="relative flex-1">
+          <div className="relative flex-1 mx-0 md:mx-auto">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <MarineInput placeholder="Search dive title..."
               value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
@@ -112,12 +112,12 @@ export default function DivesPage() {
             </div>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 shrink-0 mr-1 mt-0.5">CREATED:</span>
-            <MarineDatePicker value={fromDate} onChange={e => { setFromDate(e.target.value); setPage(1) }} className="w-[120px]" />
-            <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" />
-            <MarineDatePicker value={toDate} min={fromDate} onChange={e => { setToDate(e.target.value); setPage(1) }} className="w-[120px]" />
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground shrink-0 mr-1 mt-0.5">CREATED:</span>
+            <MarineDatePicker value={fromDate} onChange={e => { setFromDate(e.target.value); setPage(1) }} className="w-full sm:w-[120px]" />
+            <ArrowRight className="w-3 h-3 text-muted-foreground shrink-0 hidden sm:block" />
+            <MarineDatePicker value={toDate} min={fromDate} onChange={e => { setToDate(e.target.value); setPage(1) }} className="w-full sm:w-[120px]" />
           </div>
           {hasActiveFilter && (
             <button onClick={resetFilters}
@@ -154,17 +154,18 @@ export default function DivesPage() {
                   return (
                     <MarineTableRow key={dive._id} onClick={() => navigate(`/dives/${dive._id}`)}>
                       <MarineTableCell>
-                        <Link to={`/dives/${dive._id}`} onClick={e => e.stopPropagation()} className="font-semibold text-foreground hover:text-cyan-600 transition-colors truncate block w-fit">
+                        <Link to={`/dives/${dive._id}`} onClick={e => e.stopPropagation()} className="text-sm font-medium text-foreground hover:text-cyan-600 transition-colors truncate block w-fit">
                           {dive.title}
                         </Link>
-                        {dive.description && <p className="text-xs text-slate-500 mt-0.5 truncate max-w-xs" title={dive.description}>{dive.description}</p>}
+                        {dive.description && <p className="text-xs font-normal text-muted-foreground mt-0.5 truncate max-w-xs" title={dive.description}>{dive.description}</p>}
                       </MarineTableCell>
                       <MarineTableCell>
                         {dive.trip ? (
                           <Link to={`/trips/${dive.trip._id}`} onClick={e => e.stopPropagation()}
-                            className="inline-flex items-center px-1.5 py-0.5 rounded-[4px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-[11px] font-mono uppercase tracking-wider text-slate-600 dark:text-slate-400 hover:border-cyan-300 dark:hover:border-cyan-700 hover:text-cyan-700 dark:hover:text-cyan-400 transition-colors cursor-pointer truncate"
+                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] border border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50 transition-colors cursor-pointer truncate"
                             title={dive.trip.name}>
-                            {dive.trip.name}
+                            <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">TRIP</span>
+                            <span className="text-sm font-mono text-foreground">{dive.trip.name}</span>
                           </Link>
                         ) : <span className="text-slate-400">—</span>}
                       </MarineTableCell>
@@ -177,9 +178,10 @@ export default function DivesPage() {
                       <MarineTableCell>
                         {(dive.sensorCount || 0) > 0 ? (
                           <div>
-                            <div className="flex items-center gap-1 font-mono text-xs tracking-tight text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                              <Activity size={11} className="shrink-0 text-cyan-600" />
-                              <span>{dive.sensorCount.toLocaleString()} readings</span>
+                            <div className="flex items-center gap-1.5 text-sm font-mono text-foreground whitespace-nowrap">
+                              <Activity size={12} className="shrink-0 text-cyan-600" />
+                              <span>{dive.sensorCount.toLocaleString()}</span>
+                              <span className="font-sans text-xs text-muted-foreground font-medium">readings</span>
                             </div>
                             {dive.locationName && (
                               <div className="max-w-[300px] truncate text-slate-500">
@@ -193,7 +195,7 @@ export default function DivesPage() {
                       </MarineTableCell>
                       <MarineTableCell align="right">
                         <div className="flex items-center justify-end gap-3">
-                          <ChevronRight size={18} className="text-slate-300 dark:text-slate-500 group-hover:text-cyan-600 group-hover:translate-x-1 transition-all duration-200" />
+                          <ChevronRight size={18} className="text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all duration-200" />
                           {(canEdit || canDelete) && (
                             <MarineTableActionMenu>
                               {canEdit && (
@@ -222,44 +224,46 @@ export default function DivesPage() {
             {dives.map(dive => {
               return (
                 <div key={dive._id} onClick={() => navigate(`/dives/${dive._id}`)}
-                  className="bg-card rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                  className="bg-card rounded-lg border border-border shadow-sm p-4 cursor-pointer hover:bg-muted/50 transition-colors group">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1 space-y-2">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm group-hover:text-cyan-600 transition-colors line-clamp-1">
+                        <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors truncate max-w-[200px] sm:max-w-xs">
                           {dive.title}
                         </span>
                         <MarineTableStatus status={dive.status} label={STATUS[dive.status]?.text || 'Unknown'} />
                       </div>
                       
-                      {dive.description && <p className="text-xs text-slate-500 line-clamp-2">{dive.description}</p>}
+                      {dive.description && <p className="text-xs font-normal text-muted-foreground line-clamp-2">{dive.description}</p>}
                       
                       <div className="flex flex-col gap-1.5 mt-2">
                         {dive.trip && (
                           <div onClick={e => { e.stopPropagation(); navigate(`/trips/${dive.trip._id}`) }}
-                            className="inline-flex items-center px-1.5 py-0.5 rounded-[4px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-[11px] font-mono uppercase tracking-wider text-slate-600 dark:text-slate-400 hover:border-cyan-300 hover:text-cyan-700 transition-colors cursor-pointer w-fit">
-                            TRIP: {dive.trip.name}
+                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] border border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50 transition-colors cursor-pointer w-fit">
+                            <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">TRIP</span>
+                            <span className="text-sm font-mono text-foreground">{dive.trip.name}</span>
                           </div>
                         )}
                         
-                        <div className="flex items-center gap-1.5 font-mono text-xs tracking-tight text-slate-500 dark:text-slate-400">
-                          <Clock size={11} className="shrink-0" />
-                          <span className="font-sans font-semibold uppercase tracking-wider text-[10px] text-slate-500 dark:text-slate-400">Created</span>
+                        <div className="flex items-center gap-1.5 text-sm font-mono text-foreground">
+                          <Clock size={11} className="shrink-0 text-muted-foreground" />
+                          <span className="text-[10px] font-sans uppercase tracking-widest text-muted-foreground font-semibold">Created</span>
                           <span>{new Date(dive.createdAt).toLocaleDateString()}</span>
                         </div>
 
                         {(dive.sensorCount || 0) > 0 && (
-                          <div className="flex items-center gap-1.5 font-mono text-xs tracking-tight text-slate-500 dark:text-slate-400">
+                          <div className="flex items-center gap-1.5 text-sm font-mono text-foreground">
                             <Activity size={12} className="shrink-0 text-cyan-600" />
-                            <span>{dive.sensorCount.toLocaleString()} readings</span>
-                            {dive.locationName && <span className="font-sans text-slate-400 dark:text-slate-500 truncate">· {dive.locationName}</span>}
+                            <span>{dive.sensorCount.toLocaleString()}</span>
+                            <span className="font-sans text-xs text-muted-foreground font-medium">readings</span>
+                            {dive.locationName && <span className="font-sans text-xs text-muted-foreground truncate">· {dive.locationName}</span>}
                           </div>
                         )}
                       </div>
                     </div>
                     
                     <div className="flex items-center gap-2 shrink-0 pl-2">
-                      <ChevronRight size={18} className="text-slate-300 dark:text-slate-500 group-hover:text-cyan-600 group-hover:translate-x-1 transition-all duration-200" />
+                      <ChevronRight size={18} className="text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all duration-200" />
                       {(canEdit || canDelete) && (
                         <div onClick={e => e.stopPropagation()}>
                           <MarineTableActionMenu>

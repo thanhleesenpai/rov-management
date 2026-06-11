@@ -22,9 +22,9 @@ import {
 } from '@/components/bespoke/MarineTable'
 
 const ROLE_STYLE = {
-  admin:    'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
-  operator: 'border-cyan-200 bg-cyan-50 text-cyan-700 dark:border-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-400',
-  viewer:   'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'
+  admin:    'bg-purple-500/10 text-purple-600 border border-purple-500/20 dark:text-purple-400',
+  operator: 'bg-primary/10 text-primary border border-primary/20',
+  viewer:   'bg-slate-500/10 text-slate-600 border border-slate-500/20 dark:text-slate-400'
 }
 
 const ROLES = ['viewer', 'operator', 'admin']
@@ -43,7 +43,7 @@ function UserEditForm({ user, onClose, onSave, isSelf, saving }) {
         <div className="p-6 space-y-4">
           <p className="text-xs text-muted-foreground">{user.email}</p>
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Full Name</label>
+            <label className="block text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-1">Full Name</label>
             <MarineInput type="text" required value={form.fullName}
               onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))} />
           </div>
@@ -53,7 +53,7 @@ function UserEditForm({ user, onClose, onSave, isSelf, saving }) {
             </div>
           ) : (
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">Role</label>
+              <label className="block text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-1">Role</label>
               <MarineSelect value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
                 {ROLES.map(r => <option key={r} value={r}>{r}</option>)}
               </MarineSelect>
@@ -100,11 +100,11 @@ function UserToggle({ isActive, onClick }) {
       onClick={(e) => { e.stopPropagation(); onClick(); }}
       className="flex items-center gap-2 focus:outline-none group"
     >
-      <div className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-cyan-500/50 ${isActive ? 'bg-cyan-500' : 'bg-slate-200 dark:bg-slate-700'}`}>
+      <div className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-ring/50 ${isActive ? 'bg-primary' : 'bg-slate-200 dark:bg-slate-700'}`}>
         <span className="sr-only">Toggle status</span>
         <span className={`pointer-events-none absolute left-0.5 inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${isActive ? 'translate-x-4' : 'translate-x-0'}`} />
       </div>
-      <span className={`text-xs font-medium transition-colors ${isActive ? 'text-cyan-700 dark:text-cyan-400' : 'text-slate-500 dark:text-slate-400'}`}>
+      <span className={`text-xs font-medium transition-colors ${isActive ? 'text-primary' : 'text-muted-foreground'}`}>
         {isActive ? 'Active' : 'Disabled'}
       </span>
     </button>
@@ -121,12 +121,11 @@ function RoleDropdown({ onSelect, disabled }) {
   }, [])
   return (
     <div ref={ref} className="relative">
-      <button onClick={() => setOpen(v => !v)} disabled={disabled}
-        className="flex items-center gap-1 px-2.5 py-1.5 text-xs bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-900/20 dark:text-purple-300 dark:border-purple-800 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors disabled:opacity-50 font-medium">
-        <ShieldCheck size={12} /> Set Role <ChevronDown size={11} />
-      </button>
+      <MarineButton variant="outline" onClick={() => setOpen(v => !v)} disabled={disabled}>
+        <ShieldCheck size={14} className="mr-1" /> Set Role <ChevronDown size={14} className="ml-1" />
+      </MarineButton>
       {open && (
-        <div className="absolute left-0 mt-1 w-36 bg-card rounded-xl shadow-lg border border-border z-20 overflow-hidden">
+        <div className="absolute right-0 sm:left-0 sm:right-auto mt-1 w-36 bg-card rounded-md shadow-lg border border-border z-20 overflow-hidden">
           {ROLES.map(r => (
             <button key={r} onClick={() => { onSelect(r); setOpen(false) }}
               className="w-full text-left px-4 py-2 text-sm text-foreground hover:bg-muted capitalize transition-colors">
@@ -147,6 +146,7 @@ export default function UsersPage() {
   const [page, setPage] = useState(1)
   const [editingUser, setEditingUser] = useState(null)
   const [toggleConfirm, setToggleConfirm] = useState(null)
+  const [bulkConfirm, setBulkConfirm] = useState(null)
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState(new Set())
 
@@ -213,14 +213,14 @@ export default function UsersPage() {
 
       {!selectMode ? (
         <div className="flex flex-col sm:flex-row gap-2 mb-4">
-          <div className="relative flex-1 min-w-48">
+          <div className="relative flex-1 min-w-48 mx-0 md:mx-auto">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <MarineInput placeholder="Search name or email..." value={search}
               onChange={e => { setSearch(e.target.value); setPage(1) }}
               className="pl-9 pr-3 w-full" />
           </div>
-          <div className="flex gap-2">
-            <div className="w-32 shrink-0">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+            <div className="w-full sm:w-32 shrink-0">
               <MarineSelect value={roleFilter} onChange={e => { setRoleFilter(e.target.value); setPage(1) }}>
                 <option value="">All Roles</option>
                 <option value="admin">Admin</option>
@@ -228,30 +228,30 @@ export default function UsersPage() {
                 <option value="viewer">Viewer</option>
               </MarineSelect>
             </div>
-            <MarineButton variant="outline" onClick={() => setSelectMode(true)} icon={CheckSquare}>
+            <MarineButton variant="outline" onClick={() => setSelectMode(true)} icon={CheckSquare} className="w-full sm:w-auto">
               Select
             </MarineButton>
           </div>
         </div>
       ) : (
-        <div className="flex items-center gap-2 mb-4 p-3 bg-primary/5 rounded-xl border border-primary/20">
-          <span className="text-sm font-medium text-primary">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 px-4 py-3 bg-muted/40 border border-border rounded-lg shadow-sm">
+          <span className="text-sm font-semibold text-primary">
             {someSelected ? `${selected.size} selected` : 'Select users'}
           </span>
-          <div className="flex items-center gap-2 ml-auto flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap">
             {someSelected && (
               <>
                 <MarineButton variant="solid" onClick={() => bulkStatusMutation.mutate({ ids: selectedIds, isActive: true })} disabled={isBulkPending}>
-                  Activate Selected
+                  Activate
                 </MarineButton>
-                <MarineButton variant="danger" onClick={() => bulkStatusMutation.mutate({ ids: selectedIds, isActive: false })} disabled={isBulkPending}>
-                  Disable Selected
+                <MarineButton variant="danger" onClick={() => setBulkConfirm({ type: 'disable' })} disabled={isBulkPending}>
+                  Disable
                 </MarineButton>
-                <RoleDropdown disabled={isBulkPending} onSelect={(role) => bulkRoleMutation.mutate({ ids: selectedIds, role })} />
+                <RoleDropdown disabled={isBulkPending} onSelect={(role) => setBulkConfirm({ type: 'role', payload: role })} />
               </>
             )}
             <MarineButton variant="outline" onClick={exitSelectMode}>
-              Cancel Selection
+              Cancel
             </MarineButton>
           </div>
         </div>
@@ -272,7 +272,7 @@ export default function UsersPage() {
                   {selectMode && (
                     <MarineTableHead className="w-10">
                       <input type="checkbox" checked={allSelected} onChange={toggleSelectAll}
-                        className="w-4 h-4 rounded accent-cyan-600 cursor-pointer" />
+                        className="w-4 h-4 rounded accent-primary cursor-pointer" />
                     </MarineTableHead>
                   )}
                   <MarineTableHead>User</MarineTableHead>
@@ -285,26 +285,26 @@ export default function UsersPage() {
               <MarineTableBody>
                 {users.map(u => (
                   <MarineTableRow key={u._id}
-                    className={`${selectMode ? 'cursor-pointer' : ''} ${selected.has(u._id) ? 'bg-cyan-50/50 dark:bg-cyan-900/10' : ''}`}
+                    className={`${selectMode ? 'cursor-pointer' : ''} ${selected.has(u._id) ? 'bg-primary/5' : ''}`}
                     onClick={selectMode ? () => toggleSelect(u._id) : undefined}>
                     {selectMode && (
                       <MarineTableCell>
                         <input type="checkbox" checked={selected.has(u._id)} onChange={() => toggleSelect(u._id)}
                           onClick={e => e.stopPropagation()}
-                          className="w-4 h-4 rounded accent-cyan-600 cursor-pointer" />
+                          className="w-4 h-4 rounded accent-primary cursor-pointer" />
                       </MarineTableCell>
                     )}
                     <MarineTableCell>
                       <div className="flex items-center gap-3 min-w-0">
                         <Avatar name={u.fullName} avatarUrl={u.avatar} size="md" />
                         <div className="min-w-0">
-                          <p className="font-semibold text-slate-800 dark:text-slate-100 truncate">{u.fullName}</p>
-                          <p className="font-mono text-xs tracking-tight text-slate-500 dark:text-slate-400 truncate" title={u.email}>{u.email}</p>
+                          <p className="text-sm font-medium text-foreground truncate">{u.fullName}</p>
+                          <p className="font-mono text-xs text-muted-foreground truncate" title={u.email}>{u.email}</p>
                         </div>
                       </div>
                     </MarineTableCell>
                     <MarineTableCell>
-                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded-[4px] border text-[11px] font-mono uppercase tracking-wider transition-colors ${ROLE_STYLE[u.role] || 'border-slate-200 text-slate-600 bg-slate-50'}`}>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded border text-[10px] uppercase tracking-widest font-semibold transition-colors ${ROLE_STYLE[u.role] || 'border-slate-200 text-slate-600 bg-slate-50'}`}>
                         {u.role}
                       </span>
                     </MarineTableCell>
@@ -337,7 +337,7 @@ export default function UsersPage() {
           <div className="xl:hidden space-y-2">
             {users.map(u => (
               <div key={u._id}
-                className={`bg-card rounded-xl border shadow-sm p-4 transition-colors group ${selectMode ? 'cursor-pointer' : ''} ${selected.has(u._id) ? 'border-cyan-500 bg-cyan-50/50 dark:border-cyan-600 dark:bg-cyan-900/10' : 'border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+                className={`bg-card rounded-lg border shadow-sm p-4 transition-colors group ${selectMode ? 'cursor-pointer' : ''} ${selected.has(u._id) ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'}`}
                 onClick={selectMode ? () => toggleSelect(u._id) : undefined}>
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-3 min-w-0 flex-1">
@@ -345,7 +345,7 @@ export default function UsersPage() {
                       <div className="pt-1">
                         <input type="checkbox" checked={selected.has(u._id)} onChange={() => toggleSelect(u._id)}
                           onClick={e => e.stopPropagation()}
-                          className="w-4 h-4 rounded accent-cyan-600 cursor-pointer shrink-0" />
+                          className="w-4 h-4 rounded accent-primary cursor-pointer shrink-0" />
                       </div>
                     ) : (
                       <div className="pt-0.5 shrink-0">
@@ -354,12 +354,12 @@ export default function UsersPage() {
                     )}
                     <div className="min-w-0 flex-1 space-y-2">
                       <div>
-                        <p className="font-semibold text-sm text-slate-800 dark:text-slate-100 line-clamp-1">{u.fullName}</p>
-                        <p className="font-mono text-xs tracking-tight text-slate-500 dark:text-slate-400 line-clamp-1">{u.email}</p>
+                        <p className="text-sm font-medium text-foreground truncate">{u.fullName}</p>
+                        <p className="font-mono text-xs text-muted-foreground truncate">{u.email}</p>
                       </div>
                       
                       <div className="flex flex-wrap items-center gap-3">
-                        <span className={`inline-flex items-center px-1.5 py-0.5 rounded-[4px] border text-[11px] font-mono uppercase tracking-wider transition-colors ${ROLE_STYLE[u.role] || 'border-slate-200 text-slate-600 bg-slate-50'}`}>
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded border text-[10px] uppercase tracking-widest font-semibold transition-colors ${ROLE_STYLE[u.role] || 'border-slate-200 text-slate-600 bg-slate-50'}`}>
                           {u.role}
                         </span>
                         <UserToggle 
@@ -409,6 +409,25 @@ export default function UsersPage() {
           : `Are you sure you want to disable access for ${toggleConfirm?.user?.fullName}? They will no longer be able to log in.`}
         confirmText={toggleConfirm?.newState ? 'Activate' : 'Disable'}
         isDanger={!toggleConfirm?.newState}
+      />
+
+      <ConfirmModal 
+        isOpen={!!bulkConfirm}
+        onClose={() => setBulkConfirm(null)}
+        onConfirm={() => {
+          if (!bulkConfirm) return
+          if (bulkConfirm.type === 'disable') {
+            bulkStatusMutation.mutate({ ids: selectedIds, isActive: false })
+          } else if (bulkConfirm.type === 'role') {
+            bulkRoleMutation.mutate({ ids: selectedIds, role: bulkConfirm.payload })
+          }
+        }}
+        title={bulkConfirm?.type === 'disable' ? 'Disable Users' : 'Change Role'}
+        message={bulkConfirm?.type === 'disable' 
+          ? `Are you sure you want to disable ${selected.size} selected users? They will be logged out and cannot access the system.`
+          : `Are you sure you want to change the role of ${selected.size} selected users to ${bulkConfirm?.payload}?`}
+        confirmText={bulkConfirm?.type === 'disable' ? 'Disable' : 'Change Role'}
+        isDanger={bulkConfirm?.type === 'disable'}
       />
     </div>
   )

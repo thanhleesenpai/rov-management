@@ -14,8 +14,8 @@ import EmptyState from '@/components/shared/EmptyState'
 import { MarineInput } from '@/components/bespoke/MarineInput'
 import { MarineSelect } from '@/components/bespoke/MarineSelect'
 import { MarineDatePicker } from '@/components/bespoke/MarineDatePicker'
-import { 
-  MarineTable, MarineTableHeader, MarineTableBody, 
+import {
+  MarineTable, MarineTableHeader, MarineTableBody,
   MarineTableRow, MarineTableHead, MarineTableCell, MarineTableStatus,
   MarineTableActionMenu, MarineTableActionItem
 } from '@/components/bespoke/MarineTable'
@@ -24,8 +24,8 @@ import { exportTripsCSV, exportTripsPDF } from '@/lib/export'
 import { useDebounce } from '@/hooks/useDebounce'
 
 const STATUS = {
-  planned:   { text: 'Planned',   cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
-  ongoing:   { text: 'Ongoing',   cls: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
+  planned: { text: 'Planned', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+  ongoing: { text: 'Ongoing', cls: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
   completed: { text: 'Completed', cls: 'bg-muted text-muted-foreground' },
   cancelled: { text: 'Cancelled', cls: 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300' }
 }
@@ -50,14 +50,16 @@ export default function TripsPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['trips', { page, search: debouncedSearch, status: filterStatus, rovId: filterRov, fromDate, toDate }],
-    queryFn: () => api.get('/trips', { params: {
-      page, limit: LIMIT,
-      search: debouncedSearch || undefined,
-      status: filterStatus || undefined,
-      rovId: filterRov || undefined,
-      fromDate: fromDate || undefined,
-      toDate: toDate || undefined,
-    }}).then(r => r.data),
+    queryFn: () => api.get('/trips', {
+      params: {
+        page, limit: LIMIT,
+        search: debouncedSearch || undefined,
+        status: filterStatus || undefined,
+        rovId: filterRov || undefined,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+      }
+    }).then(r => r.data),
     keepPreviousData: true,
     refetchInterval: 60000,
   })
@@ -85,14 +87,16 @@ export default function TripsPage() {
   const resetFilters = () => { setFilterStatus(''); setFilterRov(''); setFromDate(''); setToDate(''); setPage(1) }
   const resetPage = () => setPage(1)
 
-  const fetchAllTrips = () => api.get('/trips', { params: {
-    limit: 1000,
-    search: debouncedSearch || undefined,
-    status: filterStatus || undefined,
-    rovId: filterRov || undefined,
-    fromDate: fromDate || undefined,
-    toDate: toDate || undefined,
-  }})
+  const fetchAllTrips = () => api.get('/trips', {
+    params: {
+      limit: 1000,
+      search: debouncedSearch || undefined,
+      status: filterStatus || undefined,
+      rovId: filterRov || undefined,
+      fromDate: fromDate || undefined,
+      toDate: toDate || undefined,
+    }
+  })
   const handleExportCSV = async () => { const res = await fetchAllTrips(); exportTripsCSV(res?.data?.data || []) }
   const handleExportPDF = async () => { const res = await fetchAllTrips(); exportTripsPDF(res?.data?.data || []) }
 
@@ -106,9 +110,8 @@ export default function TripsPage() {
         <div className="flex items-center gap-2">
           <ExportMenu onExportCSV={handleExportCSV} onExportPDF={handleExportPDF} />
           {canEdit && (
-            <MarineButton variant="solid" icon={Plus} onClick={() => setShowForm(true)}>
+            <MarineButton variant="solid" icon={Plus} onClick={() => setShowForm(true)} className="max-sm:w-9 max-sm:px-0">
               <span className="hidden sm:inline">New Trip</span>
-              <span className="sm:hidden">New</span>
             </MarineButton>
           )}
         </div>
@@ -117,7 +120,7 @@ export default function TripsPage() {
       {/* Search & filter */}
       <div className="space-y-2 mb-4">
         <div className="flex flex-col sm:flex-row gap-2">
-          <div className="relative flex-1">
+          <div className="relative flex-1 mx-0 md:mx-auto">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <MarineInput
               placeholder="Search name, location..."
@@ -144,12 +147,12 @@ export default function TripsPage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 shrink-0 mr-1 mt-0.5">START DATE:</span>
-            <MarineDatePicker value={fromDate} onChange={e => { setFromDate(e.target.value); resetPage() }} className="w-[120px]" />
-            <ArrowRight className="w-3 h-3 text-slate-400 shrink-0" />
-            <MarineDatePicker value={toDate} min={fromDate} onChange={e => { setToDate(e.target.value); resetPage() }} className="w-[120px]" />
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground shrink-0 mr-1 mt-0.5">START DATE:</span>
+            <MarineDatePicker value={fromDate} onChange={e => { setFromDate(e.target.value); resetPage() }} className="w-full sm:w-[120px]" />
+            <ArrowRight className="w-3 h-3 text-muted-foreground shrink-0 hidden sm:block" />
+            <MarineDatePicker value={toDate} min={fromDate} onChange={e => { setToDate(e.target.value); resetPage() }} className="w-full sm:w-[120px]" />
           </div>
           {hasActiveFilter && (
             <button onClick={resetFilters}
@@ -191,20 +194,19 @@ export default function TripsPage() {
                   return (
                     <MarineTableRow key={trip._id} onClick={() => navigate(`/trips/${trip._id}`)}>
                       <MarineTableCell>
-                        <Link to={`/trips/${trip._id}`} onClick={e => e.stopPropagation()} className="font-semibold text-foreground hover:text-cyan-600 transition-colors truncate block w-fit">
+                        <Link to={`/trips/${trip._id}`} onClick={e => e.stopPropagation()} className="text-sm font-medium text-foreground hover:text-cyan-600 transition-colors truncate block w-fit">
                           {trip.name}
                         </Link>
-                        {trip.description && <p className="text-xs text-slate-500 mt-0.5 truncate max-w-sm" title={trip.description}>{trip.description}</p>}
+                        {trip.description && <p className="text-xs text-muted-foreground font-normal mt-0.5 truncate max-w-sm" title={trip.description}>{trip.description}</p>}
                       </MarineTableCell>
                       <MarineTableCell>
                         {trip.rov ? (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-[4px]
-                                           border border-slate-200 dark:border-slate-700
-                                           bg-slate-50 dark:bg-slate-800
-                                           font-mono text-[11px] uppercase tracking-wider
-                                           text-slate-600 dark:text-slate-400">
-                            {trip.rov.name}
-                          </span>
+                          <Link to={`/rovs/${trip.rov._id}`} onClick={e => e.stopPropagation()}
+                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] border border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50 transition-colors cursor-pointer truncate"
+                            title={trip.rov.name}>
+                            <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">ROV</span>
+                            <span className="text-sm font-mono text-foreground">{trip.rov.name.replace(/^ROV\s+/i, '')}</span>
+                          </Link>
                         ) : <span className="text-slate-400">—</span>}
                       </MarineTableCell>
                       <MarineTableCell>
@@ -225,7 +227,7 @@ export default function TripsPage() {
                       </MarineTableCell>
                       <MarineTableCell align="right">
                         <div className="flex items-center justify-end gap-3">
-                          <ChevronRight size={18} className="text-slate-300 dark:text-slate-500 group-hover:text-cyan-600 group-hover:translate-x-1 transition-all duration-200" />
+                          <ChevronRight size={18} className="text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all duration-200" />
                           {(canEdit || canDelete) && (
                             <MarineTableActionMenu>
                               {canEdit && (
@@ -254,36 +256,38 @@ export default function TripsPage() {
             {trips.map(trip => {
               return (
                 <div key={trip._id} onClick={() => navigate(`/trips/${trip._id}`)}
-                  className="bg-card rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                  className="bg-card rounded-lg border border-border shadow-sm p-4 cursor-pointer hover:bg-muted/50 transition-colors group">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1 space-y-2">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <span className="font-semibold text-slate-800 dark:text-slate-100 text-sm group-hover:text-cyan-600 transition-colors line-clamp-1">
+                        <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors truncate max-w-[200px] sm:max-w-xs">
                           {trip.name}
                         </span>
                         <MarineTableStatus status={trip.status} label={STATUS[trip.status]?.text || 'Unknown'} />
                       </div>
-                      
-                      {trip.description && <p className="text-xs text-slate-500 line-clamp-2">{trip.description}</p>}
-                      
+
+                      {trip.description && <p className="text-xs text-muted-foreground font-normal line-clamp-2">{trip.description}</p>}
+
                       <div className="flex flex-col gap-1.5 mt-2">
                         {trip.rov && (
-                          <div className="inline-flex items-center px-1.5 py-0.5 rounded-[4px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-[11px] font-mono uppercase tracking-wider text-slate-600 dark:text-slate-400 w-fit">
-                            ROV: {trip.rov.name}
+                          <div onClick={e => { e.stopPropagation(); navigate(`/rovs/${trip.rov._id}`) }}
+                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] border border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50 transition-colors cursor-pointer w-fit">
+                            <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">ROV</span>
+                            <span className="text-sm font-mono text-foreground">{trip.rov.name.replace(/^ROV\s+/i, '')}</span>
                           </div>
                         )}
-                        
+
                         {(trip.location || trip.startTime) && (
                           <div className="flex items-center gap-2 flex-wrap">
                             {trip.location && (
-                              <div className="flex items-center gap-1 font-sans text-xs text-slate-500 dark:text-slate-400">
-                                <MapPin size={11} className="shrink-0" />
-                                <span className="line-clamp-1">{trip.location}</span>
+                              <div className="flex items-center gap-1 text-sm font-medium text-foreground">
+                                <MapPin size={11} className="shrink-0 text-muted-foreground" />
+                                <span className="truncate max-w-[120px]">{trip.location}</span>
                               </div>
                             )}
                             {trip.startTime && (
-                              <div className="flex items-center gap-1 font-mono text-xs tracking-tight text-slate-500 dark:text-slate-400">
-                                <Clock size={11} className="shrink-0" />
+                              <div className="flex items-center gap-1 text-sm font-mono text-foreground">
+                                <Clock size={11} className="shrink-0 text-muted-foreground" />
                                 <span>
                                   {new Date(trip.startTime).toLocaleDateString()}
                                   {trip.endTime && ` → ${new Date(trip.endTime).toLocaleDateString()}`}
@@ -294,9 +298,9 @@ export default function TripsPage() {
                         )}
                       </div>
                     </div>
-                    
+
                     <div className="flex items-center gap-2 shrink-0 pl-2">
-                      <ChevronRight size={18} className="text-slate-300 dark:text-slate-500 group-hover:text-cyan-600 group-hover:translate-x-1 transition-all duration-200" />
+                      <ChevronRight size={18} className="text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all duration-200" />
                       {(canEdit || canDelete) && (
                         <div onClick={e => e.stopPropagation()}>
                           <MarineTableActionMenu>

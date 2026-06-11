@@ -2,11 +2,13 @@ import React from 'react'
 import { AlertTriangle, CheckCircle2 } from 'lucide-react'
 import { SectionLabel } from '../ui/SectionLabel'
 
-export function AlertsPanel({ anomalies, hasSensor }) {
+// compact=true: flex-none with max-h-36 scroll (for left column alongside other panels)
+// compact=false (default): flex-1 min-h-0 (for standalone right column use)
+export function AlertsPanel({ anomalies, hasSensor, compact = false }) {
   return (
-    <div className="flex-1 min-h-0 flex flex-col rounded-xl bg-card border border-border p-3">
+    <div className={`${compact ? 'flex-none' : 'flex-1 min-h-0'} flex flex-col rounded-xl bg-card border border-border p-3`}>
       <SectionLabel>Alerts</SectionLabel>
-      <div className="flex-1 min-h-0 overflow-y-auto space-y-1.5">
+      <div className={`${compact ? 'max-h-36 overflow-y-auto' : 'flex-1 min-h-0 overflow-y-auto'} space-y-1.5`}>
         {anomalies.length > 0 ? (
           anomalies.map((a, i) => (
             <div key={i}

@@ -594,7 +594,7 @@ export default function MediaGallery({ diveId }) {
         <p className="text-xs text-muted-foreground text-center py-4">No {tab}s uploaded.</p>
       ) : (
         <SortableContext items={orderedMedia.map(m => m._id)} strategy={rectSortingStrategy}>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2">
             {orderedMedia.map((media, i) => (
               <SortableCard
                 key={media._id}

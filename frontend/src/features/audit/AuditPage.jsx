@@ -10,16 +10,16 @@ import { MarineSelect } from '@/components/bespoke/MarineSelect'
 import { MarineTable, MarineTableHeader, MarineTableBody, MarineTableRow, MarineTableHead, MarineTableCell } from '@/components/bespoke/MarineTable'
 
 const ACTION_STYLE = {
-  create:           'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
-  update:           'border-blue-200 bg-blue-50 text-blue-700 dark:border-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-  delete:           'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-900/30 dark:text-rose-400',
-  change_role:      'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
-  activate:         'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
-  disable:          'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-900/30 dark:text-rose-400',
-  bulk_activate:    'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-400',
-  bulk_disable:     'border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-900/30 dark:text-rose-400',
-  bulk_change_role: 'border-purple-200 bg-purple-50 text-purple-700 dark:border-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
-  generate_summary: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
+  create:           'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 dark:text-emerald-400',
+  update:           'bg-blue-500/10 text-blue-600 border border-blue-500/20 dark:text-blue-400',
+  delete:           'bg-destructive/10 text-destructive border border-destructive/20',
+  change_role:      'bg-purple-500/10 text-purple-600 border border-purple-500/20 dark:text-purple-400',
+  activate:         'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 dark:text-emerald-400',
+  disable:          'bg-destructive/10 text-destructive border border-destructive/20',
+  bulk_activate:    'bg-emerald-500/10 text-emerald-600 border border-emerald-500/20 dark:text-emerald-400',
+  bulk_disable:     'bg-destructive/10 text-destructive border border-destructive/20',
+  bulk_change_role: 'bg-purple-500/10 text-purple-600 border border-purple-500/20 dark:text-purple-400',
+  generate_summary: 'bg-amber-500/10 text-amber-600 border border-amber-500/20 dark:text-amber-400',
 }
 
 const ENTITIES = ['', 'ROV', 'Trip', 'Dive', 'User']
@@ -76,27 +76,27 @@ export default function AuditPage() {
           {/* Mobile card list */}
           <div className="xl:hidden space-y-2">
             {logs.map(log => (
-              <div key={log._id} className="bg-card rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+              <div key={log._id} className="bg-card rounded-lg border border-border shadow-sm p-4 hover:bg-muted/50 transition-colors">
                 <div className="flex items-start gap-3">
                   <div className="shrink-0 mt-0.5">
                     <Avatar name={log.userId?.fullName} avatarUrl={log.userId?.avatar} size="md" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2 mb-1.5">
-                      <span className="font-semibold text-sm text-slate-800 dark:text-slate-100 truncate">{log.userId?.fullName || 'Unknown'}</span>
-                      <span className="text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">{timeAgo(log.createdAt)}</span>
+                      <span className="text-sm font-medium text-foreground truncate">{log.userId?.fullName || 'Unknown'}</span>
+                      <span className="text-xs font-mono text-muted-foreground whitespace-nowrap">{timeAgo(log.createdAt)}</span>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap mb-2">
-                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded-[4px] border text-[10px] font-mono uppercase tracking-wider ${ACTION_STYLE[log.action] || 'border-slate-200 text-slate-600 bg-slate-50'}`}>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded border text-[10px] uppercase tracking-widest font-semibold transition-colors ${ACTION_STYLE[log.action] || 'bg-slate-500/10 text-slate-600 border-slate-500/20 dark:text-slate-400'}`}>
                         {log.action.replace(/_/g, ' ')}
                       </span>
-                      <span className="font-mono text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">{log.entity}</span>
+                      <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">{log.entity}</span>
                     </div>
-                    <div className="flex items-center gap-1.5 flex-wrap font-mono text-xs tracking-tight text-slate-500 dark:text-slate-400">
-                      {log.details?.name && <span className="text-slate-700 dark:text-slate-200">"{log.details.name}"</span>}
-                      {log.details?.email && <span className="text-slate-700 dark:text-slate-200 tracking-tight">({log.details.email})</span>}
-                      {log.details?.role && <span className="text-slate-700 dark:text-slate-200">→ {log.details.role}</span>}
-                      {log.details?.count && <span className="text-slate-700 dark:text-slate-200">({log.details.count} items)</span>}
+                    <div className="flex items-center gap-1.5 flex-wrap font-mono text-xs text-muted-foreground">
+                      {log.details?.name && <span className="text-foreground">"{log.details.name}"</span>}
+                      {log.details?.email && <span className="text-foreground">({log.details.email})</span>}
+                      {log.details?.role && <span className="text-foreground">→ {log.details.role}</span>}
+                      {log.details?.count && <span className="text-foreground">({log.details.count} items)</span>}
                     </div>
                   </div>
                 </div>
@@ -123,30 +123,30 @@ export default function AuditPage() {
                       <div className="flex items-center gap-3">
                         <Avatar name={log.userId?.fullName} avatarUrl={log.userId?.avatar} size="md" />
                         <div>
-                          <p className="font-semibold text-slate-800 dark:text-slate-100">{log.userId?.fullName || 'Unknown'}</p>
-                          <p className="font-mono text-xs tracking-tight text-slate-500 dark:text-slate-400">{log.userId?.email}</p>
+                          <p className="text-sm font-medium text-foreground">{log.userId?.fullName || 'Unknown'}</p>
+                          <p className="font-mono text-xs text-muted-foreground">{log.userId?.email}</p>
                         </div>
                       </div>
                     </MarineTableCell>
                     <MarineTableCell>
-                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded-[4px] border text-[11px] font-mono uppercase tracking-wider transition-colors ${ACTION_STYLE[log.action] || 'border-slate-200 text-slate-600 bg-slate-50'}`}>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded border text-[10px] uppercase tracking-widest font-semibold transition-colors ${ACTION_STYLE[log.action] || 'bg-slate-500/10 text-slate-600 border-slate-500/20 dark:text-slate-400'}`}>
                         {log.action.replace(/_/g, ' ')}
                       </span>
                     </MarineTableCell>
                     <MarineTableCell>
-                      <span className="font-mono text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">{log.entity}</span>
+                      <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">{log.entity}</span>
                     </MarineTableCell>
                     <MarineTableCell isMono>
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        {log.details?.name && <span className="text-slate-700 dark:text-slate-200">"{log.details.name}"</span>}
-                        {log.details?.email && <span className="text-slate-700 dark:text-slate-200">({log.details.email})</span>}
-                        {log.details?.role && <span className="text-slate-700 dark:text-slate-200">→ {log.details.role}</span>}
-                        {log.details?.count && <span className="text-slate-700 dark:text-slate-200">({log.details.count} items)</span>}
+                        {log.details?.name && <span className="text-foreground">"{log.details.name}"</span>}
+                        {log.details?.email && <span className="text-foreground">({log.details.email})</span>}
+                        {log.details?.role && <span className="text-foreground">→ {log.details.role}</span>}
+                        {log.details?.count && <span className="text-foreground">({log.details.count} items)</span>}
                       </div>
                     </MarineTableCell>
                     <MarineTableCell align="right">
-                      <div className="text-slate-700 dark:text-slate-200">{timeAgo(log.createdAt)}</div>
-                      <div className="font-mono text-xs tracking-tight text-slate-500 dark:text-slate-400">{new Date(log.createdAt).toLocaleTimeString()}</div>
+                      <div className="text-sm font-medium text-foreground">{timeAgo(log.createdAt)}</div>
+                      <div className="font-mono text-xs text-muted-foreground">{new Date(log.createdAt).toLocaleTimeString()}</div>
                     </MarineTableCell>
                   </MarineTableRow>
                 ))}

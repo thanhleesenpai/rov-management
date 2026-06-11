@@ -2,7 +2,7 @@ import React from 'react'
 
 export function MarineTable({ children, className = '' }) {
   return (
-    <div className={`w-full overflow-x-auto ${className}`}>
+    <div className={`w-full overflow-x-auto bg-card text-card-foreground border border-border rounded-lg shadow-sm ${className}`}>
       <table className="w-full text-left border-collapse">
         {children}
       </table>
@@ -23,7 +23,7 @@ export function MarineTableRow({ children, className = '', onClick }) {
   return (
     <tr
       onClick={onClick}
-      className={`group border-b border-slate-100/80 dark:border-slate-800/60 hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors ${pointerClass} ${className}`}
+      className={`group border-b border-border/50 hover:bg-muted/50 transition-colors ${pointerClass} ${className}`}
     >
       {children}
     </tr>
@@ -33,7 +33,7 @@ export function MarineTableRow({ children, className = '', onClick }) {
 export function MarineTableHead({ children, className = '', align = 'left' }) {
   const alignClass = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
   return (
-    <th className={`px-4 py-3 pb-2 text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-700/60 ${alignClass} ${className}`}>
+    <th className={`px-4 py-3 pb-2 text-[10px] uppercase tracking-widest text-muted-foreground font-semibold border-b border-border/50 bg-muted/50 ${alignClass} ${className}`}>
       {children}
     </th>
   )
@@ -41,7 +41,7 @@ export function MarineTableHead({ children, className = '', align = 'left' }) {
 
 export function MarineTableCell({ children, className = '', align = 'left', isMono = false }) {
   const alignClass = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left'
-  const fontClass = isMono ? 'font-mono text-xs tracking-tight text-slate-600 dark:text-slate-400' : 'font-sans text-sm text-slate-700 dark:text-slate-200'
+  const fontClass = isMono ? 'font-mono text-sm text-foreground' : 'font-sans text-sm font-medium text-foreground'
   return (
     <td className={`px-4 py-3 align-middle ${alignClass} ${fontClass} ${className}`}>
       {children}
@@ -67,7 +67,7 @@ export function MarineTableStatus({ status, label }) {
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
           <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500 shadow-[0_0_4px_rgba(6,182,212,0.6)]"></span>
         </span>
-        <span className="font-sans text-xs font-medium text-slate-600 dark:text-slate-400">{label}</span>
+        <span className="font-sans text-[10px] uppercase tracking-widest font-semibold text-foreground">{label}</span>
       </div>
     )
   }
@@ -75,7 +75,7 @@ export function MarineTableStatus({ status, label }) {
   return (
     <div className="flex items-center gap-1.5">
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`}></span>
-      <span className="font-sans text-xs font-medium text-slate-600 dark:text-slate-400">{label}</span>
+      <span className="font-sans text-[10px] uppercase tracking-widest font-semibold text-foreground">{label}</span>
     </div>
   )
 }
@@ -140,7 +140,7 @@ export function MarineTableActionMenu({ children }) {
         <button
           type="button"
           onClick={toggleMenu}
-          className={`p-1 rounded transition-colors ${isOpen ? 'bg-slate-100 text-cyan-600 dark:bg-slate-800 dark:text-cyan-400' : 'text-slate-500 hover:text-cyan-500 dark:hover:text-cyan-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+          className={`p-1 rounded transition-colors ${isOpen ? 'bg-muted text-primary' : 'text-muted-foreground hover:text-primary hover:bg-muted'}`}
         >
           <MoreVertical size={16} />
         </button>
@@ -151,7 +151,7 @@ export function MarineTableActionMenu({ children }) {
           ref={dropdownRef}
           onClick={(e) => e.stopPropagation()}
           style={{ top: `${coords.top}px`, left: `${coords.left}px` }}
-          className="absolute z-[9999] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-2xl rounded-md w-32 py-1 animate-in fade-in zoom-in-95 duration-100"
+          className="absolute z-[9999] bg-card text-foreground border border-border shadow-2xl rounded-md w-32 py-1 animate-in fade-in zoom-in-95 duration-100"
         >
           <div onClick={() => setIsOpen(false)}>
             {children}
@@ -165,8 +165,8 @@ export function MarineTableActionMenu({ children }) {
 
 export function MarineTableActionItem({ children, onClick, isDanger = false }) {
   const hoverClass = isDanger
-    ? 'hover:bg-rose-50 dark:hover:bg-rose-900/30 hover:text-rose-700 dark:hover:text-rose-400'
-    : 'hover:bg-slate-50 dark:hover:bg-slate-700/50 hover:text-cyan-700 dark:hover:text-cyan-400'
+    ? 'hover:bg-destructive/10 hover:text-destructive'
+    : 'hover:bg-muted hover:text-primary'
 
   return (
     <button
@@ -175,7 +175,7 @@ export function MarineTableActionItem({ children, onClick, isDanger = false }) {
         e.stopPropagation()
         if (onClick) onClick(e)
       }}
-      className={`w-full text-left flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 transition-colors ${hoverClass}`}
+      className={`w-full text-left flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-foreground transition-colors ${hoverClass}`}
     >
       {children}
     </button>

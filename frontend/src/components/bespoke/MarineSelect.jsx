@@ -39,25 +39,25 @@ export const MarineSelect = forwardRef(({ className = '', children, value, onCha
         onClick={() => setIsOpen(!isOpen)}
         className={`
           w-full flex items-center justify-between
-          bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md shadow-sm px-3 py-2
-          font-sans text-sm font-medium text-slate-700 dark:text-slate-300
-          hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50/50 dark:hover:bg-slate-800/50
-          focus:outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 dark:focus:border-cyan-400 dark:focus:ring-cyan-400/10
+          bg-background border border-input rounded-md shadow-sm px-3 py-2
+          font-sans text-sm font-medium text-foreground
+          hover:border-ring/50 hover:bg-muted/20
+          focus:outline-none focus:border-ring focus:ring-2 focus:ring-ring/30
           transition-all duration-200 cursor-pointer outline-none
-          ${isOpen ? 'border-cyan-500 ring-4 ring-cyan-500/10 dark:border-cyan-400 dark:ring-cyan-400/10' : ''}
+          ${isOpen ? 'border-ring ring-2 ring-ring/30' : ''}
         `}
         {...props}
       >
         <span className="truncate">{displayLabel}</span>
         <ChevronDown 
           size={14} 
-          className={`shrink-0 text-slate-500 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} 
+          className={`shrink-0 text-muted-foreground transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} 
         />
       </button>
 
       {isOpen && (
-        <ul className="absolute z-50 mt-1 w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md shadow-lg overflow-hidden py-1 max-h-60 overflow-y-auto 
-                       [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-200 dark:[&::-webkit-scrollbar-thumb]:bg-slate-600">
+        <ul className="absolute z-50 mt-1 w-full bg-card border border-border rounded-md shadow-lg overflow-hidden py-1 max-h-60 overflow-y-auto 
+                       [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-muted">
           {options.map((opt, i) => (
             <li
               key={i}
@@ -65,8 +65,8 @@ export const MarineSelect = forwardRef(({ className = '', children, value, onCha
               className={`
                 px-3 py-1.5 text-sm cursor-pointer transition-colors
                 ${opt.value === value 
-                  ? 'bg-slate-50 dark:bg-slate-700/50 text-cyan-700 dark:text-cyan-400 font-semibold' 
-                  : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 hover:text-cyan-700 dark:hover:bg-slate-700/50 dark:hover:text-cyan-400'
+                  ? 'bg-muted/50 text-primary font-semibold' 
+                  : 'text-foreground hover:bg-muted hover:text-primary'
                 }
               `}
             >

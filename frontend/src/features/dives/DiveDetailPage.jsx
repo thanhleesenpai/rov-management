@@ -4,7 +4,7 @@ import { useParams, useNavigate, Link, useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useThemeStore } from '@/store/theme.store'
 import {
-  ArrowLeft, MapPin, Anchor, Activity, Upload, Pencil,
+  ArrowLeft, Anchor, Activity, Upload, Pencil,
   AlertTriangle, File, FileText, CheckCircle2,
   Maximize2, Minimize2, Download, Radio, Sparkles, Film, Loader, Eye, EyeOff,
   Play, Pause, Volume2, VolumeX,
@@ -19,17 +19,17 @@ import { useAuthStore } from '@/store/auth.store'
 import DiveForm from './components/DiveForm'
 import ArtificialHorizon from './components/ArtificialHorizon'
 import CompassRose from './components/CompassRose'
-import MediaUpload from '@/features/media/MediaUpload'
-import SensorUpload from '@/features/trips/components/SensorUpload'
+import ROVDataUpload from './components/ROVDataUpload'
 import { Skeleton } from '@/components/shared/Skeleton'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
-import { KpiCard } from './components/ui/KpiCard'
 import { SectionLabel } from './components/ui/SectionLabel'
 import { DiveHeader } from './components/layout/DiveHeader'
 import { LocationPanel } from './components/layout/LocationPanel'
 import { AlertsPanel } from './components/layout/AlertsPanel'
-import DiveMap from './components/DiveMap'
+import { CurrentStatus } from './components/layout/CurrentStatus'
+import { TrajectoryViewer } from './components/TrajectoryViewer'
 import { BottomChart } from './components/charts/BottomChart'
+import SonarViewer from './components/SonarViewer/SonarViewer'
 import { ThumbVertical, MainMedia, useMediaUrl, resolveType, AIAnalyzePopover, RecordedAtEditor, RetryAnalysisButton, CustomVideoControls, DetectionSVG, fmtVideoTime } from './components/media/MediaShared'
 import { EvidencePanel, EvidenceViewer } from './components/evidence/EvidenceShared'
 import { toast } from 'sonner'
@@ -55,8 +55,7 @@ export default function DiveDetailPage() {
   const queryClient = useQueryClient()
 
   const [showForm, setShowForm] = useState(false)
-  const [showUpload, setShowUpload] = useState(false)
-  const [showSensorUp, setShowSensorUp] = useState(false)
+  const [showROVUpload, setShowROVUpload] = useState(false)
   const [selIdx, setSelIdx] = useState(() => {
     const saved = sessionStorage.getItem(`dive:${id}:mediaIdx`)
     return saved ? parseInt(saved, 10) : 0
@@ -86,6 +85,8 @@ export default function DiveDetailPage() {
   const [deletingMedia, setDeletingMedia] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [showToolbar, setShowToolbar] = useState(true)
+  const [dvlMode, setDvlMode] = useState('path')
+  const [showDvlToggle, setShowDvlToggle] = useState(false)
   const [showCenterPauseBtn, setShowCenterPauseBtn] = useState(false)
   const [centerPauseBtnFirstShown, setCenterPauseBtnFirstShown] = useState(false)
   const [activeEvidence, setActiveEvidence] = useState(null)
@@ -123,6 +124,10 @@ export default function DiveDetailPage() {
   const [playlistSelectMode, setPlaylistSelectMode] = useState(false)
   const [playlistSelected, setPlaylistSelected] = useState(new Set())
   const [confirmBulkDeletePlaylist, setConfirmBulkDeletePlaylist] = useState(false)
+
+  // Layout mode states
+  const [isSonarMode, setIsSonarMode] = useState(false)
+  const [statusExpanded, setStatusExpanded] = useState(false)
 
   const bulkDeletePlaylistMutation = useMutation({
     mutationFn: (ids) => api.delete('/media/bulk', { data: { ids } }),
@@ -214,11 +219,19 @@ export default function DiveDetailPage() {
     queryFn: () => api.get(`/dives/${id}`).then(r => r.data),
     staleTime: 30000,
   })
-  const { data: mediaList = [] } = useQuery({
+  const { data: rawMediaList = [] } = useQuery({
     queryKey: ['media', id],
     queryFn: () => api.get(`/media/dive/${id}`).then(r => r.data),
     staleTime: 5 * 60 * 1000,
     refetchInterval: (query) => query.state.data?.some?.(m => m.analysisStatus === 'pending') ? 4000 : false,
+  })
+  // Exclude non-media ROV data files (sonar binary, DVL json) from playlist
+  const mediaList = rawMediaList.filter(m => {
+    const name = (m.originalName || '').toLowerCase()
+    const base = name.split('/').pop()
+    if (name.endsWith('.sonar')) return false
+    if (/^dvl_.*\.json$/.test(base)) return false
+    return true
   })
   const { data: snapshots = [] } = useQuery({
     queryKey: ['snapshots', id],
@@ -251,7 +264,8 @@ export default function DiveDetailPage() {
   const media = mediaList[selIdx] ?? null
   const { data: mediaUrl, isLoading: isMediaUrlLoading } = useMediaUrl(media?._id)
   const hasNavData = chartData.some(d => d.yaw != null || d.pitch != null || d.roll != null)
-  const hasPowerData = chartData.some(d => d.voltage != null || d.battery_percent != null || d.humidity != null)
+  const hasPowerData = chartData.some(d => d.voltage != null || d.battery_percent != null || d.humidity != null || d.lightLevel != null || d.powerLevel != null)
+  const lastReading = chartData[chartData.length - 1] ?? null
 
   // Persist selected media index to sessionStorage so F5 restores same file
   useEffect(() => {
@@ -689,8 +703,7 @@ export default function DiveDetailPage() {
         hasSensor={hasSensor}
         canUpload={canUpload}
         canEdit={canEdit}
-        setShowSensorUp={setShowSensorUp}
-        setShowUpload={setShowUpload}
+        setShowROVUpload={setShowROVUpload}
         setShowForm={setShowForm}
         showExport={showExport}
         setShowExport={setShowExport}
@@ -706,24 +719,54 @@ export default function DiveDetailPage() {
         {/* ─── LEFT COLUMN (w-56) ─── */}
         <div className="w-full lg:w-56 flex-none flex flex-col gap-3 order-2 lg:order-1 lg:min-h-0">
 
-          {/* Location / Map */}
-          <LocationPanel dive={dive} hasGps={hasGps} />
-
-          {/* Current Status KPIs */}
-          <div className="flex-none rounded-xl bg-card border border-border p-3 lg:p-2.5">
-            <SectionLabel>Current Status</SectionLabel>
-            <div className="grid grid-cols-3 lg:grid-cols-1 gap-2 lg:gap-1.5">
-              <KpiCard label="Depth" value={stats?.depth?.avg ?? '—'} unit="m" color="#3b82f6" />
-              <KpiCard label="Temp" value={stats?.temp?.avg ?? '—'} unit="°c" color="#f59e0b" />
-              <KpiCard label="Pressure" value={stats?.pressure?.avg ?? '—'} unit="bar" color="#10b981" />
+          {/* Location — hidden when statusExpanded so Current Status fills the column */}
+          {!statusExpanded && (
+            <div className="flex-none h-52 rounded-xl bg-card border border-border overflow-hidden flex flex-col">
+              <div className="flex items-center justify-between px-3 py-2 shrink-0">
+                <span className="text-[9px] font-bold font-mono uppercase tracking-widest text-muted-foreground">Location</span>
+                {showDvlToggle && (
+                  <div className="flex bg-muted rounded-md overflow-hidden text-[8px] font-semibold">
+                    {['map', 'path', 'both'].map(m => (
+                      <button key={m} onClick={() => setDvlMode(m)}
+                        className={`px-2 py-0.5 capitalize transition-colors ${
+                          dvlMode === m
+                            ? 'bg-primary text-primary-foreground'
+                            : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                        }`}>
+                        {m}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-h-0 relative z-0">
+                <TrajectoryViewer
+                  diveId={dive._id}
+                  hasGps={hasGps}
+                  gpsLocation={dive.gpsLocation}
+                  currentTime={media && resolveType(media) === 'video' ? currentVideoTime : null}
+                  mode={dvlMode}
+                  onModeChange={setDvlMode}
+                  onDvlStatus={setShowDvlToggle}
+                />
+              </div>
             </div>
-          </div>
+          )}
+
+          {/* Current Status — dedicated component with ResizeObserver-driven adaptive sizing */}
+          <CurrentStatus
+            stats={stats}
+            expanded={statusExpanded}
+            onToggle={() => setStatusExpanded(v => !v)}
+          />
 
         </div>
 
         {/* ─── CENTER COLUMN ───────────────────────────────────────────────── */}
+        {/* Outer wrapper: stacks video + inline chart when isSonarMode */}
+        <div className={`flex-none lg:flex-1 lg:min-h-0 order-1 lg:order-2 flex flex-col ${isSonarMode ? 'gap-3' : ''}`}>
         {/* bg-black intentional: video player is always dark regardless of app theme */}
-        <div ref={containerRef} className="group flex-none lg:flex-1 h-auto lg:min-h-0 bg-black rounded-xl overflow-hidden relative flex flex-col items-center justify-center order-1 lg:order-2"
+        <div ref={containerRef} className="group flex-1 min-h-0 h-auto bg-black rounded-xl overflow-hidden relative flex flex-col items-center justify-center"
           style={{ isolation: 'isolate' }}
           onClick={handleVideoMouseMove}
           onMouseMove={handleVideoMouseMove}
@@ -1362,6 +1405,18 @@ export default function DiveDetailPage() {
 
         </div>
 
+        {/* inline chart appears inside center wrapper when in sonar mode */}
+        {isSonarMode && (
+          <BottomChart
+            chartTab={chartTab} setChartTab={setChartTab}
+            hidden={hidden} setHidden={setHidden}
+            hasNavData={hasNavData} hasPowerData={hasPowerData}
+            chartData={chartData} syncIdx={syncIdx} anomalySet={anomalySet}
+            isDark={true} hasSensor={hasSensor}
+          />
+        )}
+        </div>{/* ─── end CENTER COLUMN WRAPPER ─── */}
+
         {/* ─── RIGHT COLUMN (w-56) ─── */}
         <div className="w-full lg:w-56 flex-none lg:shrink lg:min-h-0 flex flex-col gap-3 order-3">
 
@@ -1379,26 +1434,45 @@ export default function DiveDetailPage() {
             </div>
           </div>
 
-          {/* Alerts */}
-          <AlertsPanel anomalies={anomalies} hasSensor={hasSensor} />
+          {/* Sonar — only in sonar mode, slaved to video currentTime */}
+          {isSonarMode && (
+            <div className="flex-1 min-h-0 rounded-xl bg-card border border-border overflow-hidden flex flex-col">
+              <div className="px-3 py-1.5 border-b border-border shrink-0">
+                <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
+                  <Radio size={9} /> Sonar
+                </span>
+              </div>
+              <div className="flex-1 min-h-0">
+                <SonarViewer diveId={dive._id} syncTime={currentVideoTime} />
+              </div>
+            </div>
+          )}
+
+          {/* Alerts — compact in sonar mode (height constrained), full otherwise */}
+          <AlertsPanel anomalies={anomalies} hasSensor={hasSensor} compact={isSonarMode} />
 
         </div>
       </div>
 
-      {/* ─── BOTTOM CHART ───────────────────────────────────────────────────────────── */}
-      <BottomChart
-        chartTab={chartTab}
-        setChartTab={setChartTab}
-        hidden={hidden}
-        setHidden={setHidden}
-        hasNavData={hasNavData}
-        hasPowerData={hasPowerData}
-        chartData={chartData}
-        syncIdx={syncIdx}
-        anomalySet={anomalySet}
-        isDark={true}
-        hasSensor={hasSensor}
-      />
+      {/* ─── BOTTOM CHART — normal mode only ─────────────────────────────────── */}
+      {!isSonarMode && (
+        <BottomChart
+          chartTab={chartTab} setChartTab={setChartTab}
+          hidden={hidden} setHidden={setHidden}
+          hasNavData={hasNavData} hasPowerData={hasPowerData}
+          chartData={chartData} syncIdx={syncIdx} anomalySet={anomalySet}
+          isDark={true} hasSensor={hasSensor}
+          extraRight={
+            <button
+              onClick={() => setIsSonarMode(true)}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-semibold
+                         bg-muted hover:bg-muted/80 text-muted-foreground hover:text-foreground
+                         border border-border transition-colors">
+              <Radio size={10} /> Sonar
+            </button>
+          }
+        />
+      )}
 
       {/* ── video overlay portals (fixed — escape overflow-hidden + stacking context) ── */}
       {showMoreMenu && moreMenuPortalPos && createPortal(
@@ -1504,12 +1578,8 @@ export default function DiveDetailPage() {
       {showForm && (
         <DiveForm tripId={dive.trip?._id} diveData={dive} onClose={() => setShowForm(false)} />
       )}
-      {showUpload && (
-        <MediaUpload diveId={id} tripId={dive.trip?._id} onClose={() => setShowUpload(false)} />
-      )}
-      {showSensorUp && (
-        <SensorUpload dive={dive} tripId={dive.trip?._id} tripGpsLocation={null}
-          onClose={() => setShowSensorUp(false)} />
+      {showROVUpload && (
+        <ROVDataUpload dive={dive} onClose={() => setShowROVUpload(false)} />
       )}
       {confirmDelete && !['photo', 'clip'].includes(confirmDelete.type) && (
         <ConfirmDialog

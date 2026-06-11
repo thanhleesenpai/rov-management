@@ -21,6 +21,8 @@ const diveSchema = new mongoose.Schema({
     default: 'pending'
   },
   sensorCount: { type: Number, default: 0 },
+  dvlCount:    { type: Number, default: 0 },
+  sonarCount:  { type: Number, default: 0 },
   gpsLocation: {
     lat: { type: Number, default: null },
     lng: { type: Number, default: null },

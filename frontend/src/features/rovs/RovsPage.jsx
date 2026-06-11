@@ -95,8 +95,8 @@ export default function RovsPage() {
         <div className="flex items-center gap-2">
           <ExportMenu onExportCSV={handleExportCSV} onExportPDF={handleExportPDF} />
           {canEdit && (
-            <MarineButton variant="solid" icon={Plus} onClick={() => setShowForm(true)}>
-              <span className="hidden sm:inline">Add ROV</span><span className="sm:hidden">Add</span>
+            <MarineButton variant="solid" icon={Plus} onClick={() => setShowForm(true)} className="max-sm:w-9 max-sm:px-0">
+              <span className="hidden sm:inline">Add ROV</span>
             </MarineButton>
           )}
         </div>
@@ -104,7 +104,7 @@ export default function RovsPage() {
 
       {/* Search & filter */}
       <div className="flex flex-col sm:flex-row gap-2 mb-4">
-        <div className="relative flex-1">
+        <div className="relative flex-1 mx-0 md:mx-auto">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <MarineInput
             placeholder="Search name, model, serial..."
@@ -155,7 +155,7 @@ export default function RovsPage() {
                 {rovs.map(rov => (
                   <MarineTableRow key={rov._id} onClick={() => navigate(`/rovs/${rov._id}`)}>
                     <MarineTableCell>
-                      <span className="font-semibold text-foreground">{rov.name}</span>
+                      <span className="text-sm font-medium text-foreground">{rov.name}</span>
                     </MarineTableCell>
                     <MarineTableCell isMono>
                       <span title={rov.model}>{rov.model || '—'}</span>
@@ -168,7 +168,7 @@ export default function RovsPage() {
                     </MarineTableCell>
                     <MarineTableCell align="right">
                       <div className="flex items-center justify-end gap-3">
-                        <ChevronRight size={18} className="text-slate-300 dark:text-slate-500 group-hover:text-cyan-600 group-hover:translate-x-1 transition-all duration-200" />
+                        <ChevronRight size={18} className="text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all duration-200" />
                         {(canEdit || canDelete) && (
                           <MarineTableActionMenu>
                             {canEdit && (
@@ -196,11 +196,11 @@ export default function RovsPage() {
             {rovs.map(rov => {
               return (
                 <div key={rov._id} onClick={() => navigate(`/rovs/${rov._id}`)}
-                  className="bg-card rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                  className="bg-card rounded-lg border border-border shadow-sm p-4 cursor-pointer hover:bg-muted/50 transition-colors group">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1 space-y-2">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <span className="font-semibold text-slate-700 dark:text-slate-200 text-sm group-hover:text-cyan-600 transition-colors line-clamp-1">
+                        <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors truncate max-w-[200px] sm:max-w-xs">
                           {rov.name}
                         </span>
                         <MarineTableStatus status={rov.status} label={STATUS_LABEL[rov.status]?.text || 'Unknown'} />
@@ -208,20 +208,20 @@ export default function RovsPage() {
                       
                       <div className="flex flex-col gap-1.5 mt-2">
                         <div className="flex items-center gap-1.5">
-                          <span className="font-sans font-semibold uppercase tracking-wider text-[10px] text-slate-500 dark:text-slate-400 shrink-0">MODEL</span>
-                          <span className="font-mono text-xs tracking-tight text-slate-500 dark:text-slate-400 truncate">{rov.model || '—'}</span>
+                          <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold shrink-0">MODEL</span>
+                          <span className="text-sm font-mono text-foreground truncate">{rov.model || '—'}</span>
                         </div>
                         {rov.serialNumber && (
                           <div className="flex items-center gap-1.5">
-                            <span className="font-sans font-semibold uppercase tracking-wider text-[10px] text-slate-500 dark:text-slate-400 shrink-0">S/N</span>
-                            <span className="font-mono text-xs tracking-tight text-slate-500 dark:text-slate-400 truncate">{rov.serialNumber}</span>
+                            <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold shrink-0">S/N</span>
+                            <span className="text-sm font-mono text-foreground truncate">{rov.serialNumber}</span>
                           </div>
                         )}
                       </div>
                     </div>
                     
                     <div className="flex items-center gap-2 shrink-0 pl-2">
-                      <ChevronRight size={18} className="text-slate-300 dark:text-slate-500 group-hover:text-cyan-600 group-hover:translate-x-1 transition-all duration-200" />
+                      <ChevronRight size={18} className="text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all duration-200" />
                       {(canEdit || canDelete) && (
                         <div onClick={e => e.stopPropagation()}>
                           <MarineTableActionMenu>

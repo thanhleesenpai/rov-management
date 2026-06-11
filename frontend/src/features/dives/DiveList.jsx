@@ -1,12 +1,13 @@
 import { useState, useEffect, useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, Trash2, Upload, ChevronDown, ChevronRight, File, Activity, Eye } from 'lucide-react'
+import { Plus, FolderOpen, Pencil, Trash2, Upload, ChevronDown, ChevronRight, File, Eye, Activity, Waves } from 'lucide-react'
 import { toast } from 'sonner'
 import {
-  DndContext, closestCenter, useSensor, useSensors, DragOverlay,
+  DndContext, pointerWithin, useSensor, useSensors, DragOverlay,
   useDroppable, useDndContext
 } from '@dnd-kit/core'
+import { snapCenterToCursor } from '@dnd-kit/modifiers'
 import { MouseSensor, TouchSensor } from '@/lib/dnd-sensors'
 import { arrayMove } from '@dnd-kit/sortable'
 import api from '@/lib/axios'
@@ -14,9 +15,10 @@ import { useAuthStore } from '@/store/auth.store'
 import DiveForm from './components/DiveForm'
 import { Skeleton } from '@/components/shared/Skeleton'
 import ConfirmDialog from '@/components/shared/ConfirmDialog'
-import MediaUpload from '@/features/media/MediaUpload'
 import MediaGallery from '@/features/media/MediaGallery'
-import SensorUpload from '@/features/trips/components/SensorUpload'
+import ROVDataUpload from './components/ROVDataUpload'
+import { MarineButton } from '@/components/bespoke/MarineButton'
+import { MarineTableActionMenu, MarineTableActionItem } from '@/components/bespoke/MarineTable'
 
 const STATUS = {
   pending: { text: 'Pending', cls: 'bg-muted text-muted-foreground',                                     accent: 'bg-gray-400' },
@@ -53,9 +55,9 @@ function MediaThumb({ media }) {
 
 function DiveCard({ dive, tripId, tripGpsLocation, canEdit, canDelete, onEdit, onDelete }) {
   const { user } = useAuthStore()
+  const navigate = useNavigate()
   const [expanded, setExpanded] = useState(false)
-  const [showUpload, setShowUpload] = useState(false)
-  const [showSensorUpload, setShowSensorUpload] = useState(false)
+  const [showROVUpload, setShowROVUpload] = useState(false)
   const { text, cls, accent } = STATUS[dive.status] || STATUS.pending
   const canUpload = ['admin', 'operator'].includes(user?.role)
 
@@ -81,7 +83,11 @@ function DiveCard({ dive, tripId, tripGpsLocation, canEdit, canDelete, onEdit, o
     queryFn: () => api.get(`/media/dive/${dive._id}`).then(r => r.data),
     staleTime: 5 * 60 * 1000,
   })
-  const mediaCount = mediaList.length
+  const actualMedia = mediaList.filter(m => {
+    const name = (m.originalName || '').toLowerCase()
+    return !name.endsWith('.sonar') && !/^dvl_.*\.json$/.test(name.split('/').pop())
+  })
+  const mediaCount = actualMedia.length
 
   return (
     <div
@@ -97,78 +103,104 @@ function DiveCard({ dive, tripId, tripGpsLocation, canEdit, canDelete, onEdit, o
 
         <div className="flex-1 min-w-0">
           <div className="px-3 py-3">
-            <div className="flex items-start gap-2">
-              <button onClick={() => setExpanded(v => !v)} className="mt-0.5 shrink-0 text-muted-foreground">
-                {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+            <div className="flex items-center flex-nowrap gap-2 w-full">
+              <button onClick={() => setExpanded(v => !v)} className="flex-1 min-w-0 flex items-center flex-nowrap gap-2 text-left">
+                <span className="shrink-0 text-muted-foreground">
+                  {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                </span>
+                <span className="text-sm font-medium text-foreground truncate block">{dive.title}</span>
               </button>
 
-              <button onClick={() => setExpanded(v => !v)} className="flex-1 min-w-0 text-left">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="font-semibold text-sm text-foreground">{dive.title}</p>
-                  <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>{text}</span>
-                  {mediaCount > 0 && (
-                    <span className="text-xs text-muted-foreground flex items-center gap-0.5">
-                      <File size={10} />{mediaCount}
-                    </span>
-                  )}
-                  {(dive.sensorCount || 0) > 0 && (
-                    <span className="text-xs text-primary flex items-center gap-0.5">
-                      <Activity size={10} />{dive.sensorCount.toLocaleString()}
-                    </span>
-                  )}
-                </div>
-                {dive.description && (
-                  <p className="text-xs text-muted-foreground mt-0.5 truncate">{dive.description}</p>
+              <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] uppercase tracking-widest font-semibold ${cls}`}>{text}</span>
+              
+              <div className="flex items-center gap-1.5 shrink-0">
+                {mediaCount > 0 && (
+                  <span className="text-xs font-mono text-muted-foreground flex items-center gap-0.5" title="Media files">
+                    <File size={10} />{mediaCount}
+                  </span>
                 )}
-              </button>
-
-              <div className="flex items-center gap-0.5 shrink-0">
-                <Link
-                  to={`/dives/${dive._id}`}
-                  state={{ from: `/trips/${tripId}` }}
-                  data-no-dnd
-                  onClick={e => e.stopPropagation()}
-                  title="View dive details"
-                  className="p-1.5 text-muted-foreground hover:text-primary rounded-lg hover:bg-muted transition-colors"
-                >
-                  <Eye size={14} />
-                </Link>
-                {canUpload && (
-                  <button data-no-dnd onClick={() => setShowSensorUpload(true)} title="Sensor data"
-                    className="p-1.5 text-muted-foreground hover:text-primary rounded-lg hover:bg-muted transition-colors">
-                    <Activity size={14} />
-                  </button>
+                {(dive.sensorCount || 0) > 0 && (
+                  <span className="text-primary flex items-center" title="Sensor Data Available">
+                    <Activity size={12} />
+                  </span>
                 )}
-                {canUpload && (
-                  <button data-no-dnd onClick={() => setShowUpload(true)} title="Upload media"
-                    className="p-1.5 text-muted-foreground hover:text-primary rounded-lg hover:bg-muted transition-colors">
-                    <Upload size={14} />
-                  </button>
-                )}
-                {canEdit && (
-                  <button data-no-dnd onClick={onEdit}
-                    className="p-1.5 text-muted-foreground hover:text-yellow-500 rounded-lg hover:bg-muted transition-colors">
-                    <Pencil size={14} />
-                  </button>
-                )}
-                {canDelete && (
-                  <button data-no-dnd onClick={onDelete}
-                    className="p-1.5 text-muted-foreground hover:text-destructive rounded-lg hover:bg-muted transition-colors">
-                    <Trash2 size={14} />
-                  </button>
+                {(dive.sonarCount || 0) > 0 && (
+                  <span className="text-cyan-600 dark:text-cyan-400 flex items-center" title="Sonar Data Available">
+                    <Waves size={12} />
+                  </span>
                 )}
               </div>
+
+              <div className="flex items-center gap-1 shrink-0 ml-1" data-no-dnd onClick={e => e.stopPropagation()}>
+                <div className="hidden sm:flex items-center gap-0.5">
+                  <Link
+                    to={`/dives/${dive._id}`}
+                    state={{ from: `/trips/${tripId}` }}
+                    title="View dive details"
+                    className="p-2 text-muted-foreground hover:text-primary rounded-lg hover:bg-muted transition-colors"
+                  >
+                    <Eye size={14} />
+                  </Link>
+                  {canUpload && (
+                    <button onClick={() => setShowROVUpload(true)} title="Upload data & media"
+                      className="p-2 text-muted-foreground hover:text-primary rounded-lg hover:bg-muted transition-colors">
+                      <Upload size={14} />
+                    </button>
+                  )}
+                  {canEdit && (
+                    <button onClick={onEdit}
+                      className="p-2 text-muted-foreground hover:text-yellow-500 rounded-lg hover:bg-muted transition-colors">
+                      <Pencil size={14} />
+                    </button>
+                  )}
+                  {canDelete && (
+                    <button onClick={onDelete}
+                      className="p-2 text-muted-foreground hover:text-destructive rounded-lg hover:bg-muted transition-colors">
+                      <Trash2 size={14} />
+                    </button>
+                  )}
+                </div>
+                <div className="sm:hidden flex items-center gap-1">
+                  <MarineTableActionMenu>
+                    <MarineTableActionItem onClick={() => navigate(`/dives/${dive._id}`, { state: { from: `/trips/${tripId}` } })}>
+                      <Eye size={14} /> View Details
+                    </MarineTableActionItem>
+                    {canUpload && (
+                      <MarineTableActionItem onClick={() => setShowROVUpload(true)}>
+                        <Upload size={14} /> Upload Data
+                      </MarineTableActionItem>
+                    )}
+                    {canEdit && (
+                      <MarineTableActionItem onClick={onEdit}>
+                        <Pencil size={14} /> Edit
+                      </MarineTableActionItem>
+                    )}
+                    {canDelete && (
+                      <MarineTableActionItem onClick={onDelete} className="text-destructive hover:text-destructive">
+                        <Trash2 size={14} /> Delete
+                      </MarineTableActionItem>
+                    )}
+                  </MarineTableActionMenu>
+                </div>
+              </div>
             </div>
+
+            {dive.description && (
+              <div className="flex items-center gap-1.5 w-full flex-nowrap text-muted-foreground text-xs mt-1.5 pl-6">
+                <Upload size={11} className="shrink-0" />
+                <span className="truncate">{dive.description}</span>
+              </div>
+            )}
           </div>
 
           {!expanded && mediaCount > 0 && (
             <div className="px-3 pb-2.5 flex items-center gap-1 ml-5">
-              {mediaList.slice(0, 5).map(m => (
+              {actualMedia.slice(0, 3).map(m => (
                 <MediaThumb key={m._id} media={m} />
               ))}
-              {mediaCount > 5 && (
+              {mediaCount > 3 && (
                 <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center text-xs text-muted-foreground font-medium border border-border">
-                  +{mediaCount - 5}
+                  +{mediaCount - 3}
                 </div>
               )}
             </div>
@@ -178,50 +210,17 @@ function DiveCard({ dive, tripId, tripGpsLocation, canEdit, canDelete, onEdit, o
             <div className="px-4 pb-4 border-t border-border pt-3 space-y-4">
               {/* Media section */}
               <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Media</p>
                 <MediaGallery diveId={dive._id} />
-              </div>
-
-              {/* Sensor Data — compact summary, full detail in DiveDetailPage */}
-              <div className="flex items-center gap-2 min-w-0">
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide shrink-0">Sensor Data</p>
-                {(dive.sensorCount || 0) > 0 ? (
-                  <span className="text-xs text-muted-foreground flex-1 min-w-0 truncate" title={dive.locationName}>
-                    {dive.sensorCount.toLocaleString()} readings
-                    {dive.locationName ? ` · ${dive.locationName}` : ''}
-                  </span>
-                ) : (
-                  <span className="text-xs text-muted-foreground flex-1">No data</span>
-                )}
-                {canUpload && (
-                  <button
-                    data-no-dnd
-                    onClick={() => setShowSensorUpload(true)}
-                    className="flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-lg border border-border text-muted-foreground hover:text-primary hover:border-primary transition-colors shrink-0"
-                  >
-                    <Upload size={11} /> Upload
-                  </button>
-                )}
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {showUpload && (
-        <MediaUpload
-          diveId={dive._id}
-          tripId={tripId}
-          onClose={() => setShowUpload(false)}
-        />
-      )}
-
-      {showSensorUpload && (
-        <SensorUpload
+      {showROVUpload && (
+        <ROVDataUpload
           dive={dive}
-          tripId={tripId}
-          tripGpsLocation={tripGpsLocation}
-          onClose={() => setShowSensorUpload(false)}
+          onClose={() => setShowROVUpload(false)}
         />
       )}
     </div>
@@ -232,6 +231,7 @@ export default function DiveList({ tripId, tripGpsLocation }) {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
   const [showForm, setShowForm] = useState(false)
+  const [showFolderImport, setShowFolderImport] = useState(false)
   const [editing, setEditing] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [activeMedia, setActiveMedia] = useState(null)
@@ -302,16 +302,20 @@ export default function DiveList({ tripId, tripGpsLocation }) {
         <div>
           <h2 className="font-semibold text-foreground">Dives</h2>
           {canEdit && (
-            <p className="text-xs text-muted-foreground mt-0.5 [@media(hover:hover)]:hidden">
+            <p className="hidden sm:block text-xs text-muted-foreground mt-0.5">
               Hold file to reorder · drag to another dive to move
             </p>
           )}
         </div>
         {canEdit && (
-          <button onClick={() => setShowForm(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 transition-colors">
-            <Plus size={14} /> Add Dive
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <MarineButton variant="outline" icon={FolderOpen} onClick={() => setShowFolderImport(true)} className="max-sm:w-9 max-sm:px-0">
+              <span className="hidden sm:inline">Import Folder</span>
+            </MarineButton>
+            <MarineButton variant="solid" icon={Plus} onClick={() => setShowForm(true)} className="max-sm:w-9 max-sm:px-0">
+              <span className="hidden sm:inline">Add Dive</span>
+            </MarineButton>
+          </div>
         )}
       </div>
 
@@ -324,7 +328,7 @@ export default function DiveList({ tripId, tripGpsLocation }) {
       ) : (
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCenter}
+          collisionDetection={pointerWithin}
           onDragStart={handleDragStart}
           onDragEnd={handleDragEnd}
         >
@@ -342,7 +346,7 @@ export default function DiveList({ tripId, tripGpsLocation }) {
               />
             ))}
           </div>
-          <DragOverlay dropAnimation={null}>
+          <DragOverlay dropAnimation={null} modifiers={[snapCenterToCursor]}>
             {activeMedia?.media ? (
               <div className="w-24 aspect-square rounded-lg bg-card shadow-2xl opacity-90 flex flex-col items-center justify-center gap-1 border-2 border-primary">
                 <File size={20} className="text-muted-foreground" />
@@ -356,6 +360,14 @@ export default function DiveList({ tripId, tripGpsLocation }) {
       )}
 
       {showForm && <DiveForm tripId={tripId} diveData={editing} onClose={handleClose} />}
+
+      {showFolderImport && (
+        <ROVDataUpload
+          tripId={tripId}
+          onClose={() => setShowFolderImport(false)}
+          onDiveCreated={() => queryClient.invalidateQueries({ queryKey: ['dives', tripId] })}
+        />
+      )}
 
       {confirmDelete && (
         <ConfirmDialog

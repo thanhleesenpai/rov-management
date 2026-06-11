@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Anchor, MapPin, Radio, Activity, Upload, Pencil, Download, FileText, MoreVertical } from 'lucide-react'
+import { ArrowLeft, Anchor, MapPin, Radio, Upload, Pencil, Download, FileText, MoreVertical } from 'lucide-react'
 import { MarineTableStatus } from '@/components/bespoke/MarineTable'
 
 function StatusDot({ status }) {
@@ -29,8 +29,7 @@ export function DiveHeader({
   hasSensor,
   canUpload,
   canEdit,
-  setShowSensorUp,
-  setShowUpload,
+  setShowROVUpload,
   setShowForm,
   showExport,
   setShowExport,
@@ -82,16 +81,9 @@ export function DiveHeader({
         {dive.trip && (
           <Link to={`/trips/${dive.trip._id}`}
             title={dive.trip.name}
-            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[4px]
-                       border border-slate-200 dark:border-slate-700
-                       bg-slate-50 dark:bg-slate-800
-                       text-[11px] font-mono uppercase tracking-wider
-                       text-slate-600 dark:text-slate-400
-                       hover:border-cyan-300 dark:hover:border-cyan-700
-                       hover:text-cyan-700 dark:hover:text-cyan-400
-                       transition-colors truncate max-w-[160px]">
-            <Anchor size={10} className="shrink-0" />
-            Trip: {dive.trip.name}
+            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] border border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50 transition-colors cursor-pointer truncate max-w-[160px]">
+            <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">TRIP</span>
+            <span className="text-sm font-mono text-foreground">{dive.trip.name}</span>
           </Link>
         )}
         {hasGps && dive.locationName && (
@@ -107,22 +99,15 @@ export function DiveHeader({
       <div className="hidden md:flex items-center gap-2 shrink-0">
         {hasSensor && (
           <span className="flex items-center gap-1 pl-1.5 pr-2 py-0.5 rounded-full shrink-0
-                           text-[10px] font-bold
+                           text-[10px] uppercase tracking-widest font-semibold
                            text-emerald-700 bg-emerald-50 border border-emerald-200
                            dark:text-emerald-300 dark:bg-emerald-900/25 dark:border-emerald-800">
             <Radio size={10} className="animate-pulse shrink-0" />
-            Synced
+            SYNCED
           </span>
         )}
         {canUpload && (
-          <button onClick={() => setShowSensorUp(true)} title="Upload sensor data"
-            className="p-2 rounded-lg text-muted-foreground hover:text-primary
-                       hover:bg-muted transition-colors">
-            <Activity size={15} />
-          </button>
-        )}
-        {canUpload && (
-          <button onClick={() => setShowUpload(true)} title="Upload media"
+          <button onClick={() => setShowROVUpload(true)} title="Upload data & media"
             className="p-2 rounded-lg text-muted-foreground hover:text-primary
                        hover:bg-muted transition-colors">
             <Upload size={15} />
@@ -170,26 +155,19 @@ export function DiveHeader({
         {dive.trip && (
           <Link to={`/trips/${dive.trip._id}`}
             title={dive.trip.name}
-            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-[4px]
-                       border border-slate-200 dark:border-slate-700
-                       bg-slate-50 dark:bg-slate-800
-                       text-[11px] font-mono uppercase tracking-wider
-                       text-slate-600 dark:text-slate-400
-                       hover:border-cyan-300 dark:hover:border-cyan-700
-                       hover:text-cyan-700 dark:hover:text-cyan-400
-                       transition-colors shrink-0 max-w-[100px]">
-            <Anchor size={10} className="shrink-0" />
-            <span className="truncate">{dive.trip.name}</span>
+            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] border border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50 transition-colors cursor-pointer truncate max-w-[100px]">
+            <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">TRIP</span>
+            <span className="text-sm font-mono text-foreground">{dive.trip.name}</span>
           </Link>
         )}
 
         {hasSensor && (
           <span className="flex items-center gap-1 pl-1.5 pr-2 py-0.5 rounded-full shrink-0
-                           text-[10px] font-bold
+                           text-[10px] uppercase tracking-widest font-semibold
                            text-emerald-700 bg-emerald-50 border border-emerald-200
                            dark:text-emerald-300 dark:bg-emerald-900/25 dark:border-emerald-800">
             <Radio size={10} className="animate-pulse shrink-0" />
-            Synced
+            SYNCED
           </span>
         )}
 
@@ -206,19 +184,11 @@ export function DiveHeader({
           <div className="absolute right-0 top-full mt-1.5 w-52 bg-card border border-border
                           rounded-xl shadow-lg py-1 z-50">
             {canUpload && (
-              <button onClick={() => { setShowSensorUp(true); setShowMobileMenu(false) }}
-                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground
-                           hover:bg-muted transition-colors text-left">
-                <Activity size={13} className="text-muted-foreground shrink-0" />
-                Upload Sensor
-              </button>
-            )}
-            {canUpload && (
-              <button onClick={() => { setShowUpload(true); setShowMobileMenu(false) }}
+              <button onClick={() => { setShowROVUpload(true); setShowMobileMenu(false) }}
                 className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground
                            hover:bg-muted transition-colors text-left">
                 <Upload size={13} className="text-muted-foreground shrink-0" />
-                Upload Media
+                Upload
               </button>
             )}
             {canEdit && (

@@ -14,17 +14,17 @@ export const MarineDatePicker = forwardRef(({ className = '', includeTime = fals
           } catch(err) {} 
         }}
         className="
-          w-full h-[38px] pl-3 pr-8 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md shadow-sm
-          text-xs font-mono tracking-widest text-slate-700 dark:text-slate-300
-          hover:border-slate-300 dark:hover:border-slate-600 hover:bg-slate-50/50 dark:hover:bg-slate-800/50
-          focus:outline-none focus:border-cyan-500 focus:ring-4 focus:ring-cyan-500/10 dark:focus:border-cyan-400 dark:focus:ring-cyan-400/10
+          w-full h-[38px] pl-3 pr-8 py-2 bg-background border border-input rounded-md shadow-sm
+          text-xs font-mono tracking-widest text-foreground
+          hover:border-ring/50 hover:bg-muted/20
+          focus:outline-none focus:border-ring focus:ring-2 focus:ring-ring/30
           transition-all duration-200 dark:[color-scheme:dark] cursor-pointer select-none
           [&::-webkit-calendar-picker-indicator]:hidden
           [&::-webkit-datetime-edit]:py-0 [&::-webkit-datetime-edit-fields-wrapper]:p-0
         "
         {...props}
       />
-      <Calendar className="absolute right-3 w-4 h-4 text-slate-400 pointer-events-none" />
+      <Calendar className="absolute right-3 w-4 h-4 text-muted-foreground pointer-events-none" />
     </div>
   )
 })

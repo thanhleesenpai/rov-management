@@ -21,6 +21,7 @@ export default function ExportMenu({ onExportCSV, onExportPDF, loading }) {
         onClick={() => setOpen(v => !v)}
         disabled={loading}
         title="Export"
+        className="max-sm:w-9 max-sm:px-0"
       >
         <span className="hidden sm:inline">Export</span>
       </MarineButton>
