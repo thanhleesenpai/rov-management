@@ -6,7 +6,8 @@ import api from '@/lib/axios'
 import { MarineButton } from '@/components/bespoke/MarineButton'
 import { MarineInput } from '@/components/bespoke/MarineInput'
 
-const GOOGLE_AUTH_URL = '/api/v1/auth/google'
+const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
+const GOOGLE_AUTH_URL = `${API_BASE}/auth/google`
 
 function GoogleButton() {
   const GoogleIcon = () => (

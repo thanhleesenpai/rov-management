@@ -7,12 +7,12 @@ import { Activity } from 'lucide-react'
 
 // ─── Metric definitions ───────────────────────────────────────────────────────
 
-// Environment: water/environment sensors
+// Environment: depth (left axis, m) + water temperature (right axis, °C).
+// Depth values are negative (0 = surface, -30 = 30 m deep) so Recharts'
+// default domain naturally places surface at top and deeper at bottom.
 const ENV_METRICS = [
-  { key: 'depth',    label: 'Depth',      unit: 'm',   color: '#0891b2' },
-  { key: 'temp',     label: 'Water Temp', unit: '°C',  color: '#f59e0b' },
-  { key: 'humidity', label: 'Humidity',   unit: '%',   color: '#10b981' },
-  { key: 'pressure', label: 'Pressure',   unit: 'bar', color: '#6366f1' },
+  { key: 'depth', label: 'Depth',      unit: 'm',  color: '#0891b2', axis: 'left'  },
+  { key: 'temp',  label: 'Water Temp', unit: '°C', color: '#f59e0b', axis: 'right' },
 ]
 
 // Navigation: orientation
@@ -22,15 +22,12 @@ const NAV_METRICS = [
   { key: 'roll',  label: 'Roll',  color: '#f97316' },
 ]
 
-// System: machine / power / control
-// axis: 'left' (0–100 range) | 'right' (V / °C)
+// System: axis 'left' = % scale (0–100), 'right' = voltage/temp scale
 const SYS_METRICS = [
-  { key: 'battery_percent', label: 'Battery',      unit: '%',  color: '#3b82f6', axis: 'left'  },
-  { key: 'lightLevel',      label: 'Light Level',  unit: '%',  color: '#facc15', axis: 'left'  },
-  { key: 'powerLevel',      label: 'Power Level',  unit: '%',  color: '#a855f7', axis: 'left'  },
-  { key: 'cameraTilt',      label: 'Camera Tilt',  unit: '°',  color: '#64748b', axis: 'left'  },
-  { key: 'voltage',         label: 'Voltage',      unit: 'V',  color: '#f59e0b', axis: 'right' },
-  { key: 'temperature',     label: 'Temperature',  unit: '°C', color: '#f43f5e', axis: 'right' },
+  { key: 'humidity',    label: 'Humidity',    unit: '%',  color: '#10b981', axis: 'left'  },
+  { key: 'powerLevel',  label: 'Power Level', unit: '%',  color: '#a855f7', axis: 'left'  },
+  { key: 'voltage',     label: 'Voltage',     unit: 'V',  color: '#f59e0b', axis: 'right' },
+  { key: 'temperature', label: 'Board Temp',  unit: '°C', color: '#f43f5e', axis: 'right' },
 ]
 
 const MOCK_YPR = Array.from({ length: 24 }, (_, i) => ({
@@ -74,7 +71,7 @@ function AnomalyDot({ cx, cy, payload, dataKey, anomalySet }) {
 
 function LegendToggle({ metrics, hidden, setHidden, chartData, showDemoNote }) {
   return (
-    <div className="hidden sm:flex items-center gap-3 mr-4 flex-wrap">
+    <div className="hidden sm:flex items-center gap-3 mr-4 flex-nowrap overflow-x-auto max-w-[240px]" style={{ scrollbarWidth: 'none' }}>
       {metrics.map(({ key, label, color }) => {
         const hasData = chartData.some(d => d[key] != null)
         if (!hasData) return null
@@ -168,11 +165,11 @@ export function BottomChart({
 
       <div className="flex-1 min-h-0 relative p-3">
 
-        {/* ── ENVIRONMENT ────────────────────────────────── */}
+        {/* ── ENVIRONMENT: Depth (left, m) + Water Temp (right, °C) ── */}
         {chartTab === 'env' && (
           chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 4, right: 36, left: -12, bottom: 0 }}>
+              <AreaChart data={chartData} margin={{ top: 4, right: 44, left: -12, bottom: 0 }}>
                 <defs>
                   {ENV_METRICS.map(({ key, color }) => (
                     <linearGradient key={key} id={`g_${key}`} x1="0" y1="0" x2="0" y2="1">
@@ -183,20 +180,23 @@ export function BottomChart({
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--border))" vertical={false} />
                 <XAxis dataKey="timestamp" tickFormatter={fmtTime} {...AXIS} interval="preserveStartEnd" />
-                <YAxis {...AXIS} width={28} />
+                {/* Left axis: depth (m) — negative values, surface at top by default */}
+                <YAxis yAxisId="left"  {...AXIS} width={32} unit="m" />
+                {/* Right axis: water temperature (°C) */}
+                <YAxis yAxisId="right" {...AXIS} width={36} orientation="right" unit="°C" />
                 <Tooltip content={<ChartTooltip />} />
                 {syncIdx != null && chartData[syncIdx] && (
-                  <ReferenceLine x={chartData[syncIdx].timestamp}
+                  <ReferenceLine yAxisId="left" x={chartData[syncIdx].timestamp}
                     stroke="#ef4444" strokeWidth={1.5} strokeDasharray="4 2"
                     label={{ value: '▶', position: 'insideTopRight', fill: '#ef4444', fontSize: 10 }}
                   />
                 )}
                 <Brush {...brushProps} />
-                {ENV_METRICS.map(({ key, label, color }) => {
+                {ENV_METRICS.map(({ key, label, color, axis }) => {
                   const hasData = chartData.some(d => d[key] != null)
                   if (!hasData || hidden[key]) return null
                   return (
-                    <Area key={key} type="monotone" dataKey={key} name={label}
+                    <Area key={key} yAxisId={axis} type="monotone" dataKey={key} name={label}
                       stroke={color} strokeWidth={1.5} fill={`url(#g_${key})`}
                       dot={(p) => <AnomalyDot {...p} dataKey={key} anomalySet={anomalySet} />}
                       activeDot={{ r: 4 }} isAnimationActive={false} connectNulls />

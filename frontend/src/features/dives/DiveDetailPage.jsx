@@ -1436,11 +1436,16 @@ export default function DiveDetailPage() {
 
           {/* Sonar — only in sonar mode, slaved to video currentTime */}
           {isSonarMode && (
-            <div className="flex-1 min-h-0 rounded-xl bg-card border border-border overflow-hidden flex flex-col">
-              <div className="px-3 py-1.5 border-b border-border shrink-0">
+            <div className="flex-none h-56 rounded-xl bg-card border border-border overflow-hidden flex flex-col">
+              <div className="flex items-center justify-between px-3 py-1.5 border-b border-border shrink-0">
                 <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
                   <Radio size={9} /> Sonar
                 </span>
+                <button onClick={() => setIsSonarMode(false)}
+                  className="text-muted-foreground hover:text-foreground transition-colors"
+                  title="Exit sonar mode">
+                  <X size={11} />
+                </button>
               </div>
               <div className="flex-1 min-h-0">
                 <SonarViewer diveId={dive._id} syncTime={currentVideoTime} />
@@ -1449,7 +1454,7 @@ export default function DiveDetailPage() {
           )}
 
           {/* Alerts — compact in sonar mode (height constrained), full otherwise */}
-          <AlertsPanel anomalies={anomalies} hasSensor={hasSensor} compact={isSonarMode} />
+          <AlertsPanel anomalies={anomalies} hasSensor={hasSensor} />
 
         </div>
       </div>

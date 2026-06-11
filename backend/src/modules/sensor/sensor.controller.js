@@ -118,7 +118,7 @@ const getSensorData = async (req, res, next) => {
     if (raw.length === 0) return success(res, { data: [], stats: null, anomalies: [] });
 
     const stats = {};
-    for (const metric of ['depth', 'temp', 'temperature', 'pressure', 'voltage', 'battery_percent', 'humidity']) {
+    for (const metric of ['depth', 'temp', 'temperature', 'pressure', 'voltage', 'battery_percent', 'humidity', 'powerLevel', 'lightLevel', 'cameraTilt']) {
       const vals = raw.map(r => r[metric]).filter(v => v != null);
       if (!vals.length) { stats[metric] = null; continue; }
       stats[metric] = {
