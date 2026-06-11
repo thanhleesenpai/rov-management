@@ -1,0 +1,42 @@
+\documentclass[../DoAn.tex]{subfiles}
+\begin{document}
+Phụ lục này bổ sung các đặc tả cho các Use Case cơ bản (nhóm chức năng CRUD và quản lý người dùng), vốn đóng vai trò nền tảng để hỗ trợ cho các Use Case nghiệp vụ chính đã được trình bày trong Chương 2.
+
+\section{Đặc tả Use Case: Đăng nhập bằng tài khoản Google}
+- \textbf{Tên Use Case:} Đăng nhập (Google OAuth2).
+- \textbf{Tiền điều kiện:} Tác nhân có tài khoản Google hợp lệ.
+- \textbf{Luồng sự kiện chính:}
+  1. Tác nhân truy cập trang đăng nhập và chọn "Continue with Google".
+  2. Hệ thống chuyển hướng sang trang xác thực của Google.
+  3. Sau khi xác thực thành công, Google trả về thông tin hồ sơ (Email, Tên, Ảnh đại diện).
+  4. Hệ thống kiểm tra trong cơ sở dữ liệu. Nếu là người dùng mới, tự động tạo tài khoản với vai trò mặc định (Viewer).
+  5. Hệ thống cấp phát JSON Web Token (Access Token và Refresh Token).
+  6. Tác nhân được chuyển hướng vào trang Bảng điều khiển (Dashboard).
+- \textbf{Luồng sự kiện phát sinh:} Xác thực thất bại hoặc người dùng hủy bỏ, hệ thống đưa tác nhân quay lại trang đăng nhập kèm thông báo lỗi.
+- \textbf{Hậu điều kiện:} Tác nhân được đăng nhập thành công và có thể sử dụng các chức năng theo quyền hạn.
+
+\section{Đặc tả Use Case: Quản lý Chuyến đi và Lượt lặn}
+- \textbf{Tên Use Case:} Quản lý Nhiệm vụ (Trips/Dives Management).
+- \textbf{Tiền điều kiện:} Tác nhân có vai trò Operator hoặc Admin.
+- \textbf{Luồng sự kiện chính:}
+  1. Tác nhân chọn chức năng "Tạo chuyến đi mới".
+  2. Hệ thống hiển thị biểu mẫu yêu cầu nhập tên chuyến đi, chọn phương tiện ROV, vị trí và thời gian bắt đầu.
+  3. Tác nhân điền đầy đủ thông tin và xác nhận.
+  4. Hệ thống lưu vào cơ sở dữ liệu và chuyển hướng đến trang Chi tiết chuyến đi.
+  5. Tại đây, tác nhân tiếp tục chọn "Thêm lượt lặn" (Add Dive).
+  6. Hệ thống tạo một lượt lặn mới trực thuộc chuyến đi vừa tạo.
+- \textbf{Hậu điều kiện:} Chuyến đi và Lượt lặn được khởi tạo thành công, sẵn sàng tiếp nhận dữ liệu tải lên.
+
+\section{Đặc tả Use Case: Quản lý Người dùng (Admin)}
+- \textbf{Tên Use Case:} Quản trị Người dùng (User Management).
+- \textbf{Tiền điều kiện:} Tác nhân bắt buộc phải có đặc quyền Admin.
+- \textbf{Luồng sự kiện chính:}
+  1. Admin truy cập trang "Quản lý Người dùng".
+  2. Hệ thống hiển thị danh sách tất cả tài khoản trong hệ thống kèm trạng thái (Active/Disabled) và vai trò (Role).
+  3. Admin chọn một người dùng cụ thể và thay đổi vai trò từ Viewer sang Operator.
+  4. Admin lưu thay đổi. Hệ thống cập nhật cơ sở dữ liệu và lưu vết hành động vào Audit Log.
+  5. Khi người dùng bị thay đổi quyền thực hiện thao tác mới, hệ thống sẽ áp dụng quyền hạn mới ngay lập tức.
+- \textbf{Luồng sự kiện phát sinh:} Admin tự vô hiệu hóa (Disable) tài khoản của chính mình. Hệ thống sẽ chặn hành động này (Self-protection) và đưa ra cảnh báo.
+- \textbf{Hậu điều kiện:} Phân quyền hệ thống được cập nhật an toàn, minh bạch.
+
+\end{document}

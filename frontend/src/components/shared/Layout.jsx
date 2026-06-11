@@ -19,7 +19,7 @@ export default function Layout() {
     <div className="flex h-screen bg-background overflow-hidden">
       {mobileOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-20 lg:hidden"
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}

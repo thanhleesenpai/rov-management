@@ -68,17 +68,11 @@ const confirmUpload = async (mediaId) => {
   return media;
 };
 
-// Synced videos (recordedAt set) come first sorted by recordedAt ASC (timeline order).
-// Normal media (recordedAt null) follow, sorted by user-defined order then createdAt.
+// All media sorted by user-defined order then createdAt (recordedAt doesn't affect ordering)
 const getByDive = async (diveId) => {
-  const base = { dive: diveId, status: 'ready' };
-  const [synced, normal] = await Promise.all([
-    Media.find({ ...base, recordedAt: { $ne: null } })
-      .populate('uploadedBy', 'fullName').sort({ recordedAt: 1 }),
-    Media.find({ ...base, recordedAt: null })
-      .populate('uploadedBy', 'fullName').sort({ order: 1, createdAt: 1 }),
-  ]);
-  return [...synced, ...normal];
+  return Media.find({ dive: diveId, status: 'ready' })
+    .populate('uploadedBy', 'fullName')
+    .sort({ order: 1, createdAt: 1 });
 };
 
 const reorder = async (items) => {
@@ -102,7 +96,11 @@ const createViewUrl = async (mediaId) => {
   const media = await Media.findById(mediaId);
   if (!media) throw { statusCode: 404, message: 'Media not found' };
 
-  const command = new GetObjectCommand({ Bucket: BUCKET, Key: media.s3Key });
+  const command = new GetObjectCommand({
+    Bucket: BUCKET,
+    Key: media.s3Key,
+    ResponseContentDisposition: `attachment; filename="${media.originalName || 'download'}"`,
+  });
   const url = await getSignedUrl(s3, command, { expiresIn: 3600 }); // 1 giờ
   return { url, media };
 };
@@ -161,7 +159,7 @@ const enqueueAnalysis = async (mediaId, { model = 'yolov8n', confidence = 0.3 } 
 
   const media = await Media.findByIdAndUpdate(
     mediaId,
-    { analysisStatus: 'pending', labels: [] },
+    { analysisStatus: 'pending' },
     { new: true }
   ).populate('uploadedBy', '_id');
   if (!media) throw { statusCode: 404, message: 'Media not found' };
@@ -173,4 +171,14 @@ const enqueueAnalysis = async (mediaId, { model = 'yolov8n', confidence = 0.3 } 
   return media;
 };
 
-module.exports = { createPresignedUploadUrl, confirmUpload, getByDive, getByTrip, createViewUrl, remove, bulkRemove, reorder, moveToDive, getPublicUrl, update, enqueueAnalysis };
+const cancelAnalysis = async (mediaId) => {
+  const media = await Media.findByIdAndUpdate(
+    mediaId,
+    { analysisStatus: 'failed' },
+    { new: true }
+  );
+  if (!media) throw { statusCode: 404, message: 'Media not found' };
+  return media;
+};
+
+module.exports = { createPresignedUploadUrl, confirmUpload, getByDive, getByTrip, createViewUrl, remove, bulkRemove, reorder, moveToDive, getPublicUrl, update, enqueueAnalysis, cancelAnalysis };

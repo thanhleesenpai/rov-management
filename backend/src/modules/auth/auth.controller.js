@@ -2,19 +2,7 @@ const { validationResult } = require('express-validator');
 const authService = require('./auth.service');
 const { success } = require('../../utils/response.util');
 
-// Store the s3Key in the DB, generate a fresh 1-hour presigned URL on every response.
-// Handles Google OAuth avatars (https://…) transparently — they're returned as-is.
-async function freshenAvatar(avatar) {
-  if (!avatar || !avatar.startsWith('avatars/')) return avatar ?? null;
-  const { GetObjectCommand } = require('@aws-sdk/client-s3');
-  const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
-  const s3 = require('../../config/s3');
-  return getSignedUrl(
-    s3,
-    new GetObjectCommand({ Bucket: process.env.S3_BUCKET, Key: avatar }),
-    { expiresIn: 3600 }
-  );
-}
+const { freshenAvatar } = require('../../utils/avatar.util');
 
 const register = async (req, res, next) => {
   try {

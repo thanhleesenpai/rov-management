@@ -43,12 +43,19 @@ const upload = async (req, res, next) => {
         depth:           Number(r.depth),
         temp:            optNum(r.temp),
         pressure:        optNum(r.pressure),
+        temperature:     optNum(r.temperature),
         yaw:             optNum(r.yaw),
         pitch:           optNum(r.pitch),
         roll:            optNum(r.roll),
         voltage:         optNum(r.voltage),
         battery_percent: optNum(r.battery_percent),
         humidity:        optNum(r.humidity),
+        holdDepth:       optNum(r.holdDepth),
+        holdHeading:     optNum(r.holdHeading),
+        manual:          optNum(r.manual),
+        cameraTilt:      optNum(r.cameraTilt),
+        lightLevel:      optNum(r.lightLevel),
+        powerLevel:      optNum(r.powerLevel),
       });
     }
 
@@ -111,7 +118,7 @@ const getSensorData = async (req, res, next) => {
     if (raw.length === 0) return success(res, { data: [], stats: null, anomalies: [] });
 
     const stats = {};
-    for (const metric of ['depth', 'temp', 'pressure', 'voltage', 'battery_percent', 'humidity']) {
+    for (const metric of ['depth', 'temp', 'temperature', 'pressure', 'voltage', 'battery_percent', 'humidity', 'powerLevel', 'lightLevel', 'cameraTilt']) {
       const vals = raw.map(r => r[metric]).filter(v => v != null);
       if (!vals.length) { stats[metric] = null; continue; }
       stats[metric] = {
@@ -124,8 +131,11 @@ const getSensorData = async (req, res, next) => {
     const anomalies = [
       ...zScoreAnomalies(raw, 'depth'),
       ...zScoreAnomalies(raw, 'temp'),
+      ...zScoreAnomalies(raw, 'temperature'),
       ...zScoreAnomalies(raw, 'pressure'),
       ...zScoreAnomalies(raw, 'voltage'),
+      ...zScoreAnomalies(raw, 'battery_percent'),
+      ...zScoreAnomalies(raw, 'humidity'),
     ].sort((a, b) => a.index - b.index);
 
     const data = raw.map(r => ({
@@ -133,12 +143,19 @@ const getSensorData = async (req, res, next) => {
       depth:           r.depth,
       temp:            r.temp,
       pressure:        r.pressure,
+      temperature:     r.temperature     ?? null,
       yaw:             r.yaw             ?? null,
       pitch:           r.pitch           ?? null,
       roll:            r.roll            ?? null,
       voltage:         r.voltage         ?? null,
       battery_percent: r.battery_percent ?? null,
       humidity:        r.humidity        ?? null,
+      holdDepth:       r.holdDepth       ?? null,
+      holdHeading:     r.holdHeading     ?? null,
+      manual:          r.manual          ?? null,
+      cameraTilt:      r.cameraTilt      ?? null,
+      lightLevel:      r.lightLevel      ?? null,
+      powerLevel:      r.powerLevel      ?? null,
     }));
 
     success(res, { data, stats, anomalies });

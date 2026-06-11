@@ -4,6 +4,9 @@ import { useMutation } from '@tanstack/react-query'
 import { User, KeyRound, Settings, Save, Eye, EyeOff, Camera } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/axios'
+import { MarineSelect } from '@/components/bespoke/MarineSelect'
+import { MarineButton } from '@/components/bespoke/MarineButton'
+import { MarineInput } from '@/components/bespoke/MarineInput'
 import { useAuthStore } from '@/store/auth.store'
 
 const TABS = [
@@ -96,50 +99,51 @@ function ProfileTab({ user, updateUser, isPending }) {
       <div className="border-t border-border pt-6 space-y-4">
         <div>
           <label className="block text-sm font-medium text-foreground mb-1">Full Name</label>
-          <input
+          <MarineInput
             type="text"
             value={form.fullName}
             onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))}
-            className="w-full border border-input bg-background text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring max-w-md"
+            className="max-w-md"
           />
         </div>
         <div>
           <label className="block text-sm font-medium text-foreground mb-1">Email</label>
-          <input
+          <MarineInput
             type="email"
             value={user?.email || ''}
             disabled
-            className="w-full border border-input bg-muted text-muted-foreground rounded-lg px-3 py-2 text-sm max-w-md cursor-not-allowed"
+            className="max-w-md"
           />
           <p className="text-xs text-muted-foreground mt-1">Email cannot be changed</p>
         </div>
         <div>
           <label className="block text-sm font-medium text-foreground mb-1">Role</label>
-          <input
+          <MarineInput
             type="text"
             value={user?.role || ''}
             disabled
-            className="w-full border border-input bg-muted text-muted-foreground rounded-lg px-3 py-2 text-sm max-w-md cursor-not-allowed capitalize"
+            className="max-w-md capitalize"
           />
         </div>
         <div>
           <label className="block text-sm font-medium text-foreground mb-1">Member Since</label>
-          <input
+          <MarineInput
             type="text"
             value={user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : '—'}
             disabled
-            className="w-full border border-input bg-muted text-muted-foreground rounded-lg px-3 py-2 text-sm max-w-md cursor-not-allowed"
+            className="max-w-md"
           />
         </div>
       </div>
 
-      <button
+      <MarineButton
+        variant="solid"
+        icon={Save}
         onClick={() => updateUser({ fullName: form.fullName })}
         disabled={isPending || form.fullName === user?.fullName || !form.fullName}
-        className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
-        <Save size={15} /> {isPending ? 'Saving...' : 'Save Changes'}
-      </button>
+        {isPending ? 'Saving...' : 'Save Changes'}
+      </MarineButton>
     </div>
   )
 }
@@ -151,18 +155,20 @@ function PasswordField({ label, show, onToggle, value, onChange }) {
     <div>
       <label className="block text-sm font-medium text-foreground mb-1">{label}</label>
       <div className="relative max-w-md">
-        <input
+        <MarineInput
           type={show ? 'text' : 'password'}
           value={value}
           onChange={onChange}
-          className={inputCls}
+          className="pr-10"
           required
         />
-        <button type="button"
+        <MarineButton
+          variant="icon"
+          type="button"
+          icon={show ? EyeOff : Eye}
           onClick={onToggle}
-          className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
-          {show ? <EyeOff size={15} /> : <Eye size={15} />}
-        </button>
+          className="absolute right-2 top-1/2 -translate-y-1/2"
+        />
       </div>
     </div>
   )
@@ -203,27 +209,30 @@ function PasswordTab() {
       <PasswordField label="Confirm New Password" value={form.confirmPassword}
         onChange={e => setForm(f => ({ ...f, confirmPassword: e.target.value }))}
         show={show.confirm} onToggle={() => setShow(s => ({ ...s, confirm: !s.confirm }))} />
-      <button
+      <MarineButton
+        variant="solid"
+        icon={Save}
         type="submit"
         disabled={mutation.isPending}
-        className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors"
       >
-        <Save size={15} />
         {mutation.isPending ? 'Saving...' : 'Update Password'}
-      </button>
+      </MarineButton>
     </form>
   )
 }
 
+
+
 function SettingsTab() {
+  const [lang, setLang] = useState('en')
   return (
     <div className="space-y-6 max-w-md">
       <div className="bg-muted rounded-lg p-4">
         <p className="text-sm font-medium text-foreground mb-1">Language</p>
-        <select className="w-full border border-input bg-background text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+        <MarineSelect value={lang} onChange={(e) => setLang(e.target.value)}>
           <option value="en">English</option>
           <option value="vi">Tiếng Việt</option>
-        </select>
+        </MarineSelect>
       </div>
       <div className="bg-muted rounded-lg p-4 flex items-center justify-between">
         <div>

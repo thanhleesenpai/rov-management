@@ -1,8 +1,10 @@
 import axios from 'axios'
 import { useAuthStore } from '@/store/auth.store'
 
+const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
+
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: API_BASE,
   headers: { 'Content-Type': 'application/json' }
 })
 
@@ -15,11 +17,11 @@ api.interceptors.request.use(async (config) => {
     const refreshToken = useAuthStore.getState().refreshToken
     if (refreshToken) {
       try {
-        const res = await axios.post('/api/v1/auth/refresh', { refreshToken })
+        const res = await axios.post(`${API_BASE}/auth/refresh`, { refreshToken })
         token = res.data.data.accessToken
         useAuthStore.getState().setAccessToken(token)
         // Refresh user data so persisted avatar URL (which expires) is always up to date
-        const meRes = await axios.get('/api/v1/auth/me', { headers: { Authorization: `Bearer ${token}` } })
+        const meRes = await axios.get(`${API_BASE}/auth/me`, { headers: { Authorization: `Bearer ${token}` } })
         useAuthStore.getState().updateUser(meRes.data.data)
       } catch {
         useAuthStore.getState().logout()
@@ -46,7 +48,7 @@ api.interceptors.response.use(
       original._retry = true
       try {
         const refreshToken = useAuthStore.getState().refreshToken
-        const res = await axios.post('/api/v1/auth/refresh', { refreshToken })
+        const res = await axios.post(`${API_BASE}/auth/refresh`, { refreshToken })
         const newAccessToken = res.data.data.accessToken
         useAuthStore.getState().setAccessToken(newAccessToken)
         original.headers.Authorization = `Bearer ${newAccessToken}`

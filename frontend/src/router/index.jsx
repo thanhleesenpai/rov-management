@@ -94,3 +94,5 @@ export const router = createBrowserRouter([
     element: <NotFoundPage />
   }
 ])
+
+// force vite hmr

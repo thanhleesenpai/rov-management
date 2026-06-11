@@ -159,4 +159,13 @@ const getModels = async (req, res, next) => {
   }
 };
 
-module.exports = { getUploadUrl, confirmUpload, getByDive, getByTrip, getViewUrl, remove, bulkDelete, reorder, moveMedia, update, analyze, getModels };
+const cancelAnalyze = async (req, res, next) => {
+  try {
+    await mediaService.cancelAnalysis(req.params.id);
+    return success(res, null, 'Analysis cancelled');
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { getUploadUrl, confirmUpload, getByDive, getByTrip, getViewUrl, remove, bulkDelete, reorder, moveMedia, update, analyze, cancelAnalyze, getModels };

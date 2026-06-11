@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:alpine
+    container_name: rov_redis
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    container_name: rov_backend
+    env_file: ./backend/.env
+    environment:
+      # Ghi đè các biến môi trường để dùng internal network trong Docker
+      - REDIS_URL=redis://redis:6379
+      - YOLO_SERVICE_URL=http://yolo:8000
+    ports:
+      - "5000:5000"
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  yolo:
+    build: ./yolo-service
+    container_name: rov_yolo
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    container_name: rov_nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend
+    restart: unless-stopped

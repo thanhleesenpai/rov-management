@@ -19,7 +19,8 @@ export function useSSE() {
     if (!accessToken) return
 
     // EventSource không hỗ trợ Authorization header — truyền token qua query param
-    const url = `/api/v1/notifications/stream?token=${accessToken}`
+    const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
+    const url = `${API_BASE}/notifications/stream?token=${accessToken}`
     const es = new EventSource(url)
 
     es.onmessage = (e) => {

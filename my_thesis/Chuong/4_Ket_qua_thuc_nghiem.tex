@@ -1,0 +1,90 @@
+\documentclass[../DoAn.tex]{subfiles}
+\begin{document}
+
+Chương 4 trình bày quá trình hiện thực hóa các yêu cầu chức năng và phi chức năng đã phân tích ở Chương 2, thông qua việc lựa chọn kiến trúc phần mềm, thiết kế cơ sở dữ liệu và xây dựng giao diện. Đồng thời, chương này cũng đưa ra các kịch bản kiểm thử (Test cases) quan trọng và phác thảo mô hình triển khai hệ thống thực tế trên máy chủ ảo.
+
+\section{Thiết kế kiến trúc}
+\label{section:4.1}
+\subsection{Lựa chọn kiến trúc phần mềm}
+Hệ thống được thiết kế theo kiến trúc \textbf{Client-Server} đa tầng, kết hợp với mô hình \textbf{Microservices} thu nhỏ để xử lý các tác vụ AI đặc thù. Việc tách rời giao diện người dùng (Frontend) và máy chủ xử lý (Backend) giúp tăng khả năng bảo trì và dễ dàng mở rộng. Thay vì gộp chung bộ nhận diện hình ảnh nặng nề vào máy chủ Node.js, đồ án tách riêng khối nhận diện thành một dịch vụ vi mô độc lập chạy bằng Python, giao tiếp với máy chủ chính thông qua giao thức HTTP và Message Queue. 
+
+\subsection{Thiết kế tổng quan (Biểu đồ gói)}
+Hệ thống được chia thành 3 nhóm gói (Package) chính: Gói Giao diện (Presentation Layer), Gói Nghiệp vụ Máy chủ (Business Logic Layer) và Gói Dịch vụ AI (AI Microservice Layer).
+
+\begin{itemize}
+    \item \textbf{Presentation Layer (React):} Chịu trách nhiệm hiển thị (UI Components), quản lý trạng thái luồng (State Management - Zustand) và giao tiếp với API (React Query).
+    \item \textbf{Business Logic Layer (Node.js):} Bao gồm các gói Controllers (xử lý luồng HTTP), Services (logic nghiệp vụ chính như tính toán dữ liệu cảm biến) và Data Access (kết nối MongoDB qua Mongoose).
+    \item \textbf{AI Microservice (Python):} Gói xử lý tách biệt chuyên chạy mô hình học sâu YOLOv8 để trích xuất vật thể từ video, độc lập hoàn toàn với vòng lặp sự kiện của Node.js.
+\end{itemize}
+
+\section{Thiết kế chi tiết}
+\label{section:4.2}
+\subsection{Thiết kế cơ sở dữ liệu}
+Do đặc thù của dữ liệu môi trường luôn thay đổi, hệ quản trị cơ sở dữ liệu phi cấu trúc MongoDB được sử dụng. Cơ sở dữ liệu bao gồm các tập hợp (Collections) chính như sau:
+\begin{itemize}
+    \item \textbf{Users:} Lưu thông tin định danh, email và vai trò (Role) của người dùng.
+    \item \textbf{Trips:} Đại diện cho một chuyến đi lớn, chứa tên, địa điểm, thời gian và mảng tham chiếu đến các Lượt lặn (Dives).
+    \item \textbf{Dives:} Lưu trữ thông tin chi tiết của một lượt lặn, bao gồm đường dẫn tới tệp Video (trên S3) và tham chiếu tới bộ dữ liệu cảm biến.
+    \item \textbf{SensorData:} Lưu trữ chuỗi thời gian (time-series) của các thông số như độ sâu, nhiệt độ, áp suất, độ mặn theo từng giây.
+    \item \textbf{Evidences (Bằng chứng):} Lưu trữ vị trí (timestamp) và tọa độ khung hình của vật thể bất thường được AI phát hiện hoặc người dùng tự đánh dấu.
+\end{itemize}
+
+\subsection{Thiết kế giao diện Bảng điều khiển (Cockpit)}
+Giao diện Cockpit là linh hồn của hệ thống, được thiết kế tập trung vào trải nghiệm theo dõi song song dữ liệu đa phương thức. Màn hình được chia làm hai phần chính: 
+- Nửa trên là Trình phát Video (Video Player) kích thước lớn, hiển thị luồng hình ảnh từ ROV với thanh công cụ điều khiển AI và trích xuất bằng chứng.
+- Nửa dưới là Hệ thống Biểu đồ Đa biến (Multi-axis Charts), hiển thị dữ liệu cảm biến. Một đường gióng dọc (Synchronized Cursor) sẽ liên tục chạy ngang biểu đồ tương ứng chính xác với thời gian phát của video ở nửa trên, giúp người điều khiển đối chiếu dữ liệu một cách trực quan nhất.
+
+\section{Xây dựng ứng dụng}
+\label{section:4.3}
+\subsection{Thư viện và công cụ sử dụng}
+Quá trình xây dựng ứng dụng sử dụng các công cụ và thư viện được liệt kê trong Bảng \ref{table:tools}.
+
+\begin{table}[H]
+\centering{}
+    \begin{tabular}{|l|l|l|}
+        \hline
+        \textbf{Thành phần} & \textbf{Công cụ / Thư viện} & \textbf{Phiên bản} \\ \hline
+        Frontend            & ReactJS, Tailwind CSS, Zustand, Recharts & 18.x, 3.x \\ \hline
+        Backend             & Node.js, Express.js, Mongoose, Bull Queue & 20.x, 4.x \\ \hline
+        AI Microservice     & Python, FastAPI, Ultralytics (YOLOv8) & 3.11, 8.x \\ \hline
+        Database \& Cache   & MongoDB, Redis & 6.x, 7.x \\ \hline
+        IDE Lập trình       & Visual Studio Code & Mới nhất \\ \hline
+        Kiểm thử            & Postman, Artillery, Lighthouse & Mới nhất \\ \hline
+    \end{tabular}
+    \caption{Danh sách công cụ và thư viện sử dụng trong Đồ án}
+    \label{table:tools}
+\end{table}
+
+\subsection{Kết quả đạt được}
+Hệ thống đã hiện thực hóa thành công một nền tảng quản lý thông tin ROV khép kín, từ khâu tải lên dữ liệu thô (video + CSV) đến khâu đồng bộ tự động và tự động nhận diện vật thể bằng trí tuệ nhân tạo.
+
+\section{Kiểm thử (Thiết kế kịch bản)}
+\label{section:4.4}
+Để đảm bảo hệ thống hoạt động ổn định, quy trình kiểm thử được thiết kế chia làm kiểm thử chức năng và kiểm thử hiệu năng.
+
+\textbf{1. Kiểm thử chức năng tải lên file CSV (Functional Test):}
+\begin{itemize}
+    \item \textit{Mục tiêu:} Đảm bảo hệ thống bắt lỗi tốt khi người dùng tải lên file dữ liệu cảm biến sai định dạng.
+    \item \textit{Đầu vào:} Một file CSV thiếu cột bắt buộc "timestamp" hoặc "depth".
+    \item \textit{Kết quả mong đợi:} Hệ thống từ chối tải lên, hiển thị thông báo lỗi (Toast Notification) rõ ràng cho người dùng biết cột nào bị thiếu, và không ghi dữ liệu rác vào MongoDB.
+\end{itemize}
+
+\textbf{2. Kiểm thử chịu tải API (Load Test bằng Artillery):}
+\begin{itemize}
+    \item \textit{Mục tiêu:} Đánh giá khả năng chịu tải của Backend Node.js khi có nhiều người dùng cùng truy xuất dữ liệu cảm biến.
+    \item \textit{Kịch bản:} Bắn 50 request mỗi giây vào API lấy chi tiết Lượt lặn (Dives) liên tục trong 1 phút.
+    \item \textit{Kết quả mong đợi (Dự kiến):} Tỉ lệ lỗi (Error rate) < 1\%, thời gian phản hồi trung bình (p95 latency) dưới 200ms nhờ cơ sở dữ liệu đã được đánh chỉ mục (Index) tốt.
+\end{itemize}
+
+\section{Triển khai thực nghiệm}
+\label{section:4.5}
+Hệ thống được thiết kế để triển khai trên môi trường máy chủ ảo (VPS) sử dụng hệ điều hành Ubuntu Linux. Mô hình triển khai cụ thể như sau:
+\begin{itemize}
+    \item \textbf{Docker Containers:} Cơ sở dữ liệu MongoDB và Redis được đóng gói và chạy trong các container Docker để dễ dàng cô lập và quản lý tài nguyên.
+    \item \textbf{Process Manager (PM2):} Ứng dụng Backend Node.js được duy trì hoạt động bằng PM2, giúp tự động khởi động lại (auto-restart) khi gặp sự cố crash.
+    \item \textbf{Reverse Proxy (Nginx):} Nginx đóng vai trò đứng trước hệ thống, tiếp nhận toàn bộ các luồng truy cập HTTP. Nginx sẽ giải quyết chứng chỉ bảo mật SSL (HTTPS) và điều hướng (route) các luồng yêu cầu tĩnh về thư mục build của ReactJS, và các luồng API về cổng của Node.js.
+\end{itemize}
+
+Trong tương lai, khi hệ thống đi vào vận hành thực tế tại môi trường thử nghiệm, các số liệu về khả năng đáp ứng khung hình (FPS) của dịch vụ AI và băng thông truyền tải video sẽ được đo đạc và cập nhật chi tiết.
+
+\end{document}

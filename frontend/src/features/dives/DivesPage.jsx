@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
-import { Pencil, Trash2, Eye, ExternalLink, Search, X, Anchor, Activity } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { PenLine, Trash, Eye, ExternalLink, Search, X, Anchor, Activity, ArrowRight, MoreVertical, ChevronRight, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 import api from '@/lib/axios'
 import { useAuthStore } from '@/store/auth.store'
@@ -13,6 +13,14 @@ import ExportMenu from '@/components/shared/ExportMenu'
 import { exportDivesCSV, exportDivesPDF } from '@/lib/export'
 import { useDebounce } from '@/hooks/useDebounce'
 import EmptyState from '@/components/shared/EmptyState'
+import { MarineInput } from '@/components/bespoke/MarineInput'
+import { MarineSelect } from '@/components/bespoke/MarineSelect'
+import { MarineDatePicker } from '@/components/bespoke/MarineDatePicker'
+import { 
+  MarineTable, MarineTableHeader, MarineTableBody, 
+  MarineTableRow, MarineTableHead, MarineTableCell, MarineTableStatus,
+  MarineTableActionMenu, MarineTableActionItem
+} from '@/components/bespoke/MarineTable'
 
 const STATUS = {
   pending: { text: 'Pending', cls: 'bg-muted text-muted-foreground' },
@@ -26,6 +34,7 @@ const LIMIT = 10
 export default function DivesPage() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [editing, setEditing] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
   const [search, setSearch] = useState('')
@@ -79,35 +88,37 @@ export default function DivesPage() {
       {/* Search & filter */}
       <div className="space-y-2 mb-4">
         <div className="flex flex-col sm:flex-row gap-2">
-          <div className="relative flex-1">
+          <div className="relative flex-1 mx-0 md:mx-auto">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input type="text" placeholder="Search dive title..."
+            <MarineInput placeholder="Search dive title..."
               value={search} onChange={e => { setSearch(e.target.value); setPage(1) }}
-              className="w-full pl-9 pr-3 py-2 border border-input bg-background text-foreground rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-ring placeholder:text-muted-foreground" />
+              className="pl-9 pr-3 text-sm" />
           </div>
           <div className="flex gap-2">
-            <select value={filterTrip} onChange={e => { setFilterTrip(e.target.value); setPage(1) }}
-              className="flex-1 sm:flex-none border border-input bg-background text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-              <option value="">All Trips</option>
-              {trips?.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
-            </select>
-            <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1) }}
-              className="flex-1 sm:flex-none border border-input bg-background text-foreground rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-              <option value="">All Status</option>
-              <option value="pending">Pending</option>
-              <option value="running">Running</option>
-              <option value="done">Done</option>
-              <option value="failed">Failed</option>
-            </select>
+            <div className="w-32">
+              <MarineSelect value={filterTrip} onChange={e => { setFilterTrip(e.target.value); setPage(1) }} className="text-sm">
+                <option value="">All Trips</option>
+                {trips?.map(t => <option key={t._id} value={t._id}>{t.name}</option>)}
+              </MarineSelect>
+            </div>
+            <div className="w-32">
+              <MarineSelect value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1) }} className="text-sm">
+                <option value="">All Status</option>
+                <option value="pending">Pending</option>
+                <option value="running">Running</option>
+                <option value="done">Done</option>
+                <option value="failed">Failed</option>
+              </MarineSelect>
+            </div>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-muted-foreground shrink-0">Created:</span>
-          <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setPage(1) }}
-            className="border border-input bg-background text-foreground rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-          <span className="text-xs text-muted-foreground">→</span>
-          <input type="date" value={toDate} min={fromDate} onChange={e => { setToDate(e.target.value); setPage(1) }}
-            className="border border-input bg-background text-foreground rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground shrink-0 mr-1 mt-0.5">CREATED:</span>
+            <MarineDatePicker value={fromDate} onChange={e => { setFromDate(e.target.value); setPage(1) }} className="w-full sm:w-[120px]" />
+            <ArrowRight className="w-3 h-3 text-muted-foreground shrink-0 hidden sm:block" />
+            <MarineDatePicker value={toDate} min={fromDate} onChange={e => { setToDate(e.target.value); setPage(1) }} className="w-full sm:w-[120px]" />
+          </div>
           {hasActiveFilter && (
             <button onClick={resetFilters}
               className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 hover:bg-red-100 dark:bg-red-900/20 dark:border-red-800 dark:hover:bg-red-900/30 rounded-lg transition-colors">
@@ -126,124 +137,148 @@ export default function DivesPage() {
       ) : (
         <>
           {/* Desktop table */}
-          <div className="hidden sm:block bg-card rounded-xl shadow overflow-hidden border border-border">
-            <table className="w-full text-sm">
-              <thead className="bg-muted border-b border-border">
-                <tr>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Title</th>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Trip</th>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Status</th>
-                  <th className="text-left px-6 py-3 text-muted-foreground font-medium">Sensor Data</th>
-                  <th className="text-right px-6 py-3 text-muted-foreground font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
+          <div className="hidden xl:block">
+            <MarineTable>
+              <MarineTableHeader>
+                <MarineTableRow>
+                  <MarineTableHead>Title</MarineTableHead>
+                  <MarineTableHead>Trip</MarineTableHead>
+                  <MarineTableHead>Status</MarineTableHead>
+                  <MarineTableHead>Created</MarineTableHead>
+                  <MarineTableHead>Sensor Data</MarineTableHead>
+                  <MarineTableHead align="right">Actions</MarineTableHead>
+                </MarineTableRow>
+              </MarineTableHeader>
+              <MarineTableBody>
                 {dives.map(dive => {
-                  const { text, cls } = STATUS[dive.status] || STATUS.pending
                   return (
-                    <tr key={dive._id} className="hover:bg-muted/50 transition-colors">
-                      <td className="px-6 py-4">
-                        <Link to={`/dives/${dive._id}`} className="font-medium text-foreground hover:text-primary transition-colors">
+                    <MarineTableRow key={dive._id} onClick={() => navigate(`/dives/${dive._id}`)}>
+                      <MarineTableCell>
+                        <Link to={`/dives/${dive._id}`} onClick={e => e.stopPropagation()} className="text-sm font-medium text-foreground hover:text-cyan-600 transition-colors truncate block w-fit">
                           {dive.title}
                         </Link>
-                        {dive.description && <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-xs">{dive.description}</p>}
-                      </td>
-                      <td className="px-6 py-4">
+                        {dive.description && <p className="text-xs font-normal text-muted-foreground mt-0.5 truncate max-w-xs" title={dive.description}>{dive.description}</p>}
+                      </MarineTableCell>
+                      <MarineTableCell>
                         {dive.trip ? (
-                          <Link to={`/trips/${dive.trip._id}`}
-                            className="flex items-center gap-1 text-primary hover:underline text-xs">
-                            {dive.trip.name} <ExternalLink size={11} />
+                          <Link to={`/trips/${dive.trip._id}`} onClick={e => e.stopPropagation()}
+                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] border border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50 transition-colors cursor-pointer truncate"
+                            title={dive.trip.name}>
+                            <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">TRIP</span>
+                            <span className="text-sm font-mono text-foreground">{dive.trip.name}</span>
                           </Link>
-                        ) : '—'}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${cls}`}>{text}</span>
-                      </td>
-                      <td className="px-6 py-4">
+                        ) : <span className="text-slate-400">—</span>}
+                      </MarineTableCell>
+                      <MarineTableCell>
+                        <MarineTableStatus status={dive.status} label={STATUS[dive.status]?.text || 'Unknown'} />
+                      </MarineTableCell>
+                      <MarineTableCell isMono>
+                        {new Date(dive.createdAt).toLocaleDateString()}
+                      </MarineTableCell>
+                      <MarineTableCell>
                         {(dive.sensorCount || 0) > 0 ? (
                           <div>
-                            <div className="flex items-center gap-1 text-xs text-primary">
-                              <Activity size={11} />
-                              <span className="font-medium">{dive.sensorCount.toLocaleString()} readings</span>
+                            <div className="flex items-center gap-1.5 text-sm font-mono text-foreground whitespace-nowrap">
+                              <Activity size={12} className="shrink-0 text-cyan-600" />
+                              <span>{dive.sensorCount.toLocaleString()}</span>
+                              <span className="font-sans text-xs text-muted-foreground font-medium">readings</span>
                             </div>
                             {dive.locationName && (
-                              <p className="text-xs text-muted-foreground mt-0.5 truncate max-w-[180px]">{dive.locationName}</p>
+                              <div className="max-w-[300px] truncate text-slate-500">
+                                <p className="font-sans text-xs mt-0.5" title={dive.locationName}>{dive.locationName}</p>
+                              </div>
                             )}
                           </div>
                         ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
+                          <span className="text-xs text-slate-400">—</span>
                         )}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center justify-end gap-2">
-                          <Link to={`/dives/${dive._id}`} title="View dive details"
-                            className="p-1.5 text-muted-foreground hover:text-primary rounded transition-colors">
-                            <Eye size={15} />
-                          </Link>
-                          {canEdit && (
-                            <button onClick={() => setEditing(dive)}
-                              className="p-1.5 text-muted-foreground hover:text-yellow-500 rounded transition-colors">
-                              <Pencil size={15} />
-                            </button>
-                          )}
-                          {canDelete && (
-                            <button onClick={() => setConfirmDelete(dive)}
-                              className="p-1.5 text-muted-foreground hover:text-destructive rounded transition-colors">
-                              <Trash2 size={15} />
-                            </button>
+                      </MarineTableCell>
+                      <MarineTableCell align="right">
+                        <div className="flex items-center justify-end gap-3">
+                          <ChevronRight size={18} className="text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all duration-200" />
+                          {(canEdit || canDelete) && (
+                            <MarineTableActionMenu>
+                              {canEdit && (
+                                <MarineTableActionItem onClick={() => setEditing(dive)}>
+                                  <PenLine size={14} /> Edit
+                                </MarineTableActionItem>
+                              )}
+                              {canDelete && (
+                                <MarineTableActionItem onClick={() => setConfirmDelete(dive)} isDanger>
+                                  <Trash size={14} /> Delete
+                                </MarineTableActionItem>
+                              )}
+                            </MarineTableActionMenu>
                           )}
                         </div>
-                      </td>
-                    </tr>
+                      </MarineTableCell>
+                    </MarineTableRow>
                   )
                 })}
-              </tbody>
-            </table>
+              </MarineTableBody>
+            </MarineTable>
           </div>
 
           {/* Mobile card list */}
-          <div className="sm:hidden space-y-2">
+          <div className="xl:hidden space-y-2">
             {dives.map(dive => {
-              const { text, cls } = STATUS[dive.status] || STATUS.pending
               return (
-                <div key={dive._id} className="bg-card rounded-xl border border-border shadow-sm px-4 py-3">
+                <div key={dive._id} onClick={() => navigate(`/dives/${dive._id}`)}
+                  className="bg-card rounded-lg border border-border shadow-sm p-4 cursor-pointer hover:bg-muted/50 transition-colors group">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <Link to={`/dives/${dive._id}`} className="font-semibold text-foreground text-sm hover:text-primary transition-colors">
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors truncate max-w-[200px] sm:max-w-xs">
                           {dive.title}
-                        </Link>
-                      {dive.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{dive.description}</p>}
-                      {dive.trip && (
-                        <Link to={`/trips/${dive.trip._id}`}
-                          className="inline-flex items-center gap-1 text-xs text-primary mt-1 hover:underline">
-                          {dive.trip.name} <ExternalLink size={10} />
-                        </Link>
-                      )}
-                      {(dive.sensorCount || 0) > 0 && (
-                        <div className="flex items-center gap-1 text-xs text-primary mt-1">
-                          <Activity size={11} />
-                          <span>{dive.sensorCount.toLocaleString()} readings</span>
-                          {dive.locationName && <span className="text-muted-foreground truncate max-w-[140px]" title={dive.locationName}>· {dive.locationName}</span>}
+                        </span>
+                        <MarineTableStatus status={dive.status} label={STATUS[dive.status]?.text || 'Unknown'} />
+                      </div>
+                      
+                      {dive.description && <p className="text-xs font-normal text-muted-foreground line-clamp-2">{dive.description}</p>}
+                      
+                      <div className="flex flex-col gap-1.5 mt-2">
+                        {dive.trip && (
+                          <div onClick={e => { e.stopPropagation(); navigate(`/trips/${dive.trip._id}`) }}
+                            className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] border border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50 transition-colors cursor-pointer w-fit">
+                            <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">TRIP</span>
+                            <span className="text-sm font-mono text-foreground">{dive.trip.name}</span>
+                          </div>
+                        )}
+                        
+                        <div className="flex items-center gap-1.5 text-sm font-mono text-foreground">
+                          <Clock size={11} className="shrink-0 text-muted-foreground" />
+                          <span className="text-[10px] font-sans uppercase tracking-widest text-muted-foreground font-semibold">Created</span>
+                          <span>{new Date(dive.createdAt).toLocaleDateString()}</span>
                         </div>
-                      )}
+
+                        {(dive.sensorCount || 0) > 0 && (
+                          <div className="flex items-center gap-1.5 text-sm font-mono text-foreground">
+                            <Activity size={12} className="shrink-0 text-cyan-600" />
+                            <span>{dive.sensorCount.toLocaleString()}</span>
+                            <span className="font-sans text-xs text-muted-foreground font-medium">readings</span>
+                            {dive.locationName && <span className="font-sans text-xs text-muted-foreground truncate">· {dive.locationName}</span>}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1 shrink-0">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>{text}</span>
-                      <Link to={`/dives/${dive._id}`} title="View details"
-                        className="p-1.5 text-muted-foreground hover:text-primary rounded transition-colors">
-                        <Eye size={14} />
-                      </Link>
-                      {canEdit && (
-                        <button onClick={() => setEditing(dive)}
-                          className="p-1.5 text-muted-foreground hover:text-yellow-500 rounded transition-colors">
-                          <Pencil size={14} />
-                        </button>
-                      )}
-                      {canDelete && (
-                        <button onClick={() => setConfirmDelete(dive)}
-                          className="p-1.5 text-muted-foreground hover:text-destructive rounded transition-colors">
-                          <Trash2 size={14} />
-                        </button>
+                    
+                    <div className="flex items-center gap-2 shrink-0 pl-2">
+                      <ChevronRight size={18} className="text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all duration-200" />
+                      {(canEdit || canDelete) && (
+                        <div onClick={e => e.stopPropagation()}>
+                          <MarineTableActionMenu>
+                            {canEdit && (
+                              <MarineTableActionItem onClick={() => setEditing(dive)}>
+                                <PenLine size={14} /> Edit
+                              </MarineTableActionItem>
+                            )}
+                            {canDelete && (
+                              <MarineTableActionItem onClick={() => setConfirmDelete(dive)} isDanger>
+                                <Trash size={14} /> Delete
+                              </MarineTableActionItem>
+                            )}
+                          </MarineTableActionMenu>
+                        </div>
                       )}
                     </div>
                   </div>

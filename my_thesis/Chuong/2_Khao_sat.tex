@@ -1,0 +1,113 @@
+\documentclass[../DoAn.tex]{subfiles}
+\begin{document}
+
+Chương 2 trình bày quá trình khảo sát thực trạng công tác quản lý dữ liệu ROV hiện nay, từ đó chỉ ra những hạn chế và rút ra bài toán cần giải quyết. Dựa trên kết quả khảo sát, chương này sẽ mô tả chi tiết các yêu cầu chức năng, yêu cầu phi chức năng của hệ thống phần mềm, đồng thời cung cấp các biểu đồ Use Case và quy trình nghiệp vụ tổng quát nhằm định hình kiến trúc ứng dụng trong các bước thiết kế tiếp theo.
+
+\section{Khảo sát hiện trạng}
+\label{section:2.1}
+Trong thực tế vận hành các phương tiện không người lái dưới nước (ROV), quá trình thu thập và phân tích dữ liệu đang tồn tại nhiều bất cập. Thông thường, hệ thống phần cứng trên ROV ghi lại dữ liệu cảm biến (nhiệt độ, áp suất, độ sâu, định vị toàn cầu GPS) dưới định dạng văn bản thô như CSV hoặc JSON, song song với việc lưu trữ video vào ổ cứng của hệ thống điều khiển. Sau khi kết thúc mỗi lượt lặn (Dive) và toàn bộ chuyến đi (Trip), người điều khiển (Operator) phải chép thủ công các tệp tin này về máy tính cá nhân. Việc phân tích hậu kỳ diễn ra rời rạc: người phân tích vừa phải mở trình phát video, vừa phải đối chiếu thủ công các dòng dữ liệu trong tệp CSV để tìm ra trạng thái môi trường tại một khoảnh khắc cụ thể trong video. Quá trình này không chỉ tốn nhiều công sức, rủi ro sai sót cao mà còn gây khó khăn lớn trong việc chia sẻ kết quả và cộng tác giữa các thành viên trong đội.
+
+Khảo sát các phần mềm hiện có trên thị trường như QGroundControl hay BlueOS cho thấy, hầu hết các hệ thống này tập trung mạnh vào việc điều khiển thời gian thực và cấu hình phần cứng. Rất ít phần mềm chú trọng vào khâu phân tích dữ liệu hậu kỳ sau chuyến đi trên nền tảng web đa người dùng. Các hệ thống lưu trữ video thông thường như Google Drive hay YouTube lại hoàn toàn không có khả năng đồng bộ với dữ liệu cảm biến và không tích hợp các công cụ trí tuệ nhân tạo chuyên sâu cho lĩnh vực đặc thù này.
+
+Từ khảo sát trên, hệ thống "Quản lý thông tin nhiệm vụ ROV" được đề xuất với các tính năng cốt lõi sau: (i) Quản lý tập trung các Chuyến đi (Trips) và Lượt lặn (Dives), (ii) Tự động ánh xạ và đồng bộ thanh thời gian của video với biểu đồ dữ liệu cảm biến, (iii) Tích hợp học sâu (YOLOv8) để tự động nhận diện vật thể dưới nước, và (iv) Ứng dụng AI ngôn ngữ lớn để tổng hợp báo cáo tự động, giảm tải tối đa sức lao động cho con người.
+
+\section{Tổng quan chức năng}
+\label{section:2.2}
+Hệ thống quản lý thông tin nhiệm vụ ROV phục vụ ba nhóm người dùng chính, với các quyền hạn được phân chia rõ ràng thông qua cơ chế kiểm soát truy cập dựa trên vai trò (RBAC):
+- \textbf{Viewer (Người xem)}: Được quyền truy cập hệ thống để xem danh sách chuyến đi, theo dõi video, xem biểu đồ cảm biến và các báo cáo AI.
+- \textbf{Operator (Người vận hành)}: Kế thừa quyền của Viewer, đồng thời có khả năng tạo, chỉnh sửa thông tin nhiệm vụ, tải lên dữ liệu cảm biến (CSV), tệp phương tiện (Video/Ảnh), đánh dấu bằng chứng và kích hoạt các tác vụ AI phân tích.
+- \textbf{Admin (Quản trị viên)}: Kế thừa quyền của Operator, có thêm đặc quyền quản lý toàn bộ hệ thống, vô hiệu hóa người dùng hoặc cấp phát vai trò mới.
+
+\subsection{Biểu đồ use case tổng quát}
+\label{subsection:2.2.1}
+Biểu đồ Use Case tổng quát (Hình \ref{fig:uc_tongquat}) mô tả bức tranh toàn cảnh về sự tương tác giữa các tác nhân và hệ thống. Các nhóm chức năng chính bao gồm: Quản lý người dùng, Quản lý danh mục phương tiện (ROV), Quản lý chuyến đi và lượt lặn (Trips \& Dives), Quản lý tệp phương tiện và Cảm biến, và Tương tác với Trí tuệ nhân tạo.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\linewidth]{Hinhve/uc_tongquat.png}
+\caption{Biểu đồ Use Case tổng quát của hệ thống}
+\label{fig:uc_tongquat}
+\end{figure}
+
+\subsection{Biểu đồ use case phân rã Phân hệ Nhiệm vụ và Dữ liệu}
+\label{subsection:2.2.2}
+Phân hệ quan trọng nhất của hệ thống là khả năng theo dõi các lượt lặn và dữ liệu tương ứng. Hình \ref{fig:uc_phanra} minh họa chi tiết các thao tác của Operator khi làm việc với phân hệ này. Sau khi một lượt lặn được khởi tạo, Operator có thể tải lên tệp CSV chứa dữ liệu cảm biến. Nếu video có chứa metadata về thời gian bắt đầu quay (\textit{recordedAt}), hệ thống sẽ cho phép kích hoạt luồng xem đồng bộ dữ liệu. Trong quá trình xem, Operator có thể sử dụng công cụ Trích xuất bằng chứng (Evidence) để cắt ảnh hoặc video tại những thời điểm quan trọng.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.8\linewidth]{Hinhve/uc_phanra.png}
+\caption{Biểu đồ Use Case phân rã Quản lý Nhiệm vụ và Dữ liệu}
+\label{fig:uc_phanra}
+\end{figure}
+
+\subsection{Quy trình nghiệp vụ tải lên và phân tích dữ liệu}
+\label{subsection:2.2.3}
+Luồng hoạt động từ lúc Operator đi thực địa về cho đến khi có báo cáo tổng kết được mô tả thông qua quy trình nghiệp vụ ở Hình \ref{fig:uc_quytrinh}. Quy trình gồm các bước: (1) Operator đăng nhập và tạo mới một Chuyến đi (Trip) kèm các Lượt lặn (Dives) bên trong, (2) Tải lên toàn bộ tệp phương tiện và tệp CSV dữ liệu cảm biến tương ứng với từng lượt lặn, (3) Lựa chọn các video quan trọng và kích hoạt luồng phân tích nhận diện vật thể (YOLOv8), (4) Xác nhận hoàn tất chuyến đi, và (5) Kích hoạt chức năng AI (Gemini) tự động phân tích toàn bộ sự kiện để sinh ra văn bản tóm tắt nhiệm vụ.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.55\linewidth]{Hinhve/uc_quytrinh.png}
+\caption{Biểu đồ hoạt động Quy trình phân tích dữ liệu nhiệm vụ}
+\label{fig:uc_quytrinh}
+\end{figure}
+
+\section{Đặc tả chức năng}
+\label{section:2.3}
+Dưới đây là đặc tả chi tiết của bốn ca sử dụng (Use Case) quan trọng nhất mang tính đột phá của hệ thống. Các ca sử dụng liên quan đến quản lý người dùng và CRUD cơ bản được đặc tả bổ sung trong Phụ lục B.
+
+\subsection{Đặc tả Use Case: Tải lên và đồng bộ dữ liệu cảm biến}
+- \textbf{Tên Use Case:} Tải lên và đồng bộ dữ liệu cảm biến (Sensor Data Sync).
+- \textbf{Tiền điều kiện:} Tác nhân (Operator/Admin) đã đăng nhập và đang ở trang chi tiết của một Lượt lặn (DiveDetailPage).
+- \textbf{Luồng sự kiện chính:}
+  1. Tác nhân kéo thả hoặc chọn tệp CSV chứa dữ liệu cảm biến vào khu vực tải lên.
+  2. Hệ thống kiểm tra tính hợp lệ của định dạng tệp (phải chứa các cột bắt buộc như timestamp, depth, temp, pressure).
+  3. Hệ thống bóc tách dòng dữ liệu đầu tiên chứa tọa độ GPS để thực hiện \textit{Reverse Geocoding}, chuyển đổi tọa độ thành tên địa danh thực tế.
+  4. Hệ thống lưu trữ dữ liệu vào cơ sở dữ liệu MongoDB và tính toán độ bất thường (Anomaly Detection bằng Z-Score).
+  5. Hệ thống cập nhật giao diện, hiển thị biểu đồ môi trường. Khi tác nhân phát video, thanh đánh dấu dọc trên biểu đồ di chuyển đồng bộ với thời gian của trình phát video.
+- \textbf{Luồng sự kiện phát sinh:} Định dạng tệp sai, hệ thống cảnh báo và yêu cầu tải lại.
+- \textbf{Hậu điều kiện:} Dữ liệu cảm biến được liên kết thành công vào lượt lặn.
+
+\subsection{Đặc tả Use Case: Kích hoạt phân tích nhận diện vật thể bằng YOLO}
+- \textbf{Tên Use Case:} Phân tích phương tiện bằng trí tuệ nhân tạo (AI Analysis).
+- \textbf{Tiền điều kiện:} Tệp video hoặc hình ảnh đã được tải lên thành công (Trạng thái Ready).
+- \textbf{Luồng sự kiện chính:}
+  1. Tác nhân nhấp vào biểu tượng Cài đặt AI (Sparkles) trên thanh công cụ của video.
+  2. Hệ thống mở cửa sổ thiết lập, cho phép tác nhân lựa chọn mô hình nhận diện (ví dụ: YOLOv8n) và điều chỉnh ngưỡng độ tin cậy (Confidence).
+  3. Tác nhân nhấn "Chạy phân tích". Hệ thống đưa tác vụ vào hàng đợi (Bull Queue) và trả về thông báo tiếp nhận.
+  4. Trình xử lý ngầm (Worker) gọi tới Microservice Python, truyền đường dẫn video.
+  5. Khi phân tích hoàn tất, hệ thống tự động đẩy thông báo thời gian thực (SSE) đến giao diện tác nhân.
+  6. Các hộp giới hạn (Bounding box) xuất hiện trên video, khớp chính xác theo từng khung hình.
+- \textbf{Hậu điều kiện:} Kết quả nhận diện (Labels, Bbox, FrameTime) được lưu trữ vào cơ sở dữ liệu và hiển thị trên giao diện.
+
+\subsection{Đặc tả Use Case: Trích xuất và phân tích bằng chứng}
+- \textbf{Tên Use Case:} Lưu trữ bằng chứng (Evidence System).
+- \textbf{Tiền điều kiện:} Video của lượt lặn đang được phát.
+- \textbf{Luồng sự kiện chính:}
+  1. Tác nhân phát hiện vật thể nghi vấn, nhấn nút "Chụp ảnh" (Photo) hoặc "Quay clip" (Clip) trực tiếp trên video.
+  2. Với ảnh chụp, hệ thống trích xuất khung hình hiện tại thành tệp PNG, tải lên máy chủ AWS S3.
+  3. Với đoạn clip, hệ thống ghi nhận thời gian bắt đầu và kết thúc mà không cắt tệp vật lý.
+  4. Bằng chứng được lưu vào hệ thống, tác nhân có thể ghi chú thêm hoặc chạy nhận diện vật thể độc lập cho riêng bằng chứng này.
+- \textbf{Hậu điều kiện:} Bằng chứng được tạo thành công, không làm ảnh hưởng đến tệp video gốc.
+
+\subsection{Đặc tả Use Case: Tạo báo cáo tóm tắt bằng ngôn ngữ tự nhiên}
+- \textbf{Tên Use Case:} Tóm tắt nhiệm vụ (AI Summary).
+- \textbf{Tiền điều kiện:} Trạng thái chuyến đi (Trip) đã được cập nhật thành "Hoàn tất" (Completed).
+- \textbf{Luồng sự kiện chính:}
+  1. Tác nhân truy cập chi tiết chuyến đi, nhấn nút "Tạo Tóm tắt" (Generate Summary).
+  2. Hệ thống thu thập toàn bộ dữ liệu thống kê của chuyến đi (địa điểm, thời gian, số lượt lặn, tổng số ảnh/video, và số lượng cảnh báo cảm biến).
+  3. Dữ liệu được đưa vào mẫu câu (Prompt) và gửi tới giao diện lập trình ứng dụng của mô hình ngôn ngữ lớn (Gemini API).
+  4. Hệ thống tiếp nhận phản hồi, định dạng văn bản và lưu trữ lại kết quả tóm tắt bằng tiếng Việt hoặc tiếng Anh.
+  5. Hệ thống gửi thông báo SSE đến toàn bộ các thành viên liên quan.
+- \textbf{Hậu điều kiện:} Văn bản tóm tắt xuất hiện trên giao diện, giúp ban quản lý nắm bắt nhanh chóng kết quả chuyến đi.
+
+\section{Yêu cầu phi chức năng}
+\label{section:2.4}
+Để đảm bảo hệ thống "Quản lý thông tin nhiệm vụ ROV" hoạt động ổn định và mang lại trải nghiệm người dùng tối ưu, phần mềm cần thỏa mãn các yêu cầu phi chức năng cốt lõi sau đây:
+- \textbf{Hiệu năng và Thời gian thực (Performance \& Real-time):} Giao diện Cockpit theo dõi video và cảm biến không được có hiện tượng giật lag. Cơ chế đồng bộ thanh thời gian video với biểu đồ cần duy trì độ phản hồi dưới 100ms. Luồng thông báo thời gian thực (SSE) phải hiển thị tức thời khi có thay đổi trạng thái.
+- \textbf{Xử lý bất đồng bộ (Asynchronous Processing):} Các tác vụ nặng như phân tích hàng chục nghìn khung hình video bằng YOLOv8 hay truy vấn AI ngôn ngữ lớn không được chặn (block) các luồng tương tác trên giao diện. Các tác vụ này phải được xếp vào hàng đợi (Message Queue) và xử lý ngầm hiệu quả.
+- \textbf{Khả năng mở rộng và lưu trữ (Scalability \& Storage):} Các tệp tin dữ liệu thực địa thường rất lớn (Gigabytes). Do đó, ứng dụng không lưu trữ dữ liệu đa phương tiện trong cơ sở dữ liệu quan hệ truyền thống mà thông qua nền tảng lưu trữ đám mây chuyên dụng (AWS S3) dưới dạng \textit{Presigned URLs} để giảm tải băng thông cho máy chủ chính.
+- \textbf{Bảo mật và Phân quyền (Security):} Hệ thống áp dụng chuẩn JSON Web Token (JWT) có vòng đời ngắn kết hợp với cơ chế làm mới (Refresh token) và danh sách đen (Blacklist) trên Redis để vô hiệu hóa tức thời các tài khoản đăng xuất hoặc bị quản trị viên chặn. Dữ liệu của các chuyến đi phải được phân lập nghiêm ngặt theo đúng đặc quyền của tác nhân truy cập.
+
+Chương 2 đã khảo sát toàn diện bối cảnh bài toán, làm rõ chân dung người dùng cũng như các luồng hoạt động chính của hệ thống. Những yêu cầu chức năng và phi chức năng khắt khe được đặc tả ở trên chính là cơ sở và kim chỉ nam để lựa chọn kiến trúc phần mềm và hệ sinh thái công nghệ, sẽ được trình bày chi tiết trong Chương 3 tiếp theo.
+
+\end{document}

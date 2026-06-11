@@ -16,6 +16,8 @@ MODEL_META = {
     "yolov8n":          {"label": "YOLOv8n General",        "speed": "fast", "warning": None},
     "fish1":            {"label": "Fish Detector v1",        "speed": "fast", "warning": None},
     "fish2":            {"label": "Fish Detector v2",        "speed": "fast", "warning": None},
+    "fish3":            {"label": "Fish Detector v3",        "speed": "fast", "warning": None},
+    "fish4":            {"label": "Fish Detector v4",        "speed": "fast", "warning": None},
     "trash":            {"label": "Trash Detector",          "speed": "fast", "warning": None},
     "f4k_single_m":     {"label": "Fish Detector M (f4k)",  "speed": "slow", "warning": "YOLOv8m — 2-3× slower on CPU"},
     "deepfish_multi_m": {"label": "DeepFish Multi M",       "speed": "slow", "warning": "YOLOv8m — 2-3× slower on CPU"},

@@ -35,11 +35,34 @@ const remove = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
+const bulkDelete = async (req, res, next) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids)) return error(res, 'ids must be an array', 400);
+    const count = await snapshotService.bulkRemove(ids);
+    return success(res, { deleted: count }, `${count} snapshots deleted`);
+  } catch (err) { next(err); }
+};
+
 const analyze = async (req, res, next) => {
   try {
     const { model = 'yolov8n', confidence = 0.3 } = req.body;
     await snapshotService.enqueueAnalysis(req.params.id, { model, confidence });
     return success(res, null, 'Analysis queued', 202);
+  } catch (err) { next(err); }
+};
+
+const cancelAnalyze = async (req, res, next) => {
+  try {
+    await snapshotService.cancelAnalysis(req.params.id);
+    return success(res, null, 'Analysis cancelled');
+  } catch (err) { next(err); }
+};
+
+const getDownloadUrl = async (req, res, next) => {
+  try {
+    const result = await snapshotService.getDownloadUrl(req.params.id);
+    return success(res, result);
   } catch (err) { next(err); }
 };
 
@@ -50,4 +73,18 @@ const updateNote = async (req, res, next) => {
   } catch (err) { next(err); }
 };
 
-module.exports = { create, getByDive, remove, analyze, updateNote };
+// Streams clip video directly — does NOT use success() wrapper (binary response)
+const downloadClip = async (req, res, next) => {
+  try {
+    await snapshotService.streamClipDownload(req.params.id, res);
+  } catch (err) { next(err); }
+};
+
+// Proxy raw image bytes through backend — avoids CORS/tainted-canvas for client canvas export
+const proxyImage = async (req, res, next) => {
+  try {
+    await snapshotService.proxyImage(req.params.id, res);
+  } catch (err) { next(err); }
+};
+
+module.exports = { create, getByDive, remove, bulkDelete, analyze, cancelAnalyze, updateNote, getDownloadUrl, downloadClip, proxyImage };

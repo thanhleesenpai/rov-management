@@ -197,11 +197,6 @@ function Overlay({ media, url, canDelete, onDelete }) {
       {/* Desktop hover overlay */}
       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors
                       hidden [@media(hover:hover)]:block pointer-events-none group-hover:pointer-events-auto">
-        {media.labels?.length > 0 && (
-          <div className="absolute top-0 left-0 right-0 p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-            <LabelBadges labels={media.labels} max={4} />
-          </div>
-        )}
         <div className="absolute bottom-0 left-0 right-0 p-2 translate-y-full group-hover:translate-y-0 transition-transform">
           <div className="flex items-end justify-between gap-1">
             <div className="min-w-0">
@@ -312,16 +307,6 @@ function Lightbox({ mediaList, initialIndex, onClose }) {
           <X size={24} />
         </button>
 
-        {media?.analysisStatus === 'done' && media?.labels?.some(l => l.bbox) && (
-          <button onClick={() => setShowDetections(v => !v)}
-            className={`absolute -top-10 right-14 flex items-center gap-1.5 px-2.5 py-1 rounded-full
-                        text-xs font-semibold transition-colors ${
-              showDetections ? 'bg-blue-500/80 text-white' : 'bg-white/10 hover:bg-white/20 text-white/70'
-            }`}>
-            {showDetections ? <EyeOff size={13} /> : <Eye size={13} />}
-            {showDetections ? 'Hide' : 'Detect'}
-          </button>
-        )}
 
         <div className="absolute -top-8 left-1/2 -translate-x-1/2 text-white/50 text-sm">
           {index + 1} / {mediaList.length}
@@ -371,11 +356,6 @@ function Lightbox({ mediaList, initialIndex, onClose }) {
 
         <p className="text-center text-white/50 text-xs mt-3">{media?.originalName}</p>
 
-        {media?.labels?.length > 0 && (
-          <div className="flex flex-wrap justify-center gap-1 mt-1.5">
-            <LabelBadges labels={media.labels} max={20} showConf={true} />
-          </div>
-        )}
         {media?.analysisStatus === 'pending' && (
           <p className="flex items-center justify-center gap-1.5 text-white/40 text-xs mt-1.5">
             <Loader size={11} className="animate-spin" /> Analyzing…
@@ -614,7 +594,7 @@ export default function MediaGallery({ diveId }) {
         <p className="text-xs text-muted-foreground text-center py-4">No {tab}s uploaded.</p>
       ) : (
         <SortableContext items={orderedMedia.map(m => m._id)} strategy={rectSortingStrategy}>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 gap-2">
             {orderedMedia.map((media, i) => (
               <SortableCard
                 key={media._id}

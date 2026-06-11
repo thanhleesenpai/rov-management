@@ -21,7 +21,7 @@ function NavItem({ to, icon: Icon, label, collapsed, onClick }) {
         `flex items-center rounded-lg transition-colors duration-150 ${
           collapsed ? 'justify-center w-10 h-10 mx-auto' : 'gap-3 px-3 py-2.5'
         } ${isActive
-          ? 'bg-blue-600 text-white'
+          ? 'bg-primary text-primary-foreground'
           : 'text-gray-400 hover:bg-gray-800 hover:text-white'
         }`
       }
@@ -55,7 +55,7 @@ export default function Sidebar({ collapsed, mobileOpen, onCloseMobile }) {
       </aside>
 
       {/* Mobile drawer */}
-      <aside className={`fixed inset-y-0 left-0 z-30 w-64 bg-gray-900 text-white flex flex-col transform transition-transform duration-300 ease-in-out lg:hidden ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 text-white flex flex-col transform transition-transform duration-300 ease-in-out lg:hidden ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex items-center justify-end px-4 h-16 border-b border-gray-700 shrink-0">
           <button onClick={onCloseMobile} className="text-gray-400 hover:text-white p-1">
             <X size={18} />
