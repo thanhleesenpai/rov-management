@@ -18,11 +18,31 @@ router.patch('/change-password', authenticate, changePasswordValidation, authCon
 router.post('/me/avatar/presigned', authenticate, authController.avatarPresigned);
 
 // Google OAuth
-router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'], session: false }));
+router.get('/google', (req, res, next) => {
+  let clientUrl = process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',')[0] : 'http://localhost:5173';
+  const origin = req.headers.origin;
+  const referer = req.headers.referer;
+  
+  if (origin && origin.startsWith('http')) {
+    clientUrl = origin;
+  } else if (referer && referer.startsWith('http')) {
+    const url = new URL(referer);
+    clientUrl = `${url.protocol}//${url.host}`;
+  }
+
+  passport.authenticate('google', { 
+    scope: ['profile', 'email'], 
+    session: false,
+    state: Buffer.from(clientUrl).toString('base64')
+  })(req, res, next);
+});
 router.get('/google/callback',
   (req, res, next) => {
     passport.authenticate('google', { session: false }, (err, user, info) => {
-      const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+      let clientUrl = process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',')[0] : 'http://localhost:5173';
+      if (req.query.state) {
+        try { clientUrl = Buffer.from(req.query.state, 'base64').toString('ascii'); } catch (e) {}
+      }
       if (err) return res.redirect(`${clientUrl}/login?error=oauth_failed`);
       if (!user) {
         const error = info?.message === 'Account has been disabled' ? 'account_disabled' : 'oauth_failed';

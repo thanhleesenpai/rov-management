@@ -3,10 +3,18 @@ import { useAuthStore } from '@/store/auth.store'
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
 
+// const api = axios.create({
+//   baseURL: API_BASE,
+//   headers: { 'Content-Type': 'application/json' }
+// })
 const api = axios.create({
   baseURL: API_BASE,
-  headers: { 'Content-Type': 'application/json' }
+  headers: { 
+    'Content-Type': 'application/json',
+    'ngrok-skip-browser-warning': 'true' // <-- Thêm dòng này
+  }
 })
+axios.defaults.headers.common['ngrok-skip-browser-warning'] = 'true';
 
 // Gắn access token vào mỗi request
 api.interceptors.request.use(async (config) => {
