@@ -124,11 +124,17 @@ const googleCallback = async (req, res) => {
     user.lastLoginAt  = new Date();
     await user.save();
 
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    let clientUrl = process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',')[0] : 'http://localhost:5173';
+    if (req.query.state) {
+      try { clientUrl = Buffer.from(req.query.state, 'base64').toString('ascii'); } catch (e) {}
+    }
     const params = new URLSearchParams({ accessToken, refreshToken });
     res.redirect(`${clientUrl}/auth/callback?${params}`);
   } catch (err) {
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    let clientUrl = process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',')[0] : 'http://localhost:5173';
+    if (req.query.state) {
+      try { clientUrl = Buffer.from(req.query.state, 'base64').toString('ascii'); } catch (e) {}
+    }
     res.redirect(`${clientUrl}/login?error=oauth_failed`);
   }
 };
