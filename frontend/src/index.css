@@ -74,3 +74,17 @@
 .dark ::-webkit-scrollbar-thumb:hover {
   background: rgba(71, 85, 105, 0.8);
 }
+
+/* Recharts Brush — ẩn outline khi kéo traveller */
+.recharts-brush-traveller rect,
+.recharts-brush-slide {
+  outline: none !important;
+}
+.recharts-brush-traveller:focus rect,
+.recharts-brush-traveller:focus-visible rect {
+  outline: none !important;
+}
+/* Recharts selection rectangle (hiện khi kéo chọn vùng mới) */
+.recharts-brush rect.recharts-brush-rect {
+  rx: 2;
+}

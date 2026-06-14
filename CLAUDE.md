@@ -797,6 +797,305 @@ recordedAt: { type: Date, default: null }
 
 ---
 
+### TASK 6d — Multi-file Data Support (Refactor)
+
+**Mô tả:** Hiện tại sensor, DVL, sonar đều **overwrite** khi upload lần thứ 2 — chỉ giữ bản cuối. Cần đổi sang **append theo tên file**, cho phép mỗi dive có nhiều file của cùng loại. Timestamp lấy tự động từ tên file (không cần nhập tay hay JSON manifest).
+
+**Bối cảnh thực tế:** ROV tạo nhiều file trong 1 lần lặn:
+```
+sonar_20260601_164831.xxx      ← 1 file sonar
+sonar_20260601_165204.xxx      ← file sonar thứ 2 (cùng dive)
+log_20260609_144350.csv        ← sensor log đầu
+log_20260609_144536.csv        ← sensor log thứ 2
+dvl_20260609_144350.json       ← DVL data
+record_20260609_144350.mp4     ← video (media, đã hỗ trợ nhiều ✓)
+capture_20260609_144358.png    ← ảnh chụp (media ✓)
+```
+Timestamp trong tên file: `_YYYYMMDD_HHMMSS` → parse trực tiếp, không cần JSON manifest.
+
+---
+
+**Hiện trạng (đã xác nhận — tất cả đều overwrite):**
+
+| Loại | Code overwrite | Đã hỗ trợ nhiều? |
+|------|---------------|------------------|
+| Sensor CSV | `SensorData.deleteMany({dive})` trước khi insert | ❌ luôn 1 batch |
+| DVL JSON | `DVLData.deleteMany({dive})` trước khi insert | ❌ luôn 1 batch |
+| Sonar | `SonarFile.deleteMany({dive})` + xóa S3 | ❌ luôn 1 file, `sonarCount` hardcode = 1 |
+| Media (video/ảnh) | Không xóa cũ | ✅ đã hỗ trợ nhiều |
+| Batch controller | Chỉ lấy sonar file đầu tiên, còn lại bỏ | ❌ cần bỏ hạn chế |
+
+---
+
+**Shared utility (tạo mới):**
+
+`backend/src/utils/parseTimestamp.util.js` — dùng cho tất cả controller:
+```js
+// Parse "_YYYYMMDD_HHMMSS" từ tên file → UTC Date, null nếu không tìm thấy
+function parseTimestampFromFilename(filename) {
+  const m = filename.match(/_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+  if (!m) return null;
+  return new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z`);
+}
+```
+
+---
+
+**Backend — subtasks:**
+
+**1. `SensorData` model** — thêm field:
+```js
+sourceFile: { type: String, default: null }
+// Tên file CSV gốc, dùng để nhóm + xóa từng file riêng
+// VD: "log_20260609_144350.csv"
+```
+Index thêm: `{ dive: 1, sourceFile: 1, timestamp: 1 }`
+
+**2. `sensor.controller.js`** — đổi logic upload:
+- Bỏ `SensorData.deleteMany({dive})` ở đầu hàm `upload`
+- Nhận thêm `sourceFile` (tên file) trong payload hoặc parse từ metadata
+- Nếu `sourceFile` đã tồn tại trong dive: xóa data cũ của file đó trước, rồi insert mới (re-upload 1 file)
+- Nếu `sourceFile` mới: **kiểm tra overlap** trước khi insert (xem bên dưới)
+- Mỗi reading được gán `sourceFile` khi insert
+- Parse `recordedAt` từ tên file → lưu vào mỗi reading nếu reading không có timestamp tuyệt đối
+
+**Xử lý trùng timestamp giữa các file (First In, First Keep):**
+
+Khi upload file mới (`sourceFile` chưa có trong dive), kiểm tra xem có overlap với data đã tồn tại không:
+
+```js
+// Lấy timestamp lớn nhất đang có trong DB của dive này
+const { maxTs } = await SensorData.aggregate([
+  { $match: { dive: diveId } },
+  { $group: { _id: null, maxTs: { $max: '$timestamp' } } }
+]).then(r => r[0] ?? { maxTs: null })
+
+// Lọc bỏ readings có timestamp <= maxTs (ưu tiên giữ file đã có trước)
+const trimmed = maxTs
+  ? readings.filter(r => r.timestamp > maxTs)
+  : readings
+
+const droppedCount = readings.length - trimmed.length
+```
+
+- **File B trùng một phần** (droppedCount > 0, trimmed.length > 0):  
+  Insert `trimmed`, trả về warning: `{ droppedCount, warning: 'overlap_trimmed' }`
+
+- **File B nằm hoàn toàn trong range cũ** (trimmed.length === 0):  
+  Không insert gì, trả về warning: `{ droppedCount: readings.length, warning: 'file_skipped' }`
+
+- **Không có overlap** (droppedCount === 0):  
+  Insert bình thường, trả về success không có warning
+
+**Frontend — toast notification:**
+```
+✅ Success (xanh)    : Import thành công, không có overlap
+⚠️ Warning (vàng)   : Import thành công. Hệ thống phát hiện trùng lặp thời gian
+                       và đã tự động bỏ qua {droppedCount} readings để đảm bảo
+                       tính liền mạch của dữ liệu.
+⚠️ Warning (vàng)   : File {sourceFile} bị bỏ qua hoàn toàn vì toàn bộ
+                       {droppedCount} readings đã tồn tại trong khoảng thời gian trước đó.
+```
+Không block user — import vẫn được, chỉ cảnh báo.
+
+**3. Thêm endpoint xóa từng file sensor:**
+```
+DELETE /dives/:id/sensor-data?file=log_20260609_144350.csv
+```
+Xóa toàn bộ `SensorData` có `{ dive, sourceFile }` tương ứng → cập nhật `sensorCount`
+
+**4. `DVLData` model** — thêm field:
+```js
+sourceFile: { type: String, default: null }
+// VD: "dvl_20260609_144350.json"
+```
+Index thêm: `{ dive: 1, sourceFile: 1, ts: 1 }`
+
+**5. `dvl.controller.js`** — đổi logic upload:
+- Bỏ `DVLData.deleteMany({dive})` — đổi sang xóa riêng `sourceFile` nếu đã tồn tại
+- Gán `sourceFile` cho mỗi point khi insert
+- `getPath`: query tất cả DVL của dive, sort theo `ts` → merge thành 1 trajectory liên tục
+- Parse `recordedAt` từ tên file
+- `clear`: xóa hết (endpoint hiện tại) + thêm `clear?file=dvl_xxx.json` (xóa từng file)
+
+**6. `sonar.controller.js`** — đổi logic upload:
+- Bỏ `SonarFile.deleteMany({dive})` và xóa S3 trước khi tạo file mới
+- `sonarCount` = count thực tế: `await SonarFile.countDocuments({dive})`
+- Đã có endpoint `DELETE /dives/:id/sonar/:sonarId` → giữ nguyên, dùng để xóa từng file
+- `SonarFile` đã có field `filename` và `recordedAt` → chỉ cần auto-parse `recordedAt` từ tên file khi upload
+
+**7. `batch.controller.js`** — bỏ giới hạn 1 sonar:
+- Xóa logic skip sonar file thứ 2 trở đi
+- Với sensor/DVL: gọi `append` thay vì `replace` (dùng controller đã sửa ở trên)
+
+**8. Media upload (presigned confirm)** — auto-parse `recordedAt`:
+- Khi operator confirm upload video/ảnh, server parse tên file:
+  - `record_20260609_144350.mp4` → `media.recordedAt = 2026-06-09T14:43:50Z`
+  - `capture_20260609_144358.png` → `media.recordedAt = 2026-06-09T14:43:58Z`
+- Nếu tên file không match pattern → `recordedAt` giữ null (operator nhập tay như hiện tại)
+- **Hệ quả:** Chart sync (TASK 6c) hoạt động tự động mà không cần operator nhập `recordedAt`
+
+---
+
+**Frontend — subtasks:**
+
+**1. Upload UI** (`ROVDataUpload.jsx`): 
+- Hiển thị danh sách file đã upload theo loại (sensor, DVL, sonar) kèm timestamp parse từ tên
+- Mỗi file có nút xóa riêng (gọi endpoint `DELETE ?file=...`)
+- Không còn warning "upload mới sẽ xóa data cũ" — thay bằng "sẽ thêm vào data hiện có"
+- Nếu upload file trùng tên → hiển thị "sẽ thay thế log_xxx.csv"
+
+**2. Sensor chart — multi-file gap visualization** (DiveDetailPage):
+
+Nhiều CSV → sort toàn bộ readings theo timestamp → **chèn null sentinel tại ranh giới file** (dựa vào `sourceFile`, không dùng heuristic time):
+
+```js
+// useMemo trong DiveDetailPage — chạy sau khi nhận chartData từ API
+function insertGapSentinels(readings) {
+  if (readings.length < 2) return readings
+  const result = [readings[0]]
+  for (let i = 1; i < readings.length; i++) {
+    // sourceFile thay đổi = đúng ranh giới giữa 2 file → gap thực sự
+    if (readings[i].sourceFile !== readings[i - 1].sourceFile) {
+      result.push({ timestamp: readings[i - 1].timestamp + 1 })  // sentinel cuối file trước
+      result.push({ timestamp: readings[i].timestamp     - 1 })  // sentinel đầu file sau
+    }
+    result.push(readings[i])
+  }
+  return result
+}
+```
+
+- Sentinel entry có tất cả metric = `undefined` → Recharts không vẽ điểm đó
+- `connectNulls={false}` (default của AreaChart) → line break, area fill dừng đúng tại ranh giới file
+- Không cần heuristic time threshold — dựa hoàn toàn vào `sourceFile` field (có sau Task 6d)
+- Khoảng trống giữa 2 file dù ngắn hay dài đều hiển thị chính xác
+- Tooltip tại reading: hiện `sourceFile` để biết đến từ file nào
+- Backend `getSensorData`: trả raw array sorted theo timestamp, bao gồm `sourceFile` field
+
+**3. DVL trajectory** (TrajectoryViewer):
+- `getPath` backend đã merge tất cả DVL files → không cần đổi frontend
+
+**4. Sonar** (SonarViewer):
+- Nếu nhiều sonar files → hiển thị dạng playlist (tương tự media playlist)
+- Click file trong playlist → load sonar đó vào viewer
+
+---
+
+**Checklist sau TASK 6d:**
+- [ ] Upload 2 CSV cùng 1 dive → chart hiển thị 2 đoạn rời nhau, khoảng trống giữa 2 file hiển thị đúng là trống
+- [ ] Gap giữa 2 file dù ngắn hay dài đều ngắt line (dựa theo sourceFile, không phải thời gian)
+- [ ] Readings trong cùng 1 file dù có khoảng cách thời gian → vẫn nối liền (sensor chậm bình thường)
+- [ ] Upload file trùng 1 phần → toast vàng "đã bỏ qua N readings trùng lặp", phần còn lại được import
+- [ ] Upload file nằm hoàn toàn trong range cũ → toast vàng "file bị bỏ qua hoàn toàn"
+- [ ] Không có overlap → toast xanh bình thường, không có warning
+- [ ] Upload lại file cũ cùng tên → thay thế đúng file đó, file khác không bị ảnh hưởng
+- [ ] Xóa từng CSV: data của file đó biến mất, file còn lại không đổi
+- [ ] Upload 2 sonar file cùng 1 dive → cả 2 tồn tại trong DB, playlist sonar hiện 2 file
+- [ ] Upload 2 DVL file cùng 1 dive → trajectory merge liên tục
+- [ ] Upload `record_20260609_144350.mp4` → `media.recordedAt` tự động set = `2026-06-09T14:43:50Z`
+- [ ] Upload `log_20260609_144350.csv` → chart sync tự động với video cùng timestamp
+- [ ] Upload `capture_20260609_144358.png` → `media.recordedAt` tự động set
+- [ ] File không có pattern timestamp trong tên → `recordedAt = null`, không crash
+- [ ] Batch upload folder với nhiều sonar → tất cả được xử lý (không chỉ file đầu)
+- [ ] `dvl.getPath` trả về trajectory merged từ nhiều file, sort theo `ts`
+
+---
+
+### TASK 6e — Auto-frame Brush theo Video đang chọn
+
+**Mô tả:** Khi user chọn video trong playlist, thanh brush (range selector) ở dưới chart tự động nhảy đến khoảng thời gian của video đó. Kết hợp với TASK 6d (auto-parse `recordedAt` từ tên file) và TASK 6c (chart sync) tạo thành trải nghiệm hoàn chỉnh: chọn video → brush frame đúng khoảng → ReferenceLine chạy trong đó.
+
+**Điều kiện tiên quyết:** TASK 6d phải xong (media có `recordedAt` auto-parse từ tên file).
+
+**Dữ liệu cần:**
+- `media.recordedAt` — thời điểm bắt đầu quay (ms UTC)
+- `media.duration` — độ dài video (giây, đã có trong Media model)
+- `chartData[]` — mảng readings có `.timestamp` (ms), đã sort tăng dần
+- Recharts `<Brush startIndex endIndex>` — controlled mode
+
+**Thuật toán:**
+```js
+function computeBrushRange(selectedMedia, chartData) {
+  if (!selectedMedia?.recordedAt || chartData.length === 0) return null
+
+  const videoStart = new Date(selectedMedia.recordedAt).getTime()
+  const videoEnd   = videoStart + (selectedMedia.duration ?? 120) * 1000
+
+  const startIdx = chartData.findIndex(d => d.timestamp >= videoStart)
+  const endIdx   = chartData.findLastIndex(d => d.timestamp <= videoEnd)
+
+  // Video nằm hoàn toàn ngoài sensor data → show full range
+  if (startIdx === -1 || endIdx === -1 || startIdx > endIdx) return null
+
+  // Thêm 10% buffer 2 bên để có context, tối thiểu 3 readings
+  const buf = Math.max(Math.floor((endIdx - startIdx) * 0.1), 3)
+  return {
+    startIndex: Math.max(0, startIdx - buf),
+    endIndex:   Math.min(chartData.length - 1, endIdx + buf),
+  }
+}
+```
+
+**Hành vi:**
+- Chọn video → brush auto-frame ngay lập tức (không animate chậm)
+- User kéo brush tay → state `userOverride = true` → auto-frame không còn chạy cho video đó
+- Chọn video khác → reset `userOverride`, auto-frame lại cho video mới
+- Video không có `recordedAt` → brush không đổi (giữ nguyên vị trí hiện tại)
+- Video nằm ngoài sensor data → brush về full range
+
+**Implementation — 3 chỗ thay đổi:**
+
+**1. `DiveDetailPage.jsx`:**
+```js
+const [brushRange, setBrushRange] = useState(null)          // null = full range
+const [brushUserOverride, setBrushUserOverride] = useState(false)
+
+// Recompute khi đổi video
+useEffect(() => {
+  setBrushUserOverride(false)
+  setBrushRange(computeBrushRange(selectedMedia, chartData))
+}, [selectedMedia?._id])
+
+// Spread vào BottomChart
+<BottomChart
+  brushRange={brushRange}
+  onBrushChange={(range) => {
+    setBrushUserOverride(true)
+    setBrushRange(range)
+  }}
+  ...
+/>
+```
+
+**2. `BottomChart.jsx`:**
+```js
+// Nhận props
+const { brushRange, onBrushChange } = props
+
+// Spread vào mỗi <Brush>:
+<Brush
+  {...brushProps}
+  startIndex={brushRange?.startIndex}   // undefined = full range
+  endIndex={brushRange?.endIndex}
+  onChange={onBrushChange}
+/>
+```
+
+**3. Không cần đổi backend gì.**
+
+**Checklist sau TASK 6e:**
+- [ ] Chọn `record_144350.mp4` → brush nhảy đến ~14:43-14:47 ngay lập tức
+- [ ] Chọn `record_144536.mp4` → brush nhảy sang ~14:45-14:49
+- [ ] Video không có `recordedAt` → brush không thay đổi
+- [ ] User kéo brush tay → brush không bị reset khi video vẫn đang phát
+- [ ] Chọn video khác sau khi đã kéo tay → auto-frame lại đúng video mới
+- [ ] Video nằm ngoài range sensor data → brush về full range, không crash
+- [ ] ReferenceLine vẫn scrub đúng trong khoảng brush đã frame
+- [ ] Khi không có `recordedAt` trên bất kỳ video nào → brush hoạt động như cũ (full range, kéo tay)
+
+---
+
 ### TASK 7 — Polish trước bảo vệ
 **Subtasks:**
 1. Responsive mobile (375px, 768px) — tất cả trang

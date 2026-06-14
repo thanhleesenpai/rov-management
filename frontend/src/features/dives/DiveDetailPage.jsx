@@ -716,12 +716,12 @@ export default function DiveDetailPage() {
       {/* ═══════════════════════════════════════════════════════════ MIDDLE ROW */}
       <div className="flex-none lg:flex-1 lg:min-h-0 flex flex-col lg:flex-row gap-3 p-3 lg:overflow-hidden">
 
-        {/* ─── LEFT COLUMN (w-56) ─── */}
-        <div className="w-full lg:w-56 flex-none flex flex-col gap-3 order-2 lg:order-1 lg:min-h-0">
+        {/* ─── LEFT COLUMN ─── */}
+        <div className="w-full lg:w-[18%] lg:min-w-[180px] lg:max-w-[280px] flex-none flex flex-col gap-3 order-2 lg:order-1 lg:min-h-0">
 
-          {/* Location — hidden when statusExpanded so Current Status fills the column */}
+          {/* Location — square on desktop; hidden when user manually expands Current Status */}
           {!statusExpanded && (
-            <div className="flex-none h-52 rounded-xl bg-card border border-border overflow-hidden flex flex-col">
+            <div className="h-44 lg:h-auto lg:aspect-square flex-none rounded-xl bg-card border border-border overflow-hidden flex flex-col">
               <div className="flex items-center justify-between px-3 py-2 shrink-0">
                 <span className="text-[9px] font-bold font-mono uppercase tracking-widest text-muted-foreground">Location</span>
                 {showDvlToggle && (
@@ -753,12 +753,16 @@ export default function DiveDetailPage() {
             </div>
           )}
 
-          {/* Current Status — dedicated component with ResizeObserver-driven adaptive sizing */}
-          <CurrentStatus
-            stats={stats}
-            expanded={statusExpanded}
-            onToggle={() => setStatusExpanded(v => !v)}
-          />
+          {/* Current Status — auto-adapts: 8 when space, 4 when tight, 2x2 when very tight */}
+          {/* Expand button inside hides Location and forces 8 */}
+          <div className="flex-1 min-h-0">
+            <CurrentStatus
+              stats={stats}
+              currentReading={currentReading}
+              expanded={statusExpanded}
+              onToggle={() => setStatusExpanded(v => !v)}
+            />
+          </div>
 
         </div>
 
@@ -1412,13 +1416,13 @@ export default function DiveDetailPage() {
             hidden={hidden} setHidden={setHidden}
             hasNavData={hasNavData} hasPowerData={hasPowerData}
             chartData={chartData} syncIdx={syncIdx} anomalySet={anomalySet}
-            isDark={true} hasSensor={hasSensor}
+            isDark={isDark} hasSensor={hasSensor}
           />
         )}
         </div>{/* ─── end CENTER COLUMN WRAPPER ─── */}
 
-        {/* ─── RIGHT COLUMN (w-56) ─── */}
-        <div className="w-full lg:w-56 flex-none lg:shrink lg:min-h-0 flex flex-col gap-3 order-3">
+        {/* ─── RIGHT COLUMN ─── */}
+        <div className="w-full lg:w-[18%] lg:min-w-[180px] lg:max-w-[280px] flex-none lg:min-h-0 flex flex-col gap-3 order-3">
 
           {/* Navigation gauges */}
           <div className="flex-none rounded-xl bg-card border border-border p-3">
@@ -1466,7 +1470,7 @@ export default function DiveDetailPage() {
           hidden={hidden} setHidden={setHidden}
           hasNavData={hasNavData} hasPowerData={hasPowerData}
           chartData={chartData} syncIdx={syncIdx} anomalySet={anomalySet}
-          isDark={true} hasSensor={hasSensor}
+          isDark={isDark} hasSensor={hasSensor}
           extraRight={
             <button
               onClick={() => setIsSonarMode(true)}

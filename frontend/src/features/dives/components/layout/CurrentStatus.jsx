@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
-import { KpiCard, pickKpiSize } from '../ui/KpiCard'
+import { KpiCard } from '../ui/KpiCard'
 
 const PRIMARY = [
   { key: 'depth',    label: 'Depth',      unit: 'm',   color: '#0891b2', fmt: v => v.toFixed(2) },
@@ -16,87 +16,91 @@ const SECONDARY = [
   { key: 'cameraTilt',  label: 'Cam Tilt',    unit: '°',  color: '#64748b', fmt: v => v.toFixed(1) },
 ]
 
-function buildCards(defs, stats) {
+function buildCards(defs, stats, reading) {
   return defs.map(({ key, label, unit, color, fmt }) => {
-    const avg = stats?.[key]?.avg
-    return { label, unit, color, value: avg != null ? fmt(avg) : '—' }
+    const live = reading?.[key]
+    const avg  = stats?.[key]?.avg
+    const raw  = live != null ? live : avg
+    return { label, unit, color, value: raw != null ? fmt(raw) : '—' }
   })
 }
 
-// ─── Component ───────────────────────────────────────────────────────────────
-//
-// Layout rules (all via ResizeObserver, zero scrollbars):
-//
-//   Collapsed (4 primary KPIs):
-//     containerH ≥ 160 → flex-col, cards use flex-1 min-h-0, size = pickKpiSize(H)
-//     containerH < 160 → 2×2 compact grid
-//
-//   Expanded (8 KPIs, Location panel hidden → tall column):
-//     Always flex-col — no grid. Cards use flex-1 min-h-0.
-//     Size = pickKpiSize(H / 2)  because 8 cards share the same height 4 would.
+function pickSize(rowH) {
+  if (rowH >= 65) return 'lg'
+  if (rowH >= 48) return 'md'
+  if (rowH >= 34) return 'sm'
+  return '2x2'
+}
 
-export function CurrentStatus({ stats, expanded, onToggle }) {
+// contentH thresholds for auto-layout
+const AUTO_8_MIN  = 250   // >= 250px → auto-show 8 in 1 col
+const COMPACT_MIN = 120   // < 120px  → 2×2 compact (whatever N)
+
+export function CurrentStatus({ stats, currentReading, expanded, onToggle }) {
   const contentRef = useRef(null)
-  const [containerH, setContainerH] = useState(0)
+  const [contentH, setContentH] = useState(200)
 
   useEffect(() => {
     const el = contentRef.current
     if (!el) return
-    const obs = new ResizeObserver(() => setContainerH(el.clientHeight))
+    const obs = new ResizeObserver(() => setContentH(el.clientHeight))
     obs.observe(el)
-    setContainerH(el.clientHeight)
+    setContentH(el.clientHeight)
     return () => obs.disconnect()
   }, [])
 
-  const primary  = buildCards(PRIMARY,   stats)
-  const all8     = [...primary, ...buildCards(SECONDARY, stats)]
+  const isLive    = currentReading != null
+  const autoAll   = contentH >= AUTO_8_MIN
+  const showAll   = expanded || autoAll          // 8 cards
 
-  // Size for collapsed (4 cards): use full height
-  const collapsedSize = pickKpiSize(containerH)
-  // Size for expanded (8 cards): each card gets ~half the space
-  const expandedSize  = pickKpiSize(Math.floor(containerH / 2))
+  const primary = buildCards(PRIMARY,   stats, currentReading)
+  const all8    = [...primary, ...buildCards(SECONDARY, stats, currentReading)]
+  const cards   = showAll ? all8 : primary
+  const N       = cards.length   // 4 or 8
 
-  const cards     = expanded ? all8 : primary
-  const kpiSize   = expanded ? expandedSize : collapsedSize
-  const use2x2    = !expanded && collapsedSize === '2x2'
+  // Compact mode: height too small for single column → switch to 2 cols
+  const rowH1col  = (contentH - (N - 1) * 6) / N
+  const size      = pickSize(rowH1col)
+  const compact   = contentH < COMPACT_MIN || size === '2x2'
+  const cols      = compact ? 2 : 1
+  const rows      = compact ? Math.ceil(N / 2) : N
 
   return (
-    <div className="flex-1 min-h-0 rounded-xl bg-card border border-border flex flex-col overflow-hidden">
-
-      {/* Header */}
+    <div className="h-full rounded-xl bg-card border border-border flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-border shrink-0">
         <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground">
           Current Status
         </span>
-        <button
-          onClick={onToggle}
-          className="text-muted-foreground hover:text-foreground transition-colors"
-          title={expanded ? 'Collapse' : 'Expand'}>
-          {expanded ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
-        </button>
+        <div className="flex items-center gap-2">
+          {isLive && (
+            <span className="text-[8px] font-bold tracking-widest text-blue-400 uppercase">live</span>
+          )}
+          {expanded && onToggle && (
+            <button onClick={onToggle}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              title="Collapse">
+              <ChevronDown size={13} />
+            </button>
+          )}
+          {!expanded && !autoAll && onToggle && (
+            <button onClick={onToggle}
+              className="text-muted-foreground hover:text-foreground transition-colors"
+              title="Expand all">
+              <ChevronUp size={13} />
+            </button>
+          )}
+        </div>
       </div>
-
-      {/* Content */}
-      <div ref={contentRef} className="flex-1 min-h-0 overflow-hidden p-1.5">
-
-        {/* Collapsed tight: 2×2 compact grid */}
-        {use2x2 && (
-          <div className="grid grid-cols-2 grid-rows-2 gap-1.5 h-full">
-            {primary.map(c => <KpiCard key={c.label} size="2x2" {...c} />)}
-          </div>
-        )}
-
-        {/* Collapsed or Expanded: vertical flex-col — cards share height equally */}
-        {!use2x2 && (
-          <div className="flex flex-col gap-1.5 h-full">
-            {cards.map(c => (
-              <div key={c.label} className="flex-1 min-h-0">
-                <KpiCard size={kpiSize} {...c} />
-              </div>
-            ))}
-          </div>
-        )}
-
+      <div ref={contentRef} className="flex-1 min-h-0 p-1.5">
+        <div
+          className="h-full grid gap-1.5"
+          style={{
+            gridTemplateColumns: `repeat(${cols}, 1fr)`,
+            gridTemplateRows:    `repeat(${rows}, 1fr)`,
+          }}
+        >
+          {cards.map(c => <KpiCard key={c.label} size={size} {...c} />)}
+        </div>
       </div>
     </div>
   )

@@ -39,7 +39,7 @@ const MOCK_YPR = Array.from({ length: 24 }, (_, i) => ({
 
 export function fmtTime(ts) {
   const d = new Date(ts)
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}`
 }
 
 const AXIS = { tick: { fontSize: 9, fill: '#9ca3af', fontFamily: 'JetBrains Mono, monospace' }, axisLine: false, tickLine: false }
@@ -71,7 +71,7 @@ function AnomalyDot({ cx, cy, payload, dataKey, anomalySet }) {
 
 function LegendToggle({ metrics, hidden, setHidden, chartData, showDemoNote }) {
   return (
-    <div className="hidden sm:flex items-center gap-3 mr-4 flex-nowrap overflow-x-auto max-w-[240px]" style={{ scrollbarWidth: 'none' }}>
+    <div className="hidden sm:flex items-center gap-3 mr-4 flex-nowrap overflow-x-auto max-w-[360px]" style={{ scrollbarWidth: 'none' }}>
       {metrics.map(({ key, label, color }) => {
         const hasData = chartData.some(d => d[key] != null)
         if (!hasData) return null
@@ -102,10 +102,14 @@ export function BottomChart({
   variant = 'bottom',  // 'bottom' | 'inline'
 }) {
   const brushProps = {
-    dataKey: 'timestamp', height: 18, travellerWidth: 5, tickFormatter: fmtTime,
-    stroke: isDark ? '#374151' : '#e5e7eb',
-    fill:   isDark ? '#1f2937' : '#f9fafb',
-    tick: { fontSize: 8, fill: '#9ca3af' },
+    dataKey: 'timestamp',
+    height: 14,
+    travellerWidth: 6,
+    // Bỏ tickFormatter để tránh labels bị clip ở 2 đầu — X-axis phía trên đã có timestamps
+    tickFormatter: () => '',
+    stroke: isDark ? '#4b5563' : '#d1d5db',
+    fill:   isDark ? '#1f2937' : '#e5e7eb',
+    travellerStyle: { fill: isDark ? '#6b7280' : '#9ca3af', stroke: 'none' },
   }
 
   const refLine = (yAxisId) =>
@@ -163,13 +167,13 @@ export function BottomChart({
         )}
       </div>
 
-      <div className="flex-1 min-h-0 relative p-3">
+      <div className="flex-1 min-h-0 relative p-3 overflow-hidden">
 
         {/* ── ENVIRONMENT: Depth (left, m) + Water Temp (right, °C) ── */}
         {chartTab === 'env' && (
           chartData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 4, right: 44, left: -12, bottom: 0 }}>
+              <AreaChart data={chartData} margin={{ top: 4, right: 48, left: 4, bottom: 0 }}>
                 <defs>
                   {ENV_METRICS.map(({ key, color }) => (
                     <linearGradient key={key} id={`g_${key}`} x1="0" y1="0" x2="0" y2="1">
@@ -179,9 +183,9 @@ export function BottomChart({
                   ))}
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--border))" vertical={false} />
-                <XAxis dataKey="timestamp" tickFormatter={fmtTime} {...AXIS} interval="preserveStartEnd" />
+                <XAxis dataKey="timestamp" tickFormatter={fmtTime} {...AXIS} tickCount={5} />
                 {/* Left axis: depth (m) — negative values, surface at top by default */}
-                <YAxis yAxisId="left"  {...AXIS} width={32} unit="m" />
+                <YAxis yAxisId="left"  {...AXIS} width={44} unit="m" />
                 {/* Right axis: water temperature (°C) */}
                 <YAxis yAxisId="right" {...AXIS} width={36} orientation="right" unit="°C" />
                 <Tooltip content={<ChartTooltip />} />
@@ -215,13 +219,13 @@ export function BottomChart({
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
                 data={hasNavData ? chartData : MOCK_YPR}
-                margin={{ top: 4, right: 28, left: -12, bottom: 0 }}>
+                margin={{ top: 4, right: 32, left: 4, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--border))" vertical={false} />
                 <XAxis
                   dataKey={hasNavData ? 'timestamp' : 't'}
                   tickFormatter={hasNavData ? fmtTime : undefined}
-                  {...AXIS} interval="preserveStartEnd" />
-                <YAxis {...AXIS} width={28} unit="°" />
+                  {...AXIS} tickCount={5} />
+                <YAxis {...AXIS} width={36} unit="°" />
                 <Tooltip content={<ChartTooltip />} />
                 {hasNavData && syncIdx != null && chartData[syncIdx] && (
                   <ReferenceLine x={chartData[syncIdx].timestamp}
@@ -253,11 +257,11 @@ export function BottomChart({
         {chartTab === 'power' && (
           hasPowerData ? (
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={chartData} margin={{ top: 4, right: 44, left: -12, bottom: 0 }}>
+              <LineChart data={chartData} margin={{ top: 4, right: 48, left: 4, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--border))" vertical={false} />
-                <XAxis dataKey="timestamp" tickFormatter={fmtTime} {...AXIS} interval="preserveStartEnd" />
-                <YAxis yAxisId="left"  {...AXIS} width={28} unit="%" domain={[0, 100]} />
-                <YAxis yAxisId="right" {...AXIS} width={32} unit="V" orientation="right" />
+                <XAxis dataKey="timestamp" tickFormatter={fmtTime} {...AXIS} tickCount={5} />
+                <YAxis yAxisId="left"  {...AXIS} width={36} unit="%" domain={[0, 100]} />
+                <YAxis yAxisId="right" {...AXIS} width={40} unit="V" orientation="right" />
                 <Tooltip content={<ChartTooltip />} />
                 {refLine('left')}
                 {SYS_METRICS.map(({ key, label, color, axis }) => {
