@@ -13,7 +13,7 @@ const rows = ['timestamp,depth,temp,pressure,lat,lng'];
 
 for (let i = 0; i < ROWS; i++) {
   const ts = new Date(START.getTime() + i * 60 * 1000).toISOString();
-  // Simulate dive: descend to 50m, hold, ascend
+  // Simulate trip: descend to 50m, hold, ascend
   let depth;
   if (i < 30)       depth = (i * 50 / 30).toFixed(2);
   else if (i < 90)  depth = (50 + (Math.random() - 0.5) * 2).toFixed(2);

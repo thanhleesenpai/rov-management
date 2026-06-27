@@ -1,0 +1,56 @@
+@startuml state_trip
+skinparam backgroundColor White
+skinparam activity {
+  BackgroundColor White
+  BorderColor #333
+  DiamondBackgroundColor White
+  DiamondBorderColor #333
+  FontSize 11
+  FontName Arial
+}
+skinparam swimlane {
+  BorderColor #333
+  TitleFontStyle bold
+  TitleFontSize 12
+  TitleFontName Arial
+}
+skinparam arrow {
+  Color #333
+  FontSize 10
+  FontName Arial
+}
+skinparam shadowing false
+skinparam ConditionStyle diamond
+skinparam roundcorner 5
+
+|Người dùng|
+start
+:Tạo Trip mới trong Project;
+
+|Hệ thống|
+:pending\n(Chờ bắt đầu)\nCấu hình thông tin lặn;
+
+|Người dùng|
+:Bắt đầu lặn [Operator];
+
+|Hệ thống|
+:running\n(Đang lặn thực địa)\nROV hoạt động & ghi dữ liệu;
+
+|Người dùng|
+:Kết thúc lượt lặn\n& Upload dữ liệu về bờ\n(Sensor CSV, Video, DVL, Sonar);
+
+if (Kết quả lượt lặn?) then (Thành công)
+  :Đánh dấu hoàn thành [Operator];
+  |Hệ thống|
+  :done\n(Hoàn thành)\nGửi thông báo in-app (SSE)\nđến người tạo Trip;
+  stop
+else (Sự cố / Lỗi dữ liệu)
+  :Đánh dấu thất bại [Operator / Admin];
+  |Hệ thống|
+  :failed\n(Thất bại)\nGửi thông báo in-app (SSE)\nDữ liệu đã upload vẫn giữ nguyên;
+
+  |Người dùng|
+  :Tạo Trip mới để thử lại;
+  stop
+endif
+@enduml

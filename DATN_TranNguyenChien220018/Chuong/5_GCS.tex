@@ -1,0 +1,59 @@
+\documentclass[../DoAn.tex]{subfiles}
+\begin{document}
+
+\section{Cơ sở lý thuyết}
+\subsection{Tổng quan chức năng Track and Catch trong hệ thống ROV}
+- Vị trí của module trong hệ thống lớn
+- Luồng Camera -> Tracker -> Vision Packet -> Controller -> Thruster
+
+\subsection{Cơ sở về truyền luồng hình ảnh MJPEG}
+- HTTP multipart MJPEG
+- Camera server trên ROV
+- Agent đọc stream, tách JPEG frame, decode bằng OpenCV
+- Ưu/nhược điểm: đơn giản, dễ tích hợp, nhưng có độ trễ và không đảm bảo đồng bộ tuyệt đối
+
+\subsection{Cơ sở về theo dõi mục tiêu bằng Optical Flow}
+- Bài toán tracking mục tiêu do người dùng chọn
+- Feature detection
+- Lucas-Kanade Optical Flow
+- Pyramidal LK
+- Lọc outlier và ước lượng chuyển động robust
+- Ước lượng scale và confidence
+- Reacquire khi tracking yếu
+
+\subsection{Chuẩn hóa sai lệch ảnh cho điều khiển}
+- $dx_normalized$\\
+- $dy_normalized$\\
+- $scale_error_normalized$\\
+- Vì sao scale có thể dùng làm xấp xỉ khoảng cách tương đối
+- Phân biệt: đưa mục tiêu về vị trí lúc chọn, không nhất thiết về tâm ảnh
+
+\subsection{Cơ sở điều khiển PID cho Track and Catch}
+- PID rời rạc
+- PID lateral
+- PID forward/range
+- Deadband, saturation, slew-rate limit, derivative filtering, anti-windup
+- Reset PID khi mất target/manual override
+
+\subsection{Cơ sở điều khiển ROV và mixing matrix}
+- Vector điều khiển [forward, lateral, ascend, yaw]
+- Ma trận mixing 8x4
+- Chuyển thrust sang PWM
+- Vai trò PCA9685, ESC, neutral PWM
+
+\subsection{Cơ sở truyền thông và tích hợp hệ thống}
+- HTTP giữa host và agent
+- UDP vision packet giữa agent và controller
+- MAVLink/$SET_MODE$ để bật/tắt mode
+- Đa luồng và shared state
+
+\subsection{Cơ chế an toàn khi vận hành}
+- Confidence threshold
+- Vision timeout
+- Manual override
+- Hold heading khi hold vision
+- Disarm/neutral thrust
+- Giới hạn lệnh điều khiển
+
+
+\end{document}

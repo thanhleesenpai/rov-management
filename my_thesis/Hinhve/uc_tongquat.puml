@@ -1,0 +1,84 @@
+@startuml uc_tongquat
+left to right direction
+skinparam packageStyle rectangle
+skinparam usecase {
+  BackgroundColor White
+  BorderColor Black
+  FontSize 10
+}
+skinparam actor {
+  BackgroundColor White
+  BorderColor Black
+  FontSize 11
+  FontStyle bold
+}
+skinparam ArrowColor Black
+
+actor "Viewer" as V
+actor "Operator" as O
+actor "Admin" as A
+actor "YOLO Service\n(FastAPI / YOLOv8)" as YOLO
+actor "Gemini AI\n(Google)" as Gemini
+
+O --|> V
+A --|> O
+
+rectangle "Hệ thống Quản lý Vận hành ROV" {
+
+  ' --- UC nhóm VIEWER ---
+  usecase "Đăng nhập\n(Email / Google OAuth2)" as UC1
+  usecase "Xem Dashboard\n& Thống kê" as UC2
+  usecase "Xem danh sách\nROV / Project / Trip" as UC3
+  usecase "Xem chi tiết Trip\n(Biểu đồ, Map GPS, Media)" as UC4
+  usecase "Xem đồng bộ\nVideo & Cảm biến" as UC5
+  usecase "Nhận thông báo\nSSE realtime" as UC6
+
+  ' --- UC nhóm OPERATOR ---
+  usecase "Tạo & quản lý\nProject / Trip" as UC7
+  usecase "Tải lên dữ liệu thực địa\n(Sensor CSV / DVL / Sonar)" as UC8
+  usecase "Tải lên Media\n(Video / Ảnh)" as UC9
+  usecase "Trích xuất Bằng chứng\n(Photo Snapshot / Video Clip)" as UC10
+  usecase "Kích hoạt phân tích\nvật thể YOLO" as UC11
+  usecase "Tạo báo cáo\ntóm tắt AI (Gemini)" as UC12
+  usecase "Xuất dữ liệu\n(CSV / PDF)" as UC13
+
+  ' --- UC nhóm ADMIN ---
+  usecase "Quản lý\nThiết bị ROV" as UC14
+  usecase "Quản lý &\nphân quyền Người dùng" as UC15
+  usecase "Xem Nhật ký\nhoạt động (Audit Log)" as UC16
+  usecase "Xóa Media\n(Bulk Delete)" as UC17
+}
+
+' Viewer
+V --> UC1
+V --> UC2
+V --> UC3
+V --> UC4
+V --> UC5
+V --> UC6
+
+' Operator (thêm so với Viewer, kế thừa qua O --|> V)
+O --> UC7
+O --> UC8
+O --> UC9
+O --> UC10
+O --> UC11
+O --> UC12
+O --> UC13
+
+' Admin (thêm so với Operator, kế thừa qua A --|> O --|> V)
+A --> UC14
+A --> UC15
+A --> UC16
+A --> UC17
+
+' Hệ thống AI — tham gia 2 UC
+YOLO --> UC11
+Gemini --> UC12
+
+' Quan hệ giữa Use Case
+UC5 .> UC4 : <<include>>
+UC10 .> UC9 : <<extend>>
+UC11 .> UC10 : <<extend>>
+
+@enduml

@@ -2,9 +2,10 @@ const { PutObjectCommand, DeleteObjectCommand, GetObjectCommand } = require('@aw
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { v4: uuidv4 } = require('uuid');
 const SonarFile = require('./sonar.model');
-const Dive = require('../dives/dive.model');
+const Trip = require('../trips/trip.model');
 const s3 = require('../../config/s3');
 const { success, error } = require('../../utils/response.util');
+const { parseTimestampFromFilename } = require('../../utils/parseTimestamp.util');
 
 const BUCKET = process.env.S3_BUCKET;
 const MAGIC = 'SONAR360';
@@ -40,20 +41,16 @@ function parseSonarMeta(buffer) {
 }
 
 // Parse recordedAt from filename e.g. "sonar_20260601_170042.sonar"
+// (filename timestamps are UTC+7 — delegate to the shared parser)
 function recordedAtFromFilename(filename) {
-  const m = filename.match(/(\d{8})_(\d{6})/);
-  if (!m) return null;
-  const [, date, time] = m;
-  const iso = `${date.slice(0,4)}-${date.slice(4,6)}-${date.slice(6,8)}T${time.slice(0,2)}:${time.slice(2,4)}:${time.slice(4,6)}Z`;
-  const d = new Date(iso);
-  return isNaN(d.getTime()) ? null : d;
+  return parseTimestampFromFilename(filename);
 }
 
 const upload = async (req, res, next) => {
   try {
-    const diveId = req.params.id;
-    const dive = await Dive.findById(diveId);
-    if (!dive) return error(res, 'Dive not found', 404);
+    const tripId = req.params.id;
+    const trip = await Trip.findById(tripId);
+    if (!trip) return error(res, 'Trip not found', 404);
     if (!req.file) return error(res, 'No file provided', 400);
 
     let meta;
@@ -64,8 +61,15 @@ const upload = async (req, res, next) => {
     }
 
     const filename = req.file.originalname;
-    const s3Key = `sonar/${diveId}/${uuidv4()}-${filename}`;
 
+    // Same filename → replace (delete old S3 + DB); new filename → append
+    const existing = await SonarFile.findOne({ trip: tripId, filename }).lean();
+    if (existing) {
+      await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: existing.s3Key })).catch(() => {});
+      await SonarFile.deleteOne({ _id: existing._id });
+    }
+
+    const s3Key = `sonar/${tripId}/${uuidv4()}-${filename}`;
     await s3.send(new PutObjectCommand({
       Bucket: BUCKET,
       Key: s3Key,
@@ -74,15 +78,8 @@ const upload = async (req, res, next) => {
       ContentDisposition: `attachment; filename="${filename}"`,
     }));
 
-    // Replace existing sonar file (1 per dive)
-    const existing = await SonarFile.find({ dive: diveId }).select('s3Key');
-    for (const old of existing) {
-      await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: old.s3Key })).catch(() => {});
-    }
-    await SonarFile.deleteMany({ dive: diveId });
-
     const doc = await SonarFile.create({
-      dive: diveId,
+      trip: tripId,
       filename,
       s3Key,
       frameCount:    meta.frameCount,
@@ -91,7 +88,8 @@ const upload = async (req, res, next) => {
       recordedAt:    recordedAtFromFilename(filename),
     });
 
-    await Dive.findByIdAndUpdate(diveId, { $set: { sonarCount: 1 } });
+    const newCount = await SonarFile.countDocuments({ trip: tripId });
+    await Trip.findByIdAndUpdate(tripId, { sonarCount: newCount });
 
     success(res, doc, 'Sonar file uploaded', 201);
   } catch (err) {
@@ -101,11 +99,11 @@ const upload = async (req, res, next) => {
 
 const list = async (req, res, next) => {
   try {
-    const diveId = req.params.id;
-    const dive = await Dive.findById(diveId).lean();
-    if (!dive) return error(res, 'Dive not found', 404);
+    const tripId = req.params.id;
+    const trip = await Trip.findById(tripId).lean();
+    if (!trip) return error(res, 'Trip not found', 404);
 
-    const files = await SonarFile.find({ dive: diveId }).sort({ createdAt: 1 }).lean();
+    const files = await SonarFile.find({ trip: tripId }).sort({ createdAt: 1 }).lean();
     success(res, files);
   } catch (err) {
     next(err);
@@ -116,7 +114,7 @@ const getUrl = async (req, res, next) => {
   try {
     const sonarFile = await SonarFile.findOne({
       _id: req.params.sonarId,
-      dive: req.params.id,
+      trip: req.params.id,
     }).lean();
     if (!sonarFile) return error(res, 'Sonar file not found', 404);
 
@@ -135,13 +133,14 @@ const remove = async (req, res, next) => {
   try {
     const sonarFile = await SonarFile.findOne({
       _id: req.params.sonarId,
-      dive: req.params.id,
+      trip: req.params.id,
     });
     if (!sonarFile) return error(res, 'Sonar file not found', 404);
 
     await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: sonarFile.s3Key })).catch(() => {});
     await sonarFile.deleteOne();
-    await Dive.findByIdAndUpdate(req.params.id, { $set: { sonarCount: 0 } });
+    const newCount = await SonarFile.countDocuments({ trip: req.params.id });
+    await Trip.findByIdAndUpdate(req.params.id, { sonarCount: newCount });
 
     success(res, null, 'Sonar file deleted');
   } catch (err) {

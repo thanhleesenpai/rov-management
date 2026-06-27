@@ -1,0 +1,1372 @@
+\documentclass[../DoAn.tex]{subfiles}
+
+\begin{document}
+
+
+
+Vẽ biểu đồ vào chương này, ref:
+
+\section{Tổng quan kiến trúc phần mềm hệ thống ROV}
+
+Hệ thống tàu ngầm điều khiển từ xa (ROV -- Remotely Operated Vehicle)
+được thiết kế theo mô hình phân tán, bao gồm hai thành phần phần mềm
+chính: firmware nhúng chạy trực tiếp trên ROV và phần mềm điều khiển
+mặt đất Ground Control Station (GCS).
+
+Firmware nhúng được triển khai trên nền tảng tính toán nhúng \texttt{QCS8550}, chạy hệ điều hành Linux và được phát triển chủ yếu
+bằng ngôn ngữ Python. Thành phần này chịu trách nhiệm giao tiếp với các
+cảm biến và cơ cấu chấp hành gắn trực tiếp trên ROV, thực hiện các thuật
+toán điều khiển thời gian thực, duy trì trạng thái ổn định của phương
+tiện dưới nước và truyền dữ liệu telemetry về trạm điều khiển.
+
+Phần mềm Ground Control Station (GCS) được phát triển trên nền tảng
+desktop sử dụng ngôn ngữ C# và framework WPF. GCS đóng vai trò trung
+tâm điều khiển, cho phép người vận hành giám sát trạng thái ROV theo
+thời gian thực, điều khiển bằng thiết bị Joystick, tiếp nhận và hiển thị
+dữ liệu video, lưu trữ dữ liệu nhiệm vụ, đồng thời hỗ trợ phân tích dữ
+liệu sau quá trình vận hành.
+
+Kiến trúc hệ thống sử dụng kết nối Ethernet thông qua dây tether nối
+giữa ROV và trạm điều khiển. Trong hệ thống tồn tại ba luồng dữ liệu
+độc lập hoạt động song song.
+
+Luồng thứ nhất là kênh điều khiển và telemetry giữa firmware trên ROV và
+GCS sử dụng giao thức MAVLink truyền qua UDP. Kênh này đảm nhiệm việc
+truyền lệnh điều khiển từ GCS đến ROV và truyền trạng thái cảm biến từ
+ROV ngược về GCS.
+
+Luồng thứ hai là dữ liệu video từ camera gắn trên ROV. Camera kết nối
+trực tiếp với board QCS8550, hình ảnh được mã hóa JPEG và truyền liên
+tục về GCS dưới dạng luồng MJPEG thông qua giao thức TCP nhằm đảm bảo độ
+trễ thấp trong quá trình quan sát.
+
+Luồng thứ ba bao gồm các thiết bị cảm biến độc lập như sonar quét hình
+ảnh và cảm biến định vị vận tốc DVL. Các thiết bị này giao tiếp mạng độc
+lập và truyền dữ liệu trực tiếp đến GCS mà không đi qua firmware điều
+khiển chính trên board QCS8550.
+
+Kiến trúc phân tách này giúp giảm tải cho bộ xử lý nhúng trung tâm,
+đồng thời cho phép các thiết bị chuyên dụng như sonar và DVL hoạt động
+song song với hệ thống điều khiển mà không ảnh hưởng đến vòng lặp điều
+khiển thời gian thực của ROV.
+
+\section{Kiến trúc tổng thể hệ thống}
+
+Hệ thống phần mềm được tổ chức thành ba thành phần độc lập bao gồm:
+
+\begin{itemize}
+\item Firmware nhúng trên ROV
+\item Phần mềm Ground Control Station
+\item Hệ thống lưu trữ và đồng bộ dữ liệu sau nhiệm vụ
+\end{itemize}
+
+Firmware nhúng chịu trách nhiệm điều khiển phương tiện và xử lý phần cứng
+gắn trực tiếp trên ROV. Ground Control Station đảm nhiệm giám sát, điều
+khiển từ xa, ghi nhận dữ liệu nhiệm vụ và hiển thị giao diện người dùng.
+Sau khi nhiệm vụ kết thúc, dữ liệu thu thập được có thể được lưu trữ cục
+bộ hoặc đồng bộ lên hệ thống web server phục vụ quản lý và phân tích từ xa.
+
+\section{Bảng đặc tả chức năng}
+
+Hệ thống phần mềm được thiết kế nhằm đáp ứng bảy nhóm chức năng chính,
+tương ứng với các nhu cầu vận hành thực tế trong môi trường dưới nước.
+
+\begin{itemize}
+\item Điều khiển bằng tay
+\item Điều khiển bán tự động
+\item Thu thập và xử lý dữ liệu cảm biến
+\item Hiển thị dữ liệu thời gian thực
+\item Lưu trữ dữ liệu nhiệm vụ
+\item Đồng bộ dữ liệu lên hệ thống web
+\item Giám sát trạng thái và đảm bảo an toàn hệ thống
+\end{itemize}
+
+\subsection{Điều khiển bằng tay}
+
+Người vận hành điều khiển trực tiếp phương tiện thông qua thiết bị
+Joystick kết nối với Ground Control Station. Dữ liệu điều khiển được gửi
+liên tục đến firmware ROV thông qua giao thức MAVLink.
+
+
+\begin{table}[H]
+
+\centering
+
+\renewcommand{\arraystretch}{1.3}
+
+\begin{tabular}{|l|p{4.5cm}|p{4.5cm}|}
+
+\hline
+
+\textbf{Chức năng} & \textbf{Đầu vào} & \textbf{Kết quả} \\
+
+\hline
+
+Di chuyển 6 bậc tự do &
+Joystick axes (forward, lateral, ascend, yaw) &
+ROV di chuyển đúng hướng với thời gian phản hồi nhỏ hơn 200 ms\\
+
+\hline
+
+Điều khiển đèn &
+Nút bật tắt, tăng giảm độ sáng &
+Đèn thay đổi trạng thái theo lệnh điều khiển\\
+
+\hline
+Điều khiển camera &
+Nút ngẩng, hạ, đưa về vị trí giữa &
+Servo camera thay đổi góc nghiêng tương ứng\\
+
+\hline
+Điều khiển gripper &
+Nút đóng mở &
+Cơ cấu gripper thực hiện thao tác gắp hoặc nhả vật thể\\
+
+\hline
+
+Điều chỉnh công suất &
+Slider Joystick &
+Hệ số $ESC\_GAIN$ thay đổi, hiển thị trên GCS \\
+
+\hline
+
+\end{tabular}
+
+\caption{Đặc tả chức năng điều khiển bằng tay}
+
+\label{tab:manual_control}
+
+\end{table}
+
+\subsection{Điều khiển tự động}
+
+Hệ thống hỗ trợ các chế độ điều khiển hỗ trợ nhằm giảm tải thao tác cho
+người vận hành trong môi trường có dòng chảy hoặc khi cần duy trì trạng
+thái ổn định trong thời gian dài.
+
+\subsubsection{Giữ hướng (Hold Heading)}
+
+\begin{table}[H]
+
+\centering
+
+\renewcommand{\arraystretch}{1.3}
+
+\begin{tabular}{|l|p{9cm}|}
+
+\hline
+
+\textbf{Mô tả} &
+Duy trì góc heading (yaw) của ROV tại giá trị tại thời điểm
+kích hoạt, bù nhiễu dòng nước hoặc lực không đối xứng từ
+tether. \\
+
+\hline
+
+\textbf{Đầu vào} &
+Lệnh kích hoạt từ Joystick hoặc giao diện GCS (mode = 1).
+Góc yaw hiện tại từ bộ lọc EKF. \\
+
+\hline
+
+\textbf{Xử lý} &
+Bộ điều khiển PID tính sai số góc và hiệu chỉnh thành phần
+yaw trong vector điều khiển. \\
+
+\hline
+
+\textbf{Kết quả} &
+ROV giữ nguyên hướng khi không có lệnh xoay từ Joystick;
+người vận hành vẫn điều khiển tự do các trục còn lại. \\
+
+\hline
+
+\end{tabular}
+
+\caption{Đặc tả chức năng giữ hướng}
+
+\label{tab:hold_heading}
+
+\end{table}
+
+\subsubsection{Giữ độ sâu (Hold Depth)}
+
+\begin{table}[H]
+
+\centering
+
+\renewcommand{\arraystretch}{1.3}
+
+\begin{tabular}{|l|p{9cm}|}
+
+\hline
+
+\textbf{Mô tả} &
+Duy trì độ sâu của ROV tại giá trị tại thời điểm kích hoạt,
+bù lực nổi và nhiễu dòng nước theo chiều thẳng đứng. \\
+
+\hline
+
+\textbf{Đầu vào} &
+Lệnh kích hoạt (mode = 4). Độ sâu hiện tại từ cảm biến
+áp suất MS5837. \\
+
+\hline
+
+\textbf{Xử lý} &
+Bộ điều khiển PID tính sai số độ sâu và hiệu chỉnh thành
+phần ascend trong vector điều khiển. \\
+
+\hline
+
+\textbf{Kết quả} &
+ROV duy trì độ sâu ổn định; người vận hành điều khiển tự do
+các trục forward, lateral, yaw. \\
+
+\hline
+
+\end{tabular}
+
+\caption{Đặc tả chức năng giữ độ sâu}
+
+\label{tab:hold_depth}
+
+\end{table}
+
+\subsubsection{Giữ vị trí theo DVL}
+
+\begin{table}[H]
+
+\centering
+
+\renewcommand{\arraystretch}{1.3}
+
+\begin{tabular}{|l|p{9cm}|}
+
+\hline
+
+\textbf{Mô tả} &
+Duy trì vị trí ngang (X, Y) của ROV dựa trên dữ liệu vận
+tốc từ cảm biến DVL (Doppler Velocity Log), bù trôi dạt do dòng nước. \\
+
+\hline
+
+\textbf{Đầu vào} &
+Lệnh kích hoạt từ GCS. Vận tốc tức thời từ DVL, tích phân
+tính vị trí tương đối. \\
+
+\hline
+
+\textbf{Xử lý} &
+Bộ điều khiển PID vị trí tính sai lệch X, Y và hiệu chỉnh
+thành phần forward, lateral trong vector điều khiển. \\
+
+\hline
+
+\textbf{Kết quả} &
+ ROV giữ nguyên vị trí ngang trong môi trường có dòng chảy. \\
+
+\hline
+
+\textbf{Trạng thái} & Đang phát triển. \\
+
+\hline
+
+\end{tabular}
+
+\caption{Đặc tả chức năng giữ vị trí theo DVL}
+
+\label{tab:hold_dvl}
+
+\end{table}
+
+\subsubsection{Giữ vị trí theo Vision}
+
+\begin{table}[H]
+
+\centering
+
+\renewcommand{\arraystretch}{1.3}
+
+\begin{tabular}{|l|p{9cm}|}
+
+\hline
+
+\textbf{Mô tả} &
+Theo dõi và bám theo mục tiêu xác định trong khung hình camera
+bằng thuật toán Optical Flow, điều khiển ROV giữ mục tiêu 
+ở trung tâm khung hình (Track and Catch). \\
+
+\hline
+
+\textbf{Đầu vào} &
+Lệnh kích hoạt và vùng chọn mục tiêu từ GCS. Luồng hình ảnh
+MJPEG từ camera ROV. \\
+
+\hline
+
+\textbf{Xử lý} &
+Optical Flow tính vector dịch chuyển của mục tiêu giữa các
+khung hình, chuẩn hóa sai lệch ảnh thành lệnh điều khiển
+forward/lateral/yaw. \\
+
+\hline
+
+\textbf{Kết quả} &
+ROV tự động di chuyển để giữ mục tiêu ở trung tâm khung hình. \\
+
+\hline
+
+\textbf{Trạng thái} & Đang phát triển (Chương 6). \\
+
+\hline
+
+\end{tabular}
+
+\caption{Đặc tả chức năng giữ vị trí theo Vision}
+
+\label{tab:hold_vision}
+
+\end{table}
+
+\subsection{Hiển thị dữ liệu thời gian thực từ ROV}
+
+Ground Control Station tiếp nhận nhiều luồng dữ liệu song song và hiển
+thị trực tiếp trên giao diện điều khiển phục vụ quá trình vận hành.
+
+\begin{table}[H]
+
+\centering
+
+\renewcommand{\arraystretch}{1.3}
+
+\begin{tabular}{|l|p{9cm}|}
+
+\hline
+
+\textbf{Chức năng} & \textbf{Mô tả} \\
+
+\hline
+Xem video trực tiếp &
+Nhận và hiển thị luồng MJPEG từ camera IP trên ROV với độ
+trễ thấp trên giao diện GCS. \\
+
+\hline
+
+Hiển thị Sonar &
+Nhận và hiển thị dữ liệu quét Sonar dưới dạng hình ảnh
+sector scan theo thời gian thực. \\
+
+\hline
+
+Hiển thị DVL &
+Nhận và hiển thị dữ liệu từ cảm biến DVL  bao gồm vận tốc tương đối,
+độ cao so với đáy và các thông tin định vị hỗ trợ điều hướng ROV
+theo thời gian thực. \\
+
+\hline
+
+Hiển thị log vận hành &
+Thu thập và hiển thị trực quan các thông số vận hành do ROV gửi về theo
+thời gian thực như góc định hướng (roll, pitch, yaw), chế độ điều khiển,
+trạng thái đèn, camera, trạng thái pin và các dữ liệu giám sát khác nhằm phục vụ
+theo dõi và phân tích. \\
+
+\hline
+
+\end{tabular}
+
+\caption{Đặc tả chức năng hiển thị ROV}
+
+\label{tab:video_sonar}
+
+\end{table}
+
+\subsection{Lưu trữ dữ liệu từ ROV}
+
+Trong suốt quá trình vận hành, toàn bộ dữ liệu được ghi lại phục vụ việc
+xem lại và phân tích sau nhiệm vụ.
+
+\begin{table}[H]
+
+\centering
+
+\renewcommand{\arraystretch}{1.3}
+
+\begin{tabular}{|l|p{9cm}|}
+
+\hline
+
+\textbf{Chức năng} & \textbf{Mô tả} \\
+
+\hline
+
+Lưu trữ video &
+Thu nhận và lưu lại luồng video MJPEG từ camera gắn trên ROV
+dưới dạng tệp video nhằm phục vụ việc xem lại và phân tích
+sau quá trình vận hành. \\
+
+\hline
+
+Lưu trữ dữ liệu Sonar &
+Ghi nhận và lưu trữ dữ liệu quét Sonar trong suốt quá trình hoạt động
+của ROV, phục vụ tái hiện hình ảnh môi trường và phân tích dữ liệu
+sau nhiệm vụ. \\
+
+\hline
+
+Lưu trữ dữ liệu DVL &
+Thu thập và lưu trữ dữ liệu từ cảm biến DVL bao gồm vận tốc tương đối,
+độ cao so với đáy và các thông tin hỗ trợ định vị nhằm phục vụ
+phân tích quá trình điều hướng của ROV. \\
+
+\hline
+
+Lưu trữ log vận hành &
+Thu thập và lưu trữ các thông số vận hành do ROV gửi về theo
+thời gian thực như góc định hướng (roll, pitch, yaw), chế độ điều khiển,
+trạng thái đèn, camera, trạng thái pin và các dữ liệu giám sát khác
+nhằm phục vụ theo dõi và phân tích sau nhiệm vụ. \\
+
+\hline
+
+Trực quan hóa dữ liệu sau lưu trữ &
+Hỗ trợ tái tạo và hiển thị trực quan dữ liệu Sonar và dữ liệu từ cảm biến
+DVL sau khi quá trình ghi kết thúc, giúp người vận hành phân tích môi trường,
+đánh giá quỹ đạo di chuyển và xem lại dữ liệu thu thập được sau nhiệm vụ. \\
+
+\hline
+
+\end{tabular}
+
+\caption{Đặc tả chức năng lưu trữ dữ liệu từ ROV}
+
+\label{tab:rov_storage}
+
+\end{table}
+
+\subsection{Lưu trữ dữ liệu lên web}
+
+Sau khi ROV về bờ, Operator tải dữ liệu thủ công lên hệ thống web quản lý thông tin. Hệ thống web không nhận dữ liệu trực tiếp trong khi ROV hoạt động ngoài thực địa do không có kết nối mạng. Bảng~\ref{tab:web_functions} mô tả các nhóm chức năng chính của hệ thống.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|p{4cm}|p{9cm}|}
+\hline
+\textbf{Nhóm chức năng} & \textbf{Mô tả} \\
+\hline
+Tải lên dữ liệu &
+Operator upload file CSV cảm biến, DVL JSON, sonar binary và video/ảnh lên REST API. Dữ liệu số lưu vào MongoDB Atlas; video/ảnh lưu trên AWS S3 thông qua presigned URL. \\
+\hline
+Quản lý ROV, Project, Trip &
+CRUD và theo dõi vòng đời trạng thái (\textit{pending $\to$ running $\to$ done/failed}) của ROV, chuyến khảo sát (Project) và lượt lặn (Trip). Phân quyền RBAC ba cấp: viewer, operator, admin. \\
+\hline
+Xem lại và phân tích dữ liệu &
+Biểu đồ cảm biến (độ sâu, nhiệt độ, áp suất); bản đồ GPS Leaflet; trình phát sonar; quỹ đạo DVL; đồng bộ video--biểu đồ theo timestamp \texttt{recordedAt}. \\
+\hline
+Phát hiện bất thường &
+Tự động tính Z-Score ($|z|>2{,}5$) cho từng chỉ số cảm biến; highlight điểm bất thường trên biểu đồ. \\
+\hline
+Nhận diện vật thể AI &
+Phân tích ảnh/video bằng YOLOv8 qua microservice Python FastAPI; kết quả trả về bất đồng bộ qua Bull Queue và SSE; hiển thị bounding box đồng bộ theo từng frame video. \\
+\hline
+Tóm tắt nhiệm vụ AI &
+Tạo báo cáo tóm tắt ngôn ngữ tự nhiên bằng Gemini 2.5 Flash khi Project hoàn tất; lưu vào DB và thông báo tức thì qua SSE. \\
+\hline
+Hệ thống bằng chứng &
+Operator chụp frame ảnh hoặc đánh dấu đoạn clip từ video làm bằng chứng; có thể phân tích YOLO riêng từng bằng chứng mà không cần phân tích toàn bộ video. \\
+\hline
+Thông báo realtime &
+SSE push thông báo khi Trip hoàn tất, YOLO phân tích xong, AI summary sẵn sàng; không cần reload trang. \\
+\hline
+\end{tabular}
+\caption{Đặc tả chức năng hệ thống web quản lý thông tin ROV}
+\label{tab:web_functions}
+\end{table}
+
+\section{Thiết kế module}
+
+\subsection{Thiết kế module firmware trên ROV}
+
+Firmware nhúng chạy trực tiếp trên board xử lý trung tâm của ROV, chịu
+trách nhiệm điều khiển thời gian thực, giao tiếp với phần cứng ngoại vi,
+thu thập dữ liệu cảm biến, xử lý thuật toán điều khiển và truyền dữ liệu
+telemetry về Ground Control Station.
+
+Firmware được triển khai trên nền tảng \texttt{QCS8550} chạy hệ điều hành
+Linux Embedded và được phát triển chủ yếu bằng ngôn ngữ Python. Kiến trúc
+phần mềm được thiết kế theo mô hình đa luồng nhằm cho phép các tác vụ
+điều khiển, đọc cảm biến, truyền dữ liệu và xử lý camera hoạt động song
+song mà không gây chặn lẫn nhau.
+
+Các module firmware được chia thành bảy nhóm chức năng chính.
+
+\begin{itemize}
+\item Nhóm module cảm biến
+\item Nhóm module điều khiển
+\item Nhóm module cơ cấu chấp hành
+\item Nhóm module camera
+\item Nhóm module truyền thông
+\item Nhóm module telemetry
+\item Nhóm module cấu hình và an toàn hệ thống
+\end{itemize}
+
+\subsubsection{Nhóm module cảm biến}
+
+Nhóm module cảm biến chịu trách nhiệm giao tiếp trực tiếp với các thiết
+bị đo lường gắn onboard trên ROV. Mỗi cảm biến được vận hành trên một
+luồng độc lập nhằm đảm bảo dữ liệu luôn được cập nhật liên tục với tần
+suất ổn định.
+
+\begin{table}[H]
+
+\centering
+
+\renewcommand{\arraystretch}{1.3}
+
+\begin{tabular}{|l|l|p{6cm}|}
+
+\hline
+
+\textbf{Module} & \textbf{Giao tiếp} & \textbf{Chức năng} \\
+
+\hline
+
+\texttt{MS5837} & I2C bus 3 &
+Đo áp suất nước, tính độ sâu và nhiệt độ nước. Cập nhật \texttt{latest\_depth}, \texttt{WaterTemp} \\
+
+\hline
+
+\texttt{EKF\_ICM} & SPI bus 0 &
+Đọc IMU ICM20602 (gia tốc, con quay, từ kế), chạy bộ lọc
+Kalman mở rộng tính góc roll/pitch/yaw. Cập nhật \texttt{latest\_roll}, \texttt{latest\_pitch}, \texttt{latest\_yaw} \\
+
+\hline
+
+\texttt{Si7021} & UART & Đo nhiệt độ và độ ẩm trong khoang kín ROV. Cập nhật \texttt{temp}, \texttt{humid} \\
+
+\hline
+
+\texttt{ADS1115} & I2C & Đọc ADC điện áp và dòng điện pin. Phục vụ tính SOC (state of charge) \\
+
+\hline
+
+\end{tabular}
+
+\caption{Các module cảm biến trong phần mềm ROV}
+
+\label{tab:sensor_modules}
+
+\end{table}
+
+\subsubsection{Nhóm module điều khiển}
+
+Đây là thành phần trung tâm của firmware, chịu trách nhiệm tiếp nhận
+lệnh điều khiển từ Ground Control Station và chuyển đổi thành lệnh điều
+khiển cụ thể cho các động cơ đẩy.
+
+Toàn bộ logic điều khiển hoạt động theo mô hình vòng lặp thời gian thực,
+liên tục nhận dữ liệu cảm biến, tính toán thuật toán ổn định và cập nhật
+tín hiệu điều khiển.
+
+\begin{table}[H]
+
+\centering
+
+\renewcommand{\arraystretch}{1.3}
+
+\begin{tabular}{|l|p{9cm}|}
+
+\hline
+
+\textbf{Module} & \textbf{Chức năng} \\
+
+\hline
+
+\texttt{control\_loop} &
+Vòng lặp chính lắng nghe lệnh MAVLink từ GCS (cổng UDP 16001). Phân loại và điều phối đến các hàm xử lý tương ứng. Giám sát heartbeat, tự động chuyển về manual khi mất kết nối. \\
+
+\hline
+
+\texttt{control\_thruster} & Nhận vector điều khiển 4 chiều $[fw, lat, asc, yaw]$, áp dụng
+PID giữ hướng/giữ độ sâu nếu đang kích hoạt, nhân với ma trận
+mixing $8\times4$ để tính lực 8 động cơ. \\
+
+\hline
+
+\texttt{process\_command} &
+Xử lý lệnh chuyển chế độ (manual, hold heading, hold depth),
+chốt setpoint tại thời điểm kích hoạt. \\
+
+\hline
+
+\texttt{auto\_tune\_pid} &
+Tự động xác định hệ số PID tối ưu bằng phương pháp relay
+Ziegler--Nichols, áp dụng cho trục heading hoặc depth. \\
+
+\hline
+
+\end{tabular}
+
+\caption{Các module điều khiển trong phần mềm ROV}
+
+\label{tab:control_modules}
+
+\end{table}
+
+\subsubsection{Nhóm module cơ cấu chấp hành}
+
+Toàn bộ cơ cấu chấp hành trên ROV đều giao tiếp thông qua IC PWM
+PCA9685 kết nối I2C, phát tín hiệu PWM chuẩn RC ($50\,Hz$,
+$1000$--$2000\,\mu s$) đến từng thiết bị. Nhóm này gồm 4 loại thiết
+bị với đặc tính điều khiển khác nhau.
+
+\begin{table}[H]
+
+\centering
+
+\renewcommand{\arraystretch}{1.3}
+
+\begin{tabular}{|l|l|l|p{3cm}|}
+
+\hline
+
+\textbf{Thiết bị} & \textbf{Kênh PCA9685} & \textbf{Kiểu điều khiển} & \textbf{Dải PWM} \\
+
+\hline
+
+8 động cơ (ESC) & Theo \texttt{THRUSTER\_MAP} & Tốc độ liên tục &
+$1100$--$1900\,\mu s$, trung tính $1500\,\mu s$ \\
+
+\hline
+
+Đèn chiếu sáng & Kênh 15 & Vị trí (độ sáng) &
+$1100\,\mu s$ (tắt) đến $1900\,\mu s$ (sáng tối đa) \\
+
+\hline
+
+Camera tilt (servo) & Kênh 2 & Vị trí (góc) &
+$1100$--$1900\,\mu s$, tương ứng $-45°$ đến $+45°$ \\
+
+\hline
+
+Gripper & Kênh 14 & Vị trí (đóng/mở) &
+$1200\,\mu s$ (đóng), $1700\,\mu s$ (mở) \\
+
+\hline
+
+\end{tabular}
+
+\caption{Các cơ cấu chấp hành và thông số PWM điều khiển}
+
+\label{tab:actuator_modules}
+
+\end{table}
+
+Điểm chung của tất cả thiết bị là PCA9685 duy trì tín hiệu PWM liên
+tục sau mỗi lần ghi, nghĩa là phần mềm chỉ cần ghi lại khi có thay
+đổi trạng thái thay vì phải ghi lặp lại mỗi vòng lặp. Điểm khác biệt
+giữa động cơ và các thiết bị còn lại là kiểu điều khiển: ESC nhận PWM
+thay đổi liên tục theo lệnh Joystick (điều khiển tốc độ), trong khi
+đèn, servo camera và gripper chỉ thay đổi khi người vận hành bấm nút
+(điều khiển vị trí).
+
+\subsubsection{Nhóm module camera}
+
+Việc sử dụng MJPEG streaming cho phép giảm độ trễ hiển thị và đơn giản
+hóa quá trình giải mã video phía Ground Control Station.
+
+\begin{table}[H]
+
+\centering
+
+\renewcommand{\arraystretch}{1.3}
+
+\begin{tabular}{|l|l|p{6cm}|}
+
+\hline
+
+\textbf{Module} & \textbf{Cổng} & \textbf{Chức năng} \\
+
+\hline
+
+\texttt{mjpeg\_server} & TCP 8080 & Nhận từng dữ liệu từ camera sau đó gửi từng frame lên
+cho phần mềm GCS\\
+
+\hline
+\end{tabular}
+
+\caption{Các module Camera trong phần mềm ROV}
+
+\label{tab:comm_modules}
+
+\end{table}
+
+\subsubsection{Nhóm module truyền thông}
+
+Nhóm này quản lý toàn bộ kết nối mạng giữa ROV và GCS, gồm hai chiều
+độc lập: nhận lệnh và phát telemetry.
+
+\begin{table}[H]
+
+\centering
+
+\renewcommand{\arraystretch}{1.3}
+
+\begin{tabular}{|l|l|p{6cm}|}
+
+\hline
+
+\textbf{Module} & \textbf{Cổng} & \textbf{Chức năng} \\
+
+\hline
+
+\texttt{ping\_server} & UDP 15000 &
+Lắng nghe ping từ GCS để nhận diện địa chỉ IP động, khởi tạo 5 kênh MAVLink gửi ngược về GCS. \\
+
+\hline
+
+\texttt{udp\_config\_listener} & UDP 12345 &
+Nhận lệnh cấu hình động cơ (\texttt{PING}, \texttt{SAVE\_CONFIG})
+từ GCS, tách biệt hoàn toàn khỏi luồng MAVLink. \\
+
+\hline
+
+\texttt{control\_loop} & UDP 16001 & Nhận gói \texttt{MANUAL\_CONTROL} và \texttt{SET\_MODE} từ GCS. \\
+
+\hline
+
+\end{tabular}
+
+\caption{Các module truyền thông trong phần mềm ROV}
+
+\label{tab:comm_modules}
+
+\end{table}
+
+\subsubsection{Nhóm module telemetry}
+
+Nhóm này đóng gói dữ liệu cảm biến và trạng thái hệ thống thành các
+gói tin MAVLink gửi định kỳ về GCS mỗi 1 giây qua 5 kênh UDP riêng
+biệt (16001--16005).
+
+\begin{table}[H]
+
+\centering
+
+\renewcommand{\arraystretch}{1.3}
+
+\begin{tabular}{|l|l|p{6cm}|}
+
+\hline
+
+\textbf{Hàm} & \textbf{Kênh} & \textbf{Dữ liệu gửi} \\
+
+\hline
+
+\texttt{send\_heartbeat} & 16001 & Trạng thái hoạt động của ROV (\texttt{MAV\_STATE\_ACTIVE}). \\
+
+\hline
+
+\texttt{send\_sys\_status} & 16002 &
+Điện áp/dòng pin, chế độ hiện tại, và các giá trị
+\texttt{NAMED\_VALUE\_FLOAT}: nhiệt độ, độ ẩm, độ sâu,
+mức đèn, góc camera, công suất, trạng thái chế độ. \\
+
+\hline
+
+\texttt{send\_attitude} & 16005 &
+ Góc roll/pitch/yaw, SOC pin, độ sâu hiện tại. \\
+
+\hline
+
+\texttt{send\_imu} & 16004 &
+Dữ liệu thô gia tốc kế, con quay hồi chuyển, từ kế. \\
+
+\hline
+
+\texttt{send\_global\_position} & 16003 &
+Tọa độ vị trí (hiện dùng tọa độ tĩnh, dự phòng cho DVL/GPS). \\
+
+\hline
+
+\end{tabular}
+
+\caption{Các hàm telemetry và kênh gửi dữ liệu}
+
+\label{tab:telemetry_modules}
+
+\end{table}
+
+\subsubsection{Nhóm module cấu hình}
+
+\begin{table}[H]
+
+\centering
+
+\renewcommand{\arraystretch}{1.3}
+
+\begin{tabular}{|l|p{9cm}|}
+
+\hline
+
+\textbf{Module} & \textbf{Chức năng} \\
+
+\hline
+
+\texttt{load\_thrust\_config} &
+Đọc file \texttt{thruster\_config.json} khi khởi động, nạp ánh xạ kênh vật lý PCA9685 vào \texttt{THRUSTER\_MAP}. Nếu file không tồn tại, giữ nguyên giá trị mặc định. \\
+
+\hline
+
+\texttt{PCA9685} & 
+Driver IC PWM 16 kênh, giao tiếp I2C. Phục vụ toàn bộ cơ cấu
+chấp hành: 8 ESC động cơ, đèn, camera tilt, gripper. \\
+
+\hline
+
+\end{tabular}
+
+\caption{Module cấu hình và driver chấp hành}
+
+\label{tab:config_modules}
+
+\end{table}
+
+\subsection{Thiết kế module phần mềm GCS}
+
+
+Ground Control Station (GCS) là phần mềm trung tâm phục vụ điều khiển và
+giám sát toàn bộ hệ thống ROV trong quá trình vận hành. Phần mềm được
+triển khai trên máy tính của người vận hành, phát triển bằng ngôn ngữ
+C# sử dụng framework WPF nhằm xây dựng giao diện trực quan và hỗ trợ xử
+lý đa luồng hiệu quả.
+
+Khác với firmware nhúng trên ROV vốn tập trung vào xử lý thời gian thực,
+phần mềm GCS đảm nhiệm đồng thời nhiều chức năng phức tạp bao gồm điều
+khiển phương tiện, hiển thị dữ liệu từ nhiều nguồn độc lập, ghi nhận dữ
+liệu nhiệm vụ, quản lý kết nối mạng và đồng bộ dữ liệu sau khi vận hành.
+
+Kiến trúc phần mềm được thiết kế theo hướng module hóa, trong đó mỗi
+thành phần được triển khai dưới dạng một service độc lập. Các service
+giao tiếp với nhau thông qua cơ chế sự kiện (event-driven architecture)
+và callback bất đồng bộ nhằm giảm phụ thuộc giữa các module.
+
+Toàn bộ hệ thống phần mềm GCS được chia thành sáu nhóm module chính:
+
+\begin{itemize}
+\item Nhóm module truyền thông
+\item Nhóm module điều khiển
+\item Nhóm module xử lý dữ liệu thời gian thực
+\item Nhóm module ghi dữ liệu nhiệm vụ
+\item Nhóm module quản lý hệ thống
+\item Nhóm module giao diện người dùng
+\end{itemize}
+
+\subsection{Kiến trúc tổng thể phần mềm GCS}
+
+Phần mềm Ground Control Station tiếp nhận đồng thời ba luồng dữ liệu độc
+lập hoạt động song song trong quá trình vận hành.
+
+Luồng dữ liệu thứ nhất là kênh điều khiển và telemetry giữa GCS và
+firmware trên ROV sử dụng giao thức MAVLink chạy trên UDP. Kênh này cho
+phép gửi lệnh điều khiển theo thời gian thực và nhận trạng thái hệ thống
+từ ROV.
+
+Luồng dữ liệu thứ hai là dữ liệu video từ camera gắn trên ROV. Camera
+được xử lý trực tiếp bởi board nhúng trên ROV và truyền về GCS thông qua
+luồng MJPEG chạy trên TCP.
+
+Luồng dữ liệu thứ ba là dữ liệu từ các thiết bị ngoại vi độc lập bao
+gồm sonar và cảm biến DVL. Các thiết bị này giao tiếp trực tiếp với GCS
+thông qua kết nối mạng riêng mà không đi qua firmware điều khiển chính.
+
+Phần mềm GCS cần xử lý đồng thời toàn bộ các luồng dữ liệu này, hiển
+thị trực tiếp trên giao diện, đồng thời ghi lại toàn bộ dữ liệu nhiệm vụ
+phục vụ phân tích sau vận hành.
+
+\subsection{Nhóm module truyền thông}
+
+Nhóm truyền thông đóng vai trò trung tâm của toàn bộ hệ thống GCS, chịu
+trách nhiệm thiết lập và duy trì kết nối với các thiết bị ngoài.
+
+\subsubsection{MavlinkService}
+
+\texttt{MavlinkService} là module quan trọng nhất trong hệ thống GCS,
+đóng vai trò cầu nối duy nhất giữa phần mềm điều khiển và firmware nhúng
+trên ROV.
+
+Service này chịu trách nhiệm khởi tạo các socket UDP phục vụ gửi và nhận
+gói MAVLink. Hệ thống sử dụng nhiều cổng UDP độc lập nhằm tách riêng các
+luồng telemetry.
+
+Module duy trì các luồng nền riêng biệt để nhận dữ liệu song song từ
+nhiều socket khác nhau, giải mã gói MAVLink và phát sự kiện tới các
+service khác trong hệ thống.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|p{9cm}|}
+\hline
+\textbf{Chức năng} & \textbf{Mô tả}\\
+\hline
+Khởi tạo UDP sockets &
+Mở các cổng giao tiếp MAVLink\\
+\hline
+SendManualControl &
+Gửi dữ liệu joystick đến firmware ROV\\
+\hline
+SendSetMode &
+Chuyển đổi chế độ điều khiển\\
+\hline
+ReceiveTelemetry &
+Nhận dữ liệu telemetry từ ROV\\
+\hline
+PacketDecoder &
+Giải mã các gói MAVLink nhận được\\
+\hline
+HeartbeatMonitor &
+Theo dõi trạng thái kết nối với ROV\\
+\hline
+EventDispatcher &
+Phát event tới các service khác\\
+\hline
+\end{tabular}
+\caption{Chức năng của MavlinkService}
+\end{table}
+
+Các service khác không giao tiếp trực tiếp với ROV mà bắt buộc phải đi
+thông qua \texttt{MavlinkService}. Cách thiết kế này giúp tập trung toàn
+bộ logic mạng vào một điểm duy nhất, đơn giản hóa việc bảo trì hệ thống.
+
+\subsubsection{CameraService}
+
+\texttt{CameraService} chịu trách nhiệm tiếp nhận luồng video MJPEG từ
+camera trên ROV.
+
+Module thiết lập kết nối TCP đến HTTP MJPEG server đang chạy trên board
+QCS8550, liên tục nhận dữ liệu JPEG, giải mã thành từng khung hình và
+cập nhật cho giao diện hiển thị video theo thời gian thực.
+
+Do video là luồng dữ liệu có tốc độ cao, module sử dụng một luồng nền
+riêng biệt để tránh ảnh hưởng đến các service khác.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|p{9cm}|}
+\hline
+Kết nối TCP &
+Kết nối đến MJPEG server trên ROV\\
+\hline
+Frame Parser &
+Tách boundary HTTP multipart stream\\
+\hline
+JPEG Decoder &
+Giải mã dữ liệu JPEG thành image frame\\
+\hline
+Frame Event &
+Phát sự kiện frame mới tới giao diện\\
+\hline
+Reconnect Handler &
+Tự động kết nối lại khi camera bị mất tín hiệu\\
+\hline
+\end{tabular}
+\caption{Chức năng của CameraService}
+\end{table}
+
+\subsubsection{SonarService}
+
+\texttt{SonarService} chịu trách nhiệm giao tiếp trực tiếp với sonar
+\texttt{Ping360}.
+
+Do sonar không đi qua firmware trên ROV, service này kết nối trực tiếp
+với thiết bị sonar thông qua giao thức mạng độc lập.
+
+Module liên tục nhận dữ liệu sector scan, giải mã dữ liệu phản hồi và
+chuyển đổi thành dữ liệu phục vụ hiển thị trực tiếp trên giao diện.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|p{9cm}|}
+\hline
+Socket Connection &
+Thiết lập kết nối trực tiếp với sonar\\
+\hline
+Packet Decoder &
+Giải mã packet dữ liệu sonar\\
+\hline
+Scan Reconstruction &
+Khôi phục dữ liệu sector scan\\
+\hline
+Image Renderer &
+Chuyển dữ liệu sonar thành hình ảnh hiển thị\\
+\hline
+Frame Event &
+Phát dữ liệu scan mới cho UI\\
+\hline
+\end{tabular}
+\caption{Chức năng của SonarService}
+\end{table}
+
+\subsubsection{DVLService}
+
+\texttt{DVLService} chịu trách nhiệm nhận dữ liệu trực tiếp từ cảm biến
+DVL.
+
+Module liên tục nhận dữ liệu vận tốc tương đối theo các trục, độ cao so
+với đáy và các thông tin định vị phục vụ giám sát quá trình vận hành.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|p{9cm}|}
+\hline
+Connection Manager &
+Thiết lập kết nối đến thiết bị DVL\\
+\hline
+Packet Parser &
+Giải mã dữ liệu vận tốc và altitude\\
+\hline
+Data Normalization &
+Chuẩn hóa dữ liệu về cấu trúc nội bộ\\
+\hline
+Velocity Event &
+Phát dữ liệu mới cho hệ thống\\
+\hline
+Status Monitoring &
+Theo dõi trạng thái hoạt động của DVL\\
+\hline
+\end{tabular}
+\caption{Chức năng của DVLService}
+\end{table}
+
+\subsection{Nhóm module điều khiển}
+
+\subsubsection{JoystickService}
+
+\texttt{JoystickService} chịu trách nhiệm đọc trạng thái thiết bị
+Joystick kết nối với máy tính điều khiển.
+
+Module sử dụng DirectInput để nhận trạng thái các trục điều khiển và nút
+bấm, chuẩn hóa dữ liệu và gửi lệnh điều khiển định kỳ tới
+\texttt{MavlinkService}.
+
+Dữ liệu joystick được đọc liên tục với chu kỳ khoảng 100 ms nhằm đảm bảo
+khả năng điều khiển thời gian thực.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|p{9cm}|}
+\hline
+Device Detection &
+Phát hiện joystick khi cắm vào hệ thống\\
+\hline
+Axis Reading &
+Đọc dữ liệu các trục điều khiển\\
+\hline
+Button Mapping &
+Ánh xạ nút bấm sang chức năng điều khiển\\
+\hline
+Normalize Input &
+Chuẩn hóa giá trị điều khiển về dải nội bộ\\
+\hline
+Send Command &
+Gửi dữ liệu tới MavlinkService\\
+\hline
+Reconnect Device &
+Kết nối lại khi joystick bị ngắt\\
+\hline
+\end{tabular}
+\caption{Chức năng của JoystickService}
+\end{table}
+
+\subsection{Nhóm module xử lý dữ liệu thời gian thực}
+
+\subsubsection{TelemetryService}
+
+\texttt{TelemetryService} đăng ký các event từ
+\texttt{MavlinkService} và cập nhật dữ liệu telemetry phục vụ giao diện
+người dùng.
+
+Service này chuyển đổi dữ liệu MAVLink sang các ViewModel tương ứng của
+WPF.
+
+Do WPF chỉ cho phép cập nhật UI từ UI thread, module sử dụng
+\texttt{Dispatcher.BeginInvoke()} để chuyển dữ liệu từ background thread
+sang giao diện.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|p{9cm}|}
+\hline
+Event Subscription &
+Đăng ký các sự kiện từ MavlinkService\\
+\hline
+Telemetry Parser &
+Phân loại dữ liệu telemetry\\
+\hline
+ViewModel Update &
+Cập nhật dữ liệu vào ViewModel\\
+\hline
+UI Dispatching &
+Đồng bộ thread với giao diện WPF\\
+\hline
+PropertyChanged Trigger &
+Kích hoạt cập nhật UI tự động\\
+\hline
+\end{tabular}
+\caption{Chức năng của TelemetryService}
+\end{table}
+
+\subsection{Nhóm module ghi dữ liệu nhiệm vụ}
+
+Nhóm recording service chịu trách nhiệm ghi lại toàn bộ dữ liệu phát sinh
+trong suốt quá trình vận hành phục vụ việc phân tích sau nhiệm vụ.
+
+\subsubsection{CameraRecorderService}
+
+\texttt{CameraRecorderService} chịu trách nhiệm ghi lại luồng video nhận
+được từ CameraService.
+
+Do video cần được lưu trữ chính xác theo timestamp thực tế, module lưu
+tạm từng khung hình riêng biệt kèm timestamp tương ứng trước khi thực
+hiện ghép thành file video hoàn chỉnh.
+
+Hệ thống chia video thành các đoạn có thời lượng cố định, ví dụ mười
+phút cho mỗi file nhằm tránh tạo ra các file quá lớn trong nhiệm vụ dài.
+
+Sau khi quá trình ghi kết thúc, service thực hiện chuyển đổi dữ liệu thô
+thành file MP4 và xóa dữ liệu trung gian.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|l|p{9cm}|}
+\hline
+Frame Queue &
+Nhận frame từ CameraService\\
+\hline
+Timestamp Logger &
+Ghi timestamp cho từng frame\\
+\hline
+Segment Manager &
+Chia video thành từng đoạn cố định\\
+\hline
+Background Converter &
+Ghép dữ liệu thành MP4 ở background thread\\
+\hline
+Cleanup Manager &
+Xóa dữ liệu raw sau khi convert thành công\\
+\hline
+\end{tabular}
+\caption{Chức năng CameraRecorderService}
+\end{table}
+
+\subsubsection{SonarRecorder}
+
+Module ghi nhận toàn bộ dữ liệu sonar thô phục vụ replay hoặc tái dựng
+môi trường sau khi nhiệm vụ kết thúc.
+
+Dữ liệu được lưu kèm timestamp đồng bộ với các nguồn dữ liệu khác.
+
+\subsubsection{DVLRecorder}
+
+Module ghi nhận toàn bộ dữ liệu vận tốc, altitude và trạng thái cảm biến
+DVL theo thời gian thực.
+
+\subsubsection{TelemetryRecorder}
+
+Module ghi lại toàn bộ dữ liệu telemetry nhận được từ firmware ROV bao
+gồm orientation, depth, battery status và trạng thái điều khiển.
+
+\subsubsection{MasterRecordingService}
+
+\texttt{MasterRecordingService} là module điều phối trung tâm cho toàn bộ
+quá trình ghi dữ liệu.
+
+Thay vì để từng service hoạt động độc lập, module này chịu trách nhiệm
+đồng bộ việc bắt đầu và dừng ghi trên tất cả nguồn dữ liệu.
+
+Khi người vận hành bắt đầu mission recording, service này đồng thời kích
+hoạt:
+
+\begin{itemize}
+\item CameraRecorderService
+\item SonarRecorder
+\item DVLRecorder
+\item TelemetryRecorder
+\end{itemize}
+
+Toàn bộ dữ liệu được lưu vào cùng một thư mục nhiệm vụ nhằm đảm bảo dễ
+dàng truy xuất và đồng bộ timestamp giữa các nguồn.
+
+\subsection{Nhóm module quản lý hệ thống}
+
+\subsubsection{LogService}
+
+Module chịu trách nhiệm ghi log hoạt động của toàn bộ hệ thống phục vụ
+debug và theo dõi trạng thái vận hành.
+
+Các thông tin được lưu bao gồm trạng thái kết nối, lỗi mạng, lỗi thiết
+bị ngoại vi và các sự kiện bất thường trong quá trình hoạt động.
+
+\subsubsection{WebUploadService}
+
+Sau khi nhiệm vụ kết thúc, dữ liệu đã ghi nhận được nén và tải lên web
+server.
+
+Module chịu trách nhiệm:
+
+\begin{itemize}
+\item Upload video
+\item Upload sonar data
+\item Upload DVL data
+\item Upload telemetry logs
+\item Tạo metadata cho từng mission
+\end{itemize}
+
+Module gọi REST API của hệ thống web quản lý thông tin. Phía web tiếp nhận và lưu trữ: video/ảnh vào AWS S3 thông qua presigned URL; dữ liệu cảm biến, DVL, sonar vào MongoDB Atlas liên kết với Trip tương ứng.
+
+\subsection{Nhóm module giao diện người dùng}
+
+Tầng giao diện được xây dựng bằng WPF theo mô hình MVVM.
+
+Mỗi thành phần dữ liệu trong hệ thống tương ứng với một ViewModel riêng.
+
+Các ViewModel đăng ký dữ liệu từ service tương ứng và tự động cập nhật
+giao diện thông qua cơ chế \texttt{INotifyPropertyChanged}.
+
+Giao diện bao gồm:
+
+\begin{itemize}
+\item Camera view
+\item Sonar display
+\item DVL dashboard
+\item Telemetry dashboard
+\item Joystick status monitor
+\item Recording control panel
+\item Mission management panel
+\item System log viewer
+\end{itemize}
+
+\subsection{Thiết kế module hệ thống quản lý thông tin web}
+
+Hệ thống web được tổ chức theo kiến trúc ba tầng: Frontend (React SPA), Backend API (Node.js/Express), và tầng dữ liệu (MongoDB Atlas, Redis, AWS S3). Tác vụ nặng như phân tích AI và nhận diện vật thể được xử lý bất đồng bộ qua Bull Queue, không block HTTP request.
+
+\subsubsection{Nhóm module Backend API}
+
+Mỗi tài nguyên tương ứng với một module Express gồm \texttt{model}, \texttt{controller}, \texttt{service} và \texttt{routes}. Tất cả response tuân theo cấu trúc thống nhất \texttt{\{success, message, data\}}.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|p{4.5cm}|p{9cm}|}
+\hline
+\textbf{Module} & \textbf{Chức năng} \\
+\hline
+\texttt{auth} & Đăng ký, đăng nhập, đăng xuất, refresh token, Google OAuth2. JWT access 15 phút + refresh 7 ngày; Redis blacklist khi logout. \\
+\hline
+\texttt{rovs} & CRUD ROV; liên kết với projects. \\
+\hline
+\texttt{projects} & CRUD chuyến khảo sát; filter theo status, ROV, thời gian; enqueue AI summary khi hoàn tất. \\
+\hline
+\texttt{trips} & CRUD lượt lặn; cascade delete toàn bộ dữ liệu liên quan (sensor, DVL, sonar, media, snapshot, S3) khi xóa. \\
+\hline
+\texttt{sensor / dvl / sonar} & Upload và truy vấn dữ liệu cảm biến, DVL, sonar theo Trip; hỗ trợ nhiều file per lượt lặn; phát hiện bất thường Z-Score. \\
+\hline
+\texttt{media} & Upload qua presigned URL $\to$ S3; confirm; gallery; enqueue phân tích YOLO. \\
+\hline
+\texttt{snapshots} & Lưu ảnh frame và clip bằng chứng từ video; phân tích YOLO riêng theo range thời gian. \\
+\hline
+\texttt{notifications} & SSE stream per user; CRUD thông báo; mark as read. \\
+\hline
+\texttt{ai} & Worker Gemini 2.5 Flash: tóm tắt Project; lưu \texttt{aiSummary}; push SSE. \\
+\hline
+\texttt{audit} & Ghi log thao tác quan trọng (tạo/xóa/đổi quyền); truy vấn dành riêng cho admin. \\
+\hline
+\texttt{stats} & Aggregation MongoDB song song: tổng hợp Project, Trip, ROV, User; timeline 6 tháng. \\
+\hline
+\end{tabular}
+\caption{Các module Backend API của hệ thống web}
+\label{tab:web_backend_modules}
+\end{table}
+
+\subsubsection{Nhóm module Frontend}
+
+Giao diện xây dựng bằng React 18 + Vite + Tailwind CSS theo kiến trúc SPA. Zustand quản lý trạng thái xác thực; React Query quản lý server state và cache.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|p{4.5cm}|p{9cm}|}
+\hline
+\textbf{Trang / Component} & \textbf{Chức năng} \\
+\hline
+\texttt{Dashboard} & Stat cards + biểu đồ trạng thái Project/Trip/ROV; timeline hoạt động 6 tháng. \\
+\hline
+\texttt{RovsPage / RovDetailPage} & Danh sách, tạo/sửa/xóa ROV; lịch sử Project liên kết. \\
+\hline
+\texttt{ProjectsPage / ProjectDetailPage} & Quản lý Project; danh sách Trip con; AI Summary; Media gallery. \\
+\hline
+\texttt{TripDetailPage} & Layout cockpit 3 cột: map GPS + KPI --- video player --- gauge điều hướng; biểu đồ cảm biến 3 tab; sonar player; YOLO bbox overlay; evidence system. \\
+\hline
+\texttt{UsersPage} & Quản lý người dùng (admin): tìm kiếm, đổi role, bật/tắt tài khoản, bulk action. \\
+\hline
+\texttt{AuditPage} & Xem lịch sử thao tác hệ thống (admin); filter theo entity. \\
+\hline
+\texttt{ProfilePage} & Đổi thông tin cá nhân, mật khẩu; ẩn tab đổi mật khẩu với Google user. \\
+\hline
+\texttt{NotificationBell} & Bell icon + badge đếm chưa đọc; SSE real-time; dropdown 10 thông báo gần nhất. \\
+\hline
+\end{tabular}
+\caption{Các trang và component Frontend của hệ thống web}
+\label{tab:web_frontend_modules}
+\end{table}
+
+\subsubsection{Nhóm module xử lý bất đồng bộ}
+
+Tác vụ nặng (AI, phân tích video) được enqueue vào Bull Queue thay vì xử lý trong HTTP request, đảm bảo phản hồi tức thì (HTTP 202) và không block giao diện.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|p{4.5cm}|p{9cm}|}
+\hline
+\textbf{Module} & \textbf{Chức năng} \\
+\hline
+\texttt{ai.worker} & Nhận job từ queue \texttt{ai-summary}; gọi Gemini 2.5 Flash API với prompt tóm tắt Project; lưu kết quả vào \texttt{project.aiSummary}; push SSE thông báo đến Operator. \\
+\hline
+\texttt{media.worker} & Nhận job từ queue \texttt{media-analysis}; gọi YOLO microservice \texttt{POST /detect}; lưu labels, bbox, frameTime, trackId vào Media document; push SSE khi xong. \\
+\hline
+\texttt{snapshot.worker} & Tương tự \texttt{media.worker} nhưng xử lý Snapshot (ảnh frame hoặc clip bằng chứng); hỗ trợ range \texttt{[startTime, endTime]} để YOLO chỉ phân tích đoạn video được chọn. \\
+\hline
+\texttt{YOLO microservice} & FastAPI Python độc lập (port 8000); nhận URL presigned + tên model + ngưỡng confidence; xử lý ảnh hoặc video với frame sampling thích nghi; trả về labels, bbox, frameTime, trackId. \\
+\hline
+\end{tabular}
+\caption{Các module xử lý bất đồng bộ của hệ thống web}
+\label{tab:web_async_modules}
+\end{table}
+
+\section{Quan hệ giữa các module}
+
+Kiến trúc phần mềm tuân theo nguyên tắc phân tầng một chiều.
+
+Các service nhận dữ liệu thiết bị hoạt động độc lập và không giao tiếp
+trực tiếp với nhau.
+
+Toàn bộ điều khiển ROV phải đi qua \texttt{MavlinkService}.
+
+Toàn bộ recording phải được điều phối bởi
+\texttt{MasterRecordingService}.
+
+Giao diện người dùng không truy cập trực tiếp network layer mà chỉ làm
+việc thông qua ViewModel và service trung gian.
+
+Cách thiết kế này giúp hệ thống dễ dàng mở rộng thêm thiết bị mới trong
+tương lai mà không làm ảnh hưởng đến kiến trúc tổng thể.
+
+
+
+
+\end{document}
+

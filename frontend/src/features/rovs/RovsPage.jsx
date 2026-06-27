@@ -37,7 +37,7 @@ export default function RovsPage() {
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
-  const [rovTripCount, setRovTripCount] = useState(0)
+  const [rovProjectCount, setRovProjectCount] = useState(0)
   const [search, setSearch] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
   const [page, setPage] = useState(1)
@@ -52,16 +52,16 @@ export default function RovsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id) => api.delete(`/rovs/${id}`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['rovs'] }); toast.success('ROV deleted'); setConfirmDelete(null); setRovTripCount(0) },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['rovs'] }); toast.success('ROV deleted'); setConfirmDelete(null); setRovProjectCount(0) },
     onError: (err) => {
       const message = err?.response?.data?.message || err?.message || 'Failed to delete ROV';
-      if (message.includes('being used') || message.includes('trip')) {
+      if (message.includes('being used') || message.includes('project')) {
         toast.error(message, { duration: 5000 });
       } else {
         toast.error(message);
       }
       setConfirmDelete(null);
-      setRovTripCount(0);
+      setRovProjectCount(0);
     }
   })
 
@@ -74,12 +74,12 @@ export default function RovsPage() {
 
   const handleDeleteClick = async (rov) => {
     try {
-      const res = await api.get(`/trips?rovId=${rov._id}&limit=1`);
-      const tripCount = res?.data?.total || 0;
-      setRovTripCount(tripCount);
+      const res = await api.get(`/projects?rovId=${rov._id}&limit=1`);
+      const projectCount = res?.data?.total || 0;
+      setRovProjectCount(projectCount);
       setConfirmDelete(rov);
     } catch {
-      setRovTripCount(0);
+      setRovProjectCount(0);
       setConfirmDelete(rov);
     }
   }
@@ -257,14 +257,14 @@ export default function RovsPage() {
       {confirmDelete && (
         <ConfirmDialog
           title="Delete ROV"
-          message={rovTripCount > 0
-            ? `⚠️ Cannot delete "${confirmDelete.name}" — it is being used in ${rovTripCount} trip(s).\n\nSet its status to "Maintenance" or "Retired" instead.`
+          message={rovProjectCount > 0
+            ? `⚠️ Cannot delete "${confirmDelete.name}" — it is being used in ${rovProjectCount} project(s).\n\nSet its status to "Maintenance" or "Retired" instead.`
             : `Delete "${confirmDelete.name}"? This action cannot be undone.`
           }
           loading={deleteMutation.isPending}
           onConfirm={() => deleteMutation.mutate(confirmDelete._id)}
-          onCancel={() => { setConfirmDelete(null); setRovTripCount(0) }}
-          confirmDisabled={rovTripCount > 0}
+          onCancel={() => { setConfirmDelete(null); setRovProjectCount(0) }}
+          confirmDisabled={rovProjectCount > 0}
         />
       )}
     </div>

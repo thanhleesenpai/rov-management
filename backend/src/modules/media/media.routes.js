@@ -20,7 +20,7 @@ router.get('/:id/url', ctrl.getViewUrl);
 // Đổi thứ tự (operator/admin)
 router.patch('/reorder', authorize('admin', 'operator'), ctrl.reorder);
 
-// Chuyển sang dive khác (operator/admin)
+// Chuyển sang trip khác (operator/admin)
 router.patch('/:id/move', authorize('admin', 'operator'), ctrl.moveMedia);
 
 // Xóa nhiều media (admin)
@@ -36,10 +36,10 @@ router.patch('/:id', authorize('admin', 'operator'), ctrl.update);
 // Xóa media (admin)
 router.delete('/:id', authorize('admin'), ctrl.remove);
 
-// Media theo dive
-router.get('/dive/:diveId', ctrl.getByDive);
-
 // Media theo trip
 router.get('/trip/:tripId', ctrl.getByTrip);
+
+// Media theo project
+router.get('/project/:projectId', ctrl.getByProject);
 
 module.exports = router;

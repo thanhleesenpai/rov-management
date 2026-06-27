@@ -8,7 +8,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 
 router.use(authenticate);
 
-// /api/v1/dives/:id/dvl
+// /api/v1/trips/:id/dvl
 router.get('/:id/dvl',                                           ctrl.getPath);
 router.post('/:id/dvl/upload', authorize('admin', 'operator'), upload.single('file'), ctrl.upload);
 router.delete('/:id/dvl',      authorize('admin', 'operator'), ctrl.clear);

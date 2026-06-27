@@ -1,0 +1,17 @@
+\documentclass[../DoAn.tex]{subfiles}
+\begin{document}
+
+\begin{center}
+    \Large{\textbf{TÓM TẮT NỘI DUNG ĐỒ ÁN}}\\
+\end{center}
+\vspace{1cm}
+Trong các nhiệm vụ khảo sát, quan sát và thao tác dưới nước, ROV thường được điều khiển thủ công thông qua hình ảnh camera truyền về từ phương tiện. Tuy nhiên, môi trường dưới nước có nhiều yếu tố gây khó khăn như ánh sáng yếu, nhiễu ảnh, dòng chảy, độ trễ truyền hình ảnh và đặc biệt là không thể sử dụng GPS để định vị chính xác. Vì vậy, bài toán bám theo và tiếp cận mục tiêu dưới nước là một vấn đề quan trọng, giúp giảm tải cho người vận hành và nâng cao độ chính xác khi thực hiện nhiệm vụ. Hiện nay có nhiều hướng tiếp cận cho bài toán này như điều khiển hoàn toàn thủ công, sử dụng cảm biến khoảng cách, dùng mô hình học sâu để phát hiện mục tiêu hoặc dùng các thuật toán thị giác truyền thống để theo dõi chuyển động trong ảnh. Tuy nhiên, các phương pháp học sâu thường yêu cầu dữ liệu huấn luyện và tài nguyên tính toán lớn, còn điều khiển thủ công phụ thuộc nhiều vào kinh nghiệm người lái. Trong đồ án này, em lựa chọn hướng tiếp cận sử dụng Optical Flow kết hợp với bộ điều khiển PID do phương pháp này nhẹ, có thể chạy thời gian thực và phù hợp với hệ thống ROV hiện có. Giải pháp được xây dựng gồm ba phần chính: module truyền hình ảnh MJPEG từ camera ROV, module theo dõi mục tiêu và giao diện chọn mục tiêu trên máy host, và module điều khiển ROV trên phương tiện. Sau khi người dùng chọn mục tiêu, hệ thống theo dõi sự dịch chuyển và thay đổi kích thước của mục tiêu giữa các frame, chuẩn hóa thành các đại lượng như sai lệch ngang, sai lệch tỷ lệ kích thước và độ tin cậy, sau đó gửi tới bộ điều khiển qua UDP. Bộ điều khiển PID sử dụng các tín hiệu này để sinh lệnh tiến/lùi, ngang, kết hợp với giữ hướng và giữ độ sâu, rồi chuyển thành lệnh cho các thruster thông qua ma trận mixing. Đóng góp chính của đồ án là xây dựng được một pipeline Track and Catch hoàn chỉnh cho ROV dưới nước, tích hợp thị giác máy tính với điều khiển thời gian thực, có cơ chế kiểm tra độ tin cậy, giới hạn lệnh và ưu tiên can thiệp thủ công. Kết quả đạt được là hệ thống có khả năng chọn, theo dõi và hỗ trợ ROV bám giữ mục tiêu theo vị trí ban đầu trong điều kiện thử nghiệm.
+
+\begin{flushright}
+Sinh viên thực hiện\\
+\begin{tabular}{@{}c@{}}
+\textit{(Ký và ghi rõ họ tên)}
+\end{tabular}
+\end{flushright}
+
+\end{document}

@@ -1,0 +1,64 @@
+@startuml arch_tong_quan
+left to right direction
+skinparam backgroundColor White
+skinparam packageStyle rectangle
+skinparam component {
+  BackgroundColor White
+  BorderColor #444
+  FontSize 11
+}
+skinparam package {
+  BackgroundColor #F7F7FF
+  BorderColor #888
+  FontStyle bold
+}
+skinparam arrow {
+  Color #555
+  FontSize 10
+}
+skinparam ranksep 90
+skinparam nodesep 30
+
+actor "Operator\n/ Viewer" as USER
+
+package "Trình duyệt Web" {
+  component "React 18 + Vite\n(UI Components)" as FE_UI
+  component "React Query + Zustand\n(State Management)" as FE_STATE
+  component "Recharts + Leaflet\n(Charts + Map)" as FE_CHART
+  component "EventSource\n(SSE Client)" as FE_SSE
+}
+
+package "Backend\n(Node.js / Express — :5000)" {
+  component "REST API\nControllers + Services" as API
+  component "SSE Stream\n/notifications/stream" as SSE
+  component "Bull Queue\n(Redis-backed)" as QUEUE
+  component "JWT Auth Middleware\n+ Redis Blacklist" as AUTH
+}
+
+package "AI Microservice\n(Python FastAPI — :8000)" {
+  component "YOLOv8n\nObject Detection + Tracking" as YOLO
+}
+
+cloud "Dịch vụ đám mây" {
+  database "MongoDB Atlas\n(Collections)" as MONGO
+  database "Redis\n(Blacklist + Queue)" as REDIS
+  storage "AWS S3\n(Video, Ảnh, Sonar)" as S3
+  component "Gemini 2.5 Flash\n(AI Summary)" as GEMINI
+  component "Nominatim OSM\n(Reverse Geocoding)" as NOM
+}
+
+USER --> FE_UI
+
+FE_UI --> API : HTTPS / REST
+FE_SSE --> SSE : HTTP long-lived\n(text/event-stream)
+SSE --> FE_SSE : Push events
+
+API --> QUEUE : enqueue job\n(YOLO, Email)
+API --> MONGO : Mongoose ODM
+API --> REDIS : ioredis
+API --> S3 : Presigned URL\n(direct upload)
+API --> NOM : GPS → Địa danh
+QUEUE --> YOLO : POST /detect\n{mediaUrl, model, conf}
+QUEUE --> GEMINI : HTTPS API\n(AI Summary prompt)
+
+@enduml

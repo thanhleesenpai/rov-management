@@ -1,0 +1,51 @@
+@startuml state_project
+skinparam backgroundColor White
+skinparam activity {
+  BackgroundColor White
+  BorderColor #333
+  DiamondBackgroundColor White
+  DiamondBorderColor #333
+  FontSize 11
+  FontName Arial
+}
+skinparam swimlane {
+  BorderColor #333
+  TitleFontStyle bold
+  TitleFontSize 12
+  TitleFontName Arial
+}
+skinparam arrow {
+  Color #333
+  FontSize 10
+  FontName Arial
+}
+skinparam shadowing false
+skinparam ConditionStyle diamond
+skinparam roundcorner 5
+
+|Người dùng|
+start
+:Tạo Project mới\n[Operator / Admin];
+
+|Hệ thống|
+:planned\n(Lên kế hoạch)\nCấu hình ROV và mục tiêu\nChưa có Trip nào;
+
+|Người dùng|
+:Bắt đầu thu thập dữ liệu\n[Operator / Admin];
+
+|Hệ thống|
+:ongoing\n(Đang thực hiện)\nTạo và quản lý các Trip\nUpload media, sensor data;
+
+|Người dùng|
+if (Kết quả\nProject?) then (Hoàn tất)
+  :Đánh dấu hoàn tất\n[Operator / Admin];
+  |Hệ thống|
+  :completed\n(Hoàn tất)\nKích hoạt Generate AI Summary\nGửi thông báo cho người tạo;
+  stop
+else (Hủy bỏ)
+  :Hủy Project\n[Admin];
+  |Hệ thống|
+  :cancelled\n(Đã hủy)\nTrạng thái đầu cuối thay thế\nDữ liệu vẫn giữ nguyên trong hệ thống;
+  stop
+endif
+@enduml

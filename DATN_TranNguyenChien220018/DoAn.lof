@@ -1,0 +1,43 @@
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {7.1}{\ignorespaces Biểu đồ Use Case tổng quát phân hệ quản lý thông tin ROV}}{65}{figure.caption.39}%
+\contentsline {figure}{\numberline {7.2}{\ignorespaces Biểu đồ Use Case phân rã -- Phân hệ Upload và Quản lý Dữ liệu Thực địa}}{66}{figure.caption.40}%
+\contentsline {figure}{\numberline {7.3}{\ignorespaces Biểu đồ Use Case phân rã -- Phân hệ AI Phân tích}}{67}{figure.caption.41}%
+\contentsline {figure}{\numberline {7.4}{\ignorespaces Biểu đồ hoạt động -- Quy trình phân tích dữ liệu nhiệm vụ ROV}}{68}{figure.caption.42}%
+\contentsline {figure}{\numberline {7.5}{\ignorespaces Kiến trúc tổng quan phân hệ quản lý thông tin ROV}}{70}{figure.caption.43}%
+\contentsline {figure}{\numberline {7.6}{\ignorespaces Sơ đồ phụ thuộc module phía Backend}}{70}{figure.caption.44}%
+\contentsline {figure}{\numberline {7.7}{\ignorespaces Sơ đồ ER cơ sở dữ liệu phân hệ quản lý thông tin ROV}}{72}{figure.caption.46}%
+\contentsline {figure}{\numberline {7.8}{\ignorespaces Mô hình triển khai đề xuất trên VPS sử dụng Docker Compose}}{74}{figure.caption.48}%
+\contentsline {figure}{\numberline {7.9}{\ignorespaces Màn hình đăng nhập -- hỗ trợ cả Email/Password và Google OAuth 2.0}}{76}{figure.caption.50}%
+\contentsline {figure}{\numberline {7.10}{\ignorespaces Sơ đồ trạng thái vòng đời Chuyến khảo sát (Project)}}{76}{figure.caption.51}%
+\contentsline {figure}{\numberline {7.11}{\ignorespaces Sơ đồ trạng thái vòng đời Lượt lặn (Trip)}}{77}{figure.caption.52}%
+\contentsline {figure}{\numberline {7.12}{\ignorespaces Dashboard -- KPI cards và biểu đồ thống kê tổng quan (dark mode)}}{78}{figure.caption.53}%
+\contentsline {figure}{\numberline {7.13}{\ignorespaces Trang danh sách Projects -- filter, search và export}}{79}{figure.caption.54}%
+\contentsline {figure}{\numberline {7.14}{\ignorespaces ProjectDetailPage -- TripCard mở rộng với DATA FILES và AI Summary}}{79}{figure.caption.55}%
+\contentsline {figure}{\numberline {7.15}{\ignorespaces Trang danh sách Trips -- filter theo status và date range}}{80}{figure.caption.56}%
+\contentsline {figure}{\numberline {7.16}{\ignorespaces TripDetailPage Cockpit -- layout 3 cột, đồng bộ video--biểu đồ thời gian thực}}{80}{figure.caption.57}%
+\contentsline {figure}{\numberline {7.17}{\ignorespaces Tab biểu đồ Environment -- dot đỏ đánh dấu điểm bất thường Z-Score ($|z| > 2{,}5$)}}{81}{figure.caption.58}%
+\contentsline {figure}{\numberline {7.18}{\ignorespaces Notification bell dropdown -- thông báo realtime qua SSE}}{82}{figure.caption.59}%
+\contentsline {figure}{\numberline {7.19}{\ignorespaces Trang quản lý người dùng (Admin) -- bulk operations và role management}}{83}{figure.caption.60}%
+\contentsline {figure}{\numberline {7.20}{\ignorespaces Audit Log -- nhật ký hoạt động admin theo timeline}}{83}{figure.caption.61}%
+\contentsline {figure}{\numberline {7.21}{\ignorespaces Sơ đồ tuần tự -- Luồng tải lên file CSV cảm biến}}{84}{figure.caption.62}%
+\contentsline {figure}{\numberline {7.22}{\ignorespaces Sơ đồ tuần tự -- Luồng phân tích YOLO bất đồng bộ qua Bull Queue}}{85}{figure.caption.63}%
+\contentsline {figure}{\numberline {7.23}{\ignorespaces Bounding box YOLO overlay trên video ROV -- đồng bộ per-frame theo \texttt {frameTime}}}{87}{figure.caption.64}%
+\contentsline {figure}{\numberline {7.24}{\ignorespaces AI Analyze Popover -- chọn model và điều chỉnh ngưỡng confidence trước khi phân tích}}{88}{figure.caption.65}%
+\contentsline {figure}{\numberline {7.25}{\ignorespaces Evidence Panel và EvidenceViewer -- PHOTO/CLIP thumbnails với bounding box overlay}}{89}{figure.caption.66}%
+\contentsline {figure}{\numberline {7.26}{\ignorespaces AI Summary song ngữ -- được tổng hợp bởi Gemini 2.5 Flash sau khi Project hoàn tất}}{91}{figure.caption.67}%
+\contentsline {figure}{\numberline {7.27}{\ignorespaces Kết quả kiểm thử chức năng -- 37/37 ca đạt (100\%)}}{92}{figure.caption.68}%
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {figure}{\numberline {A.1}{\ignorespaces Internet vạn vật}}{102}{figure.caption.75}%
+\contentsline {figure}{\numberline {A.2}{\ignorespaces Qui cách đóng quyển đồ án}}{104}{figure.caption.78}%
+\contentsline {figure}{\numberline {A.3}{\ignorespaces Qui cách đóng quyển đồ án}}{104}{figure.caption.79}%
+\addvspace {10\p@ }
+\contentsfinish 
+\contentsfinish 

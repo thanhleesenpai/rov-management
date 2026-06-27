@@ -1,0 +1,71 @@
+@startuml arch_deploy
+skinparam backgroundColor White
+skinparam nodeSep 50
+skinparam rankSep 80
+skinparam component {
+  BackgroundColor White
+  BorderColor #555
+  FontSize 11
+}
+skinparam node {
+  BackgroundColor #F7F7FF
+  BorderColor #888
+  FontStyle bold
+}
+skinparam cloud {
+  BackgroundColor #FFFFF7
+  BorderColor #888
+}
+skinparam storage {
+  BackgroundColor #FFF7F0
+  BorderColor #888
+}
+skinparam arrow {
+  Color #555
+  FontSize 10
+}
+
+actor "Operator\n/ Viewer\n(Browser)" as USER
+
+cloud "Vercel CDN\n(Edge Network)" #EEF7EE {
+  component "React App\n(Static Build)" as VERCEL
+}
+
+node "VPS Contabo — Ubuntu 22.04\n4 vCPU / 4 GB RAM / ~6 USD/tháng" #EEF {
+  component "nginx :80/:443\n(Reverse Proxy + SSL/TLS)" as NGINX
+  component "node-backend :5000\n(Express API + Bull Workers)" as BACKEND
+  component "yolo-service :8000\n(FastAPI + YOLOv8n CPU)" as YOLO
+  component "redis :6379\n(~30 MB RAM — Blacklist + Queue)" as REDIS
+}
+
+cloud "MongoDB Atlas\n(Free M0 — 512 MB)" #FEF {
+  database "MongoDB\nCollections" as MONGO
+}
+
+cloud "AWS S3\n(ap-southeast-1)" #FFE {
+  storage "S3 Bucket\n(Video, Ảnh, Sonar files)" as S3
+}
+
+cloud "Google AI Studio" #EFF {
+  component "Gemini 2.5 Flash API" as GEMINI
+}
+
+USER --> VERCEL : HTTPS\n(CDN Edge)
+USER --> NGINX : HTTPS API\n/api/v1/*
+
+NGINX --> BACKEND : proxy_pass\n127.0.0.1:5000
+NGINX -[dashed]-> VERCEL : fallback\n(same-origin deploy)
+
+BACKEND --> REDIS
+BACKEND --> MONGO : Mongoose ODM\n(MongoDB Atlas URI)
+BACKEND --> S3 : AWS SDK\n(Presigned URL)
+BACKEND --> YOLO : HTTP POST /detect\n(Docker internal network)
+BACKEND --> GEMINI : HTTPS REST\n(Gemini API Key)
+
+note bottom of NGINX
+  docker-compose.yml:
+  services: nginx, backend,
+  yolo-service, redis
+end note
+
+@enduml

@@ -13,64 +13,101 @@
 \contentsline {chapter}{\numberline {2}KHẢO SÁT VÀ PHÂN TÍCH YÊU CẦU}{4}{chapter.2}%
 \contentsline {section}{\numberline {2.1}Khảo sát hiện trạng}{4}{section.2.1}%
 \contentsline {section}{\numberline {2.2}Tổng quan chức năng}{5}{section.2.2}%
-\contentsline {subsection}{\numberline {2.2.1}Biểu đồ use case tổng quát}{5}{subsection.2.2.1}%
-\contentsline {subsection}{\numberline {2.2.2}Biểu đồ use case phân rã Phân hệ Nhiệm vụ và Dữ liệu}{5}{subsection.2.2.2}%
-\contentsline {subsection}{\numberline {2.2.3}Quy trình nghiệp vụ tải lên và phân tích dữ liệu}{6}{subsection.2.2.3}%
-\contentsline {section}{\numberline {2.3}Đặc tả chức năng}{8}{section.2.3}%
-\contentsline {subsection}{\numberline {2.3.1}Đặc tả Use Case: Tải lên và đồng bộ dữ liệu cảm biến}{8}{subsection.2.3.1}%
-\contentsline {subsection}{\numberline {2.3.2}Đặc tả Use Case: Kích hoạt phân tích nhận diện vật thể bằng YOLO}{8}{subsection.2.3.2}%
-\contentsline {subsection}{\numberline {2.3.3}Đặc tả Use Case: Trích xuất và phân tích bằng chứng}{8}{subsection.2.3.3}%
-\contentsline {subsection}{\numberline {2.3.4}Đặc tả Use Case: Tạo báo cáo tóm tắt bằng ngôn ngữ tự nhiên}{9}{subsection.2.3.4}%
-\contentsline {section}{\numberline {2.4}Yêu cầu phi chức năng}{9}{section.2.4}%
-\contentsline {chapter}{\numberline {3}NỀN TẢNG LÝ THUYẾT VÀ CÔNG NGHỆ SỬ DỤNG}{11}{chapter.3}%
-\contentsline {section}{\numberline {3.1}Công nghệ phát triển Giao diện Người dùng (Frontend)}{11}{section.3.1}%
-\contentsline {section}{\numberline {3.2}Công nghệ Máy chủ và Cơ sở dữ liệu (Backend)}{11}{section.3.2}%
-\contentsline {section}{\numberline {3.3}Cơ chế Xử lý ngầm và Giao tiếp Thời gian thực}{12}{section.3.3}%
-\contentsline {section}{\numberline {3.4}Công nghệ Trí tuệ Nhân tạo (AI)}{12}{section.3.4}%
-\contentsline {chapter}{\numberline {4}PHÂN TÍCH THIẾT KẾ, TRIỂN KHAI VÀ ĐÁNH GIÁ HỆ THỐNG}{14}{chapter.4}%
-\contentsline {section}{\numberline {4.1}Thiết kế kiến trúc}{14}{section.4.1}%
-\contentsline {subsection}{\numberline {4.1.1}Lựa chọn kiến trúc phần mềm}{14}{subsection.4.1.1}%
-\contentsline {subsection}{\numberline {4.1.2}Thiết kế tổng quan (Biểu đồ gói)}{14}{subsection.4.1.2}%
-\contentsline {section}{\numberline {4.2}Thiết kế chi tiết}{14}{section.4.2}%
-\contentsline {subsection}{\numberline {4.2.1}Thiết kế cơ sở dữ liệu}{14}{subsection.4.2.1}%
-\contentsline {subsection}{\numberline {4.2.2}Thiết kế giao diện Bảng điều khiển (Cockpit)}{15}{subsection.4.2.2}%
-\contentsline {section}{\numberline {4.3}Xây dựng ứng dụng}{15}{section.4.3}%
-\contentsline {subsection}{\numberline {4.3.1}Thư viện và công cụ sử dụng}{15}{subsection.4.3.1}%
-\contentsline {subsection}{\numberline {4.3.2}Kết quả đạt được}{15}{subsection.4.3.2}%
-\contentsline {section}{\numberline {4.4}Kiểm thử (Thiết kế kịch bản)}{16}{section.4.4}%
-\contentsline {section}{\numberline {4.5}Triển khai thực nghiệm}{16}{section.4.5}%
-\contentsline {chapter}{\numberline {5}CÁC GIẢI PHÁP VÀ ĐÓNG GÓP NỔI BẬT}{17}{chapter.5}%
-\contentsline {section}{\numberline {5.1}Giải pháp đồng bộ hóa Video và Dữ liệu cảm biến thời gian thực}{17}{section.5.1}%
-\contentsline {subsection}{\numberline {5.1.1}Bài toán đặt ra}{17}{subsection.5.1.1}%
-\contentsline {subsection}{\numberline {5.1.2}Giải pháp hiện thực}{17}{subsection.5.1.2}%
-\contentsline {subsection}{\numberline {5.1.3}Kết quả đạt được}{18}{subsection.5.1.3}%
-\contentsline {section}{\numberline {5.2}Kiến trúc xử lý bất đồng bộ tích hợp mô hình nhận diện YOLOv8}{18}{section.5.2}%
-\contentsline {subsection}{\numberline {5.2.1}Bài toán đặt ra}{18}{subsection.5.2.1}%
-\contentsline {subsection}{\numberline {5.2.2}Giải pháp hiện thực}{18}{subsection.5.2.2}%
-\contentsline {subsection}{\numberline {5.2.3}Kết quả đạt được}{19}{subsection.5.2.3}%
-\contentsline {section}{\numberline {5.3}Ứng dụng LLM tự động hóa báo cáo tổng kết chuyến đi}{19}{section.5.3}%
-\contentsline {subsection}{\numberline {5.3.1}Bài toán đặt ra}{19}{subsection.5.3.1}%
-\contentsline {subsection}{\numberline {5.3.2}Giải pháp hiện thực}{19}{subsection.5.3.2}%
-\contentsline {subsection}{\numberline {5.3.3}Kết quả đạt được}{20}{subsection.5.3.3}%
-\contentsline {chapter}{\numberline {6}KẾT LUẬN VÀ HƯỚNG PHÁT TRIỂN}{21}{chapter.6}%
-\contentsline {section}{\numberline {6.1}Kết luận}{21}{section.6.1}%
-\contentsline {section}{\numberline {6.2}Hướng phát triển}{21}{section.6.2}%
-\contentsline {chapter}{TÀI LIỆU THAM KHẢO}{25}{section*.13}%
-\contentsline {chapter}{PHỤ LỤC}{26}{section*.14}%
+\contentsline {subsection}{\numberline {2.2.1}Biểu đồ use case tổng quát}{6}{subsection.2.2.1}%
+\contentsline {subsection}{\numberline {2.2.2}Biểu đồ use case phân rã Phân hệ Dữ liệu Thực địa}{7}{subsection.2.2.2}%
+\contentsline {subsection}{\numberline {2.2.3}Biểu đồ use case phân rã Phân hệ AI Phân tích}{8}{subsection.2.2.3}%
+\contentsline {subsection}{\numberline {2.2.4}Quy trình nghiệp vụ tải lên và phân tích dữ liệu}{9}{subsection.2.2.4}%
+\contentsline {section}{\numberline {2.3}Đặc tả chức năng}{10}{section.2.3}%
+\contentsline {subsection}{\numberline {2.3.1}UC-01: Tải lên và đồng bộ dữ liệu cảm biến}{11}{subsection.2.3.1}%
+\contentsline {subsection}{\numberline {2.3.2}UC-02: Kích hoạt phân tích nhận diện vật thể bằng YOLOv8}{11}{subsection.2.3.2}%
+\contentsline {subsection}{\numberline {2.3.3}UC-03: Trích xuất và phân tích bằng chứng}{12}{subsection.2.3.3}%
+\contentsline {subsection}{\numberline {2.3.4}UC-04: Tạo báo cáo tóm tắt bằng ngôn ngữ tự nhiên}{13}{subsection.2.3.4}%
+\contentsline {section}{\numberline {2.4}Yêu cầu phi chức năng}{14}{section.2.4}%
+\contentsline {section}{\numberline {2.5}Sơ đồ trạng thái}{14}{section.2.5}%
+\contentsline {subsection}{\numberline {2.5.1}Vòng đời Chuyến khảo sát (Project)}{15}{subsection.2.5.1}%
+\contentsline {subsection}{\numberline {2.5.2}Vòng đời Lượt lặn (Trip)}{16}{subsection.2.5.2}%
+\contentsline {subsection}{\numberline {2.5.3}Vòng đời phân tích Media}{16}{subsection.2.5.3}%
+\contentsline {chapter}{\numberline {3}NỀN TẢNG LÝ THUYẾT VÀ CÔNG NGHỆ SỬ DỤNG}{18}{chapter.3}%
+\contentsline {section}{\numberline {3.1}Nền tảng Giao diện Người dùng (Frontend)}{18}{section.3.1}%
+\contentsline {subsection}{\numberline {3.1.1}React 18 và Vite}{18}{subsection.3.1.1}%
+\contentsline {subsection}{\numberline {3.1.2}Quản lý trạng thái: Zustand và React Query}{19}{subsection.3.1.2}%
+\contentsline {subsection}{\numberline {3.1.3}Recharts và Leaflet.js}{20}{subsection.3.1.3}%
+\contentsline {section}{\numberline {3.2}Nền tảng Máy chủ và Lưu trữ (Backend)}{20}{section.3.2}%
+\contentsline {subsection}{\numberline {3.2.1}Node.js và Express.js}{20}{subsection.3.2.1}%
+\contentsline {subsection}{\numberline {3.2.2}MongoDB Atlas và Mongoose}{20}{subsection.3.2.2}%
+\contentsline {subsection}{\numberline {3.2.3}AWS S3 và cơ chế Presigned URL}{21}{subsection.3.2.3}%
+\contentsline {subsection}{\numberline {3.2.4}Xác thực JWT, Blacklist Redis và Google OAuth}{21}{subsection.3.2.4}%
+\contentsline {section}{\numberline {3.3}Xử lý bất đồng bộ và Giao tiếp thời gian thực}{22}{section.3.3}%
+\contentsline {subsection}{\numberline {3.3.1}Bull Queue và cơ chế xử lý bất đồng bộ}{22}{subsection.3.3.1}%
+\contentsline {subsection}{\numberline {3.3.2}Server-Sent Events (SSE) và cơ chế đẩy thông báo}{23}{subsection.3.3.2}%
+\contentsline {section}{\numberline {3.4}Hệ thống Trí tuệ Nhân tạo}{24}{section.3.4}%
+\contentsline {subsection}{\numberline {3.4.1}YOLOv8 và Python Microservice}{24}{subsection.3.4.1}%
+\contentsline {subsection}{\numberline {3.4.2}Gemini 2.5 Flash và AI Summary}{25}{subsection.3.4.2}%
+\contentsline {subsection}{\numberline {3.4.3}Phát hiện bất thường Z-Score}{25}{subsection.3.4.3}%
+\contentsline {subsection}{\numberline {3.4.4}Reverse Geocoding với OpenStreetMap Nominatim}{25}{subsection.3.4.4}%
+\contentsline {chapter}{\numberline {4}PHÂN TÍCH THIẾT KẾ, TRIỂN KHAI VÀ ĐÁNH GIÁ HỆ THỐNG}{27}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Thiết kế kiến trúc hệ thống}{27}{section.4.1}%
+\contentsline {subsection}{\numberline {4.1.1}Kiến trúc tổng quan}{27}{subsection.4.1.1}%
+\contentsline {subsection}{\numberline {4.1.2}Sơ đồ phụ thuộc module}{27}{subsection.4.1.2}%
+\contentsline {subsection}{\numberline {4.1.3}Mô hình triển khai đề xuất}{28}{subsection.4.1.3}%
+\contentsline {section}{\numberline {4.2}Thiết kế cơ sở dữ liệu}{29}{section.4.2}%
+\contentsline {section}{\numberline {4.3}Hiện thực các chức năng chính}{30}{section.4.3}%
+\contentsline {subsection}{\numberline {4.3.1}Xác thực và phân quyền}{30}{subsection.4.3.1}%
+\contentsline {subsection}{\numberline {4.3.2}Dashboard và thống kê tổng quan}{31}{subsection.4.3.2}%
+\contentsline {subsection}{\numberline {4.3.3}Quản lý Project và Trip}{32}{subsection.4.3.3}%
+\contentsline {subsubsection}{\numberline {a}Danh sách Projects}{32}{subsubsection.4.3.3.1}%
+\contentsline {subsubsection}{\numberline {b}Chi tiết Project}{33}{subsubsection.4.3.3.2}%
+\contentsline {subsubsection}{\numberline {c}Danh sách Trips}{33}{subsubsection.4.3.3.3}%
+\contentsline {subsection}{\numberline {4.3.4}Giao diện Cockpit TripDetailPage}{34}{subsection.4.3.4}%
+\contentsline {subsection}{\numberline {4.3.5}Nhận diện vật thể YOLOv8 và Evidence System}{35}{subsection.4.3.5}%
+\contentsline {subsubsection}{\numberline {a}Bounding box YOLO}{35}{subsubsection.4.3.5.1}%
+\contentsline {subsubsection}{\numberline {b}AI Analyze Popover}{36}{subsubsection.4.3.5.2}%
+\contentsline {subsubsection}{\numberline {c}Evidence System}{36}{subsubsection.4.3.5.3}%
+\contentsline {subsection}{\numberline {4.3.6}Tổng hợp báo cáo bằng AI (Gemini)}{37}{subsection.4.3.6}%
+\contentsline {subsection}{\numberline {4.3.7}Thông báo realtime và quản lý người dùng}{37}{subsection.4.3.7}%
+\contentsline {subsection}{\numberline {4.3.8}Sơ đồ tuần tự các luồng nghiệp vụ chính}{39}{subsection.4.3.8}%
+\contentsline {subsubsection}{\numberline {a}Luồng tải lên dữ liệu cảm biến CSV}{39}{subsubsection.4.3.8.1}%
+\contentsline {subsubsection}{\numberline {b}Luồng phân tích YOLO bất đồng bộ qua Bull Queue}{40}{subsubsection.4.3.8.2}%
+\contentsline {section}{\numberline {4.4}Kiểm thử hệ thống}{42}{section.4.4}%
+\contentsline {subsection}{\numberline {4.4.1}Kiểm thử chức năng (Functional Test)}{42}{subsection.4.4.1}%
+\contentsline {subsection}{\numberline {4.4.2}Kiểm thử tải (Load Test)}{43}{subsection.4.4.2}%
+\contentsline {subsection}{\numberline {4.4.3}Kiểm thử hiệu năng Lighthouse}{44}{subsection.4.4.3}%
+\contentsline {section}{\numberline {4.5}Mô hình triển khai (đề xuất)}{45}{section.4.5}%
+\contentsline {chapter}{\numberline {5}CÁC GIẢI PHÁP VÀ ĐÓNG GÓP NỔI BẬT}{46}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Giải pháp đồng bộ hóa Video và Dữ liệu cảm biến thời gian thực}{46}{section.5.1}%
+\contentsline {subsection}{\numberline {5.1.1}Bài toán đặt ra}{46}{subsection.5.1.1}%
+\contentsline {subsection}{\numberline {5.1.2}Giải pháp hiện thực}{46}{subsection.5.1.2}%
+\contentsline {subsection}{\numberline {5.1.3}Kết quả đạt được}{47}{subsection.5.1.3}%
+\contentsline {section}{\numberline {5.2}Kiến trúc xử lý bất đồng bộ tích hợp mô hình nhận diện YOLOv8}{47}{section.5.2}%
+\contentsline {subsection}{\numberline {5.2.1}Bài toán đặt ra}{47}{subsection.5.2.1}%
+\contentsline {subsection}{\numberline {5.2.2}Giải pháp hiện thực}{47}{subsection.5.2.2}%
+\contentsline {subsection}{\numberline {5.2.3}Kết quả đạt được}{48}{subsection.5.2.3}%
+\contentsline {section}{\numberline {5.3}Hệ thống trích xuất bằng chứng (Evidence System)}{48}{section.5.3}%
+\contentsline {subsection}{\numberline {5.3.1}Bài toán đặt ra}{48}{subsection.5.3.1}%
+\contentsline {subsection}{\numberline {5.3.2}Giải pháp hiện thực}{48}{subsection.5.3.2}%
+\contentsline {subsection}{\numberline {5.3.3}Kết quả đạt được}{49}{subsection.5.3.3}%
+\contentsline {section}{\numberline {5.4}Phát hiện bất thường cảm biến tự động (Z-Score)}{49}{section.5.4}%
+\contentsline {subsection}{\numberline {5.4.1}Bài toán đặt ra}{49}{subsection.5.4.1}%
+\contentsline {subsection}{\numberline {5.4.2}Giải pháp hiện thực}{49}{subsection.5.4.2}%
+\contentsline {subsection}{\numberline {5.4.3}Kết quả đạt được}{50}{subsection.5.4.3}%
+\contentsline {section}{\numberline {5.5}Ứng dụng LLM tự động hóa báo cáo tổng kết nhiệm vụ}{50}{section.5.5}%
+\contentsline {subsection}{\numberline {5.5.1}Bài toán đặt ra}{50}{subsection.5.5.1}%
+\contentsline {subsection}{\numberline {5.5.2}Giải pháp hiện thực}{51}{subsection.5.5.2}%
+\contentsline {subsection}{\numberline {5.5.3}Kết quả đạt được}{51}{subsection.5.5.3}%
+\contentsline {chapter}{\numberline {6}KẾT LUẬN VÀ HƯỚNG PHÁT TRIỂN}{52}{chapter.6}%
+\contentsline {section}{\numberline {6.1}Kết luận}{52}{section.6.1}%
+\contentsline {section}{\numberline {6.2}Hướng phát triển}{52}{section.6.2}%
+\contentsline {chapter}{TÀI LIỆU THAM KHẢO}{56}{section*.46}%
+\contentsline {chapter}{PHỤ LỤC}{58}{section*.47}%
 \ttl@change@i {\@ne }{chapter}{0.0cm}{\bfseries \vspace {0.3cm}}{{\bfseries {\scshape } \thecontentslabel .\ }}{}{\titlerule *[0.3pc]{.}\contentspage }\relax 
 \ttl@change@v {chapter}{}{}{}\relax 
-\contentsline {chapter}{\numberline {A}HƯỚNG DẪN VIẾT ĐỒ ÁN TỐT NGHIỆP}{26}{appendix.1.A}%
-\contentsline {section}{\numberline {A.1}Ngành học}{27}{section.1.A.1}%
-\contentsline {section}{\numberline {A.2}Đánh dấu (bullet) và đánh số (numering)}{27}{section.1.A.2}%
-\contentsline {section}{\numberline {A.3}Cách thêm bảng}{28}{section.1.A.3}%
-\contentsline {section}{\numberline {A.4}Chèn hình ảnh}{28}{section.1.A.4}%
-\contentsline {section}{\numberline {A.5}Tài liệu tham khảo}{29}{section.1.A.5}%
-\contentsline {paragraph}{Cách liệt kê}{29}{paragraph*.17}%
-\contentsline {paragraph}{Các loại tài liệu tham khảo}{29}{paragraph*.18}%
-\contentsline {section}{\numberline {A.6}Cách viết phương trình và công thức toán học}{29}{section.1.A.6}%
-\contentsline {section}{\numberline {A.7}Qui cách đóng quyển}{29}{section.1.A.7}%
-\contentsline {chapter}{\numberline {B}ĐẶC TẢ USE CASE}{31}{appendix.1.B}%
-\contentsline {section}{\numberline {B.1}Đặc tả Use Case: Đăng nhập bằng tài khoản Google}{31}{section.1.B.1}%
-\contentsline {section}{\numberline {B.2}Đặc tả Use Case: Quản lý Chuyến đi và Lượt lặn}{31}{section.1.B.2}%
-\contentsline {section}{\numberline {B.3}Đặc tả Use Case: Quản lý Người dùng (Admin)}{31}{section.1.B.3}%
+\contentsline {chapter}{\numberline {A}ĐẶC TẢ USE CASE}{58}{appendix.1.A}%
+\contentsline {section}{\numberline {A.1}UC-B01: Đăng nhập bằng Email và Mật khẩu}{58}{section.1.A.1}%
+\contentsline {section}{\numberline {A.2}UC-B02: Đăng nhập bằng tài khoản Google (OAuth 2.0)}{58}{section.1.A.2}%
+\contentsline {section}{\numberline {A.3}UC-B03: Quản lý Thiết bị ROV}{59}{section.1.A.3}%
+\contentsline {section}{\numberline {A.4}UC-B04: Tạo và Quản lý Chuyến khảo sát (Project)}{60}{section.1.A.4}%
+\contentsline {section}{\numberline {A.5}UC-B05: Tạo Lượt lặn trong Chuyến khảo sát}{60}{section.1.A.5}%
+\contentsline {section}{\numberline {A.6}UC-B06: Tải lên Tệp phương tiện (Media Upload)}{61}{section.1.A.6}%
+\contentsline {section}{\numberline {A.7}UC-B07: Quản lý Người dùng (Admin)}{62}{section.1.A.7}%
+\contentsline {section}{\numberline {A.8}UC-B08: Xem Dashboard tổng quan}{63}{section.1.A.8}%
 \contentsfinish 

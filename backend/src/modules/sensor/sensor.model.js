@@ -1,9 +1,10 @@
 const mongoose = require('mongoose');
 
 const sensorSchema = new mongoose.Schema({
-  dive:      { type: mongoose.Schema.Types.ObjectId, ref: 'Dive', required: true },
-  timestamp: { type: Date,   required: true },
-  depth:     { type: Number, required: true },
+  trip:       { type: mongoose.Schema.Types.ObjectId, ref: 'Trip', required: true },
+  sourceFile: { type: String, default: null },
+  timestamp:  { type: Date,   required: true },
+  depth:      { type: Number, required: true },
   temp:      { type: Number, default: null },
   pressure:  { type: Number, default: null },
   yaw:             { type: Number, default: null },
@@ -22,6 +23,7 @@ const sensorSchema = new mongoose.Schema({
   powerLevel:  { type: Number, default: null },
 });
 
-sensorSchema.index({ dive: 1, timestamp: -1 });
+sensorSchema.index({ trip: 1, timestamp: -1 });
+sensorSchema.index({ trip: 1, sourceFile: 1, timestamp: 1 });
 
 module.exports = mongoose.model('SensorData', sensorSchema);

@@ -1,0 +1,98 @@
+# Artillery Load Test — ROV Management API
+# Cài: npm install -g artillery
+# Chạy: artillery run backend/src/scripts/artillery.yml
+#
+# Fix: Dùng token từ environment thay vì login mỗi scenario
+# Bước 1: Lấy token trước: node src/scripts/get-token.js
+# Bước 2: artillery run backend/src/scripts/artillery.yml
+
+config:
+  target: "http://localhost:5000"
+  http:
+    timeout: 15
+  phases:
+    - duration: 15
+      arrivalRate: 5
+      name: "Warm-up (5 users/s)"
+    - duration: 30
+      arrivalRate: 5
+      rampTo: 30
+      name: "Ramp-up (5→30 users/s)"
+    - duration: 30
+      arrivalRate: 30
+      name: "Peak load (30 users/s)"
+  variables:
+    token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhMzUxMmVlNGUxOTk4ZjlhM2M5OGU5MCIsImlhdCI6MTc4MTkzMDUzMiwiZXhwIjoxNzgxOTMxNDMyfQ.PsbkKX6oCRjLjb9pgYhHZcS_DLEjZcObjSJIS9cFnfY"
+
+scenarios:
+  # 70% — Đọc danh sách (user thường)
+  - name: "Read data"
+    weight: 70
+    flow:
+      - get:
+          url: "/api/v1/projects?page=1&limit=10"
+          headers:
+            Authorization: "Bearer {{ token }}"
+      - get:
+          url: "/api/v1/trips?page=1&limit=10"
+          headers:
+            Authorization: "Bearer {{ token }}"
+      - get:
+          url: "/api/v1/rovs"
+          headers:
+            Authorization: "Bearer {{ token }}"
+      - get:
+          url: "/api/v1/stats/overview"
+          headers:
+            Authorization: "Bearer {{ token }}"
+      - get:
+          url: "/api/v1/notifications?limit=10"
+          headers:
+            Authorization: "Bearer {{ token }}"
+
+  # 20% — Xem chi tiết project + sensor data
+  - name: "Project detail flow"
+    weight: 20
+    flow:
+      - get:
+          url: "/api/v1/projects?page=1&limit=5"
+          headers:
+            Authorization: "Bearer {{ token }}"
+          capture:
+            - json: "$.data.data[0]._id"
+              as: "projectId"
+      - get:
+          url: "/api/v1/projects/{{ projectId }}"
+          headers:
+            Authorization: "Bearer {{ token }}"
+      - get:
+          url: "/api/v1/trips?projectId={{ projectId }}&limit=5"
+          headers:
+            Authorization: "Bearer {{ token }}"
+          capture:
+            - json: "$.data.data[0]._id"
+              as: "tripId"
+      - get:
+          url: "/api/v1/trips/{{ tripId }}/sensor-data"
+          headers:
+            Authorization: "Bearer {{ token }}"
+      - get:
+          url: "/api/v1/trips/{{ tripId }}/dvl"
+          headers:
+            Authorization: "Bearer {{ token }}"
+
+  # 10% — Media
+  - name: "Media access"
+    weight: 10
+    flow:
+      - get:
+          url: "/api/v1/trips?page=1&limit=5"
+          headers:
+            Authorization: "Bearer {{ token }}"
+          capture:
+            - json: "$.data.data[0]._id"
+              as: "tripId"
+      - get:
+          url: "/api/v1/media/trip/{{ tripId }}"
+          headers:
+            Authorization: "Bearer {{ token }}"

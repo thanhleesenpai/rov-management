@@ -11,7 +11,7 @@ import { useThemeStore } from '@/store/theme.store'
 import { Skeleton } from '@/components/shared/Skeleton'
 import EmptyState from '@/components/shared/EmptyState'
 import api from '@/lib/axios'
-import { TRIP_COLORS, DIVE_COLORS, ROV_PALETTE, LINE_COLORS } from '@/lib/chartColors'
+import { PROJECT_COLORS, TRIP_COLORS, ROV_PALETTE, LINE_COLORS } from '@/lib/chartColors'
 import {
   MarineTable, MarineTableHeader, MarineTableBody,
   MarineTableRow, MarineTableHead, MarineTableCell, MarineTableStatus
@@ -97,9 +97,9 @@ export default function DashboardPage() {
 
   const qOpts = { staleTime: 0, refetchOnWindowFocus: true }
   const { data: rovs } = useQuery({ queryKey: ['rovs', { status: 'active' }], queryFn: () => api.get('/rovs', { params: { status: 'active', limit: 1 } }).then(r => r.data), ...qOpts })
-  const { data: trips } = useQuery({ queryKey: ['trips', { limit: 5 }], queryFn: () => api.get('/trips', { params: { limit: 5 } }).then(r => r.data), ...qOpts })
-  const { data: dives } = useQuery({ queryKey: ['dives', { status: 'running' }], queryFn: () => api.get('/dives', { params: { status: 'running', limit: 1 } }).then(r => r.data), ...qOpts })
-  const { data: allTrips } = useQuery({ queryKey: ['trips', { limit: 1 }], queryFn: () => api.get('/trips', { params: { limit: 1 } }).then(r => r.data), ...qOpts })
+  const { data: projects } = useQuery({ queryKey: ['projects', { limit: 5 }], queryFn: () => api.get('/projects', { params: { limit: 5 } }).then(r => r.data), ...qOpts })
+  const { data: trips } = useQuery({ queryKey: ['trips', { status: 'running' }], queryFn: () => api.get('/trips', { params: { status: 'running', limit: 1 } }).then(r => r.data), ...qOpts })
+  const { data: allProjects } = useQuery({ queryKey: ['projects', { limit: 1 }], queryFn: () => api.get('/projects', { params: { limit: 1 } }).then(r => r.data), ...qOpts })
   const { data: users } = useQuery({ queryKey: ['users'], queryFn: () => api.get('/users').then(r => r.data), enabled: isAdmin, ...qOpts })
   const { data: stats, isLoading: statsLoading, isError: statsError } = useQuery({
     queryKey: ['stats', 'overview'],
@@ -108,14 +108,14 @@ export default function DashboardPage() {
   })
 
   const activeROVs = rovs?.total ?? null
-  const totalTrips = allTrips?.total ?? null
-  const activeJobs = dives?.total ?? null
+  const totalProjects = allProjects?.total ?? null
+  const activeJobs = trips?.total ?? null
   const totalUsers = users?.total ?? null
-  const recentTrips = trips?.data ?? []
+  const recentProjects = projects?.data ?? []
 
   const statCards = [
-    { label: 'Total Trips', value: totalTrips, icon: Map, color: 'blue', path: '/trips' },
-    { label: 'Running Dives', value: activeJobs, icon: Briefcase, color: 'green', path: '/dives' },
+    { label: 'Total Projects', value: totalProjects, icon: Map, color: 'blue', path: '/projects' },
+    { label: 'Running Trips', value: activeJobs, icon: Briefcase, color: 'green', path: '/trips' },
     { label: 'Active ROVs', value: activeROVs, icon: Anchor, color: 'purple', path: '/rovs' },
     ...(isAdmin ? [{ label: 'Total Users', value: totalUsers, icon: Users, color: 'orange', path: '/users' }] : [])
   ]
@@ -127,11 +127,11 @@ export default function DashboardPage() {
     orange: { bg: 'bg-orange-50 dark:bg-orange-900/20', icon: 'text-orange-600 dark:text-orange-400', text: 'text-orange-600 dark:text-orange-400' }
   }
 
-  const diveBarData = stats ? [
-    { name: 'Pending', value: stats.diveByStatus?.pending || 0, fill: DIVE_COLORS.pending },
-    { name: 'Running', value: stats.diveByStatus?.running || 0, fill: DIVE_COLORS.running },
-    { name: 'Done', value: stats.diveByStatus?.done || 0, fill: DIVE_COLORS.done },
-    { name: 'Failed', value: stats.diveByStatus?.failed || 0, fill: DIVE_COLORS.failed },
+  const tripBarData = stats ? [
+    { name: 'Pending', value: stats.tripByStatus?.pending || 0, fill: TRIP_COLORS.pending },
+    { name: 'Running', value: stats.tripByStatus?.running || 0, fill: TRIP_COLORS.running },
+    { name: 'Done', value: stats.tripByStatus?.done || 0, fill: TRIP_COLORS.done },
+    { name: 'Failed', value: stats.tripByStatus?.failed || 0, fill: TRIP_COLORS.failed },
   ] : []
 
   const chartProps = { loading: statsLoading, error: statsError }
@@ -168,20 +168,20 @@ export default function DashboardPage() {
 
       {/* Row 1: Status pies + jobs bar */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-        <ChartCard title="Trip Status" {...chartProps}>
-          {stats && <StatusPie data={stats.tripByStatus} colorMap={TRIP_COLORS} />}
+        <ChartCard title="Project Status" {...chartProps}>
+          {stats && <StatusPie data={stats.projectByStatus} colorMap={PROJECT_COLORS} />}
         </ChartCard>
 
-        <ChartCard title="Dives by Status" {...chartProps}>
+        <ChartCard title="Trips by Status" {...chartProps}>
           {stats && (
             <ResponsiveContainer width="100%" height={140}>
-              <BarChart data={diveBarData} maxBarSize={32} margin={{ top: 0, right: 4, left: -20, bottom: 0 }} style={{ outline: 'none' }}>
+              <BarChart data={tripBarData} maxBarSize={32} margin={{ top: 0, right: 4, left: -20, bottom: 0 }} style={{ outline: 'none' }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
                 <XAxis dataKey="name" {...AXIS_PROPS} />
                 <YAxis {...AXIS_PROPS} allowDecimals={false} />
                 <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgb(var(--muted))' }} />
                 <Bar dataKey="value" radius={[4, 4, 0, 0]}>
-                  {diveBarData.map((e, i) => <Cell key={i} fill={e.fill} />)}
+                  {tripBarData.map((e, i) => <Cell key={i} fill={e.fill} />)}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
@@ -199,7 +199,7 @@ export default function DashboardPage() {
                 <XAxis type="number" {...AXIS_PROPS} allowDecimals={false} />
                 <YAxis type="category" dataKey="name" width={64} tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
                 <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgb(var(--muted))' }} />
-                <Bar dataKey="trips" name="Trips" radius={[0, 4, 4, 0]}>
+                <Bar dataKey="projects" name="Projects" radius={[0, 4, 4, 0]}>
                   {stats.rovUtilization.map((_, i) => <Cell key={i} fill={ROV_PALETTE[i % ROV_PALETTE.length]} />)}
                 </Bar>
               </BarChart>
@@ -215,13 +215,13 @@ export default function DashboardPage() {
             <ResponsiveContainer width="100%" height={160}>
               <AreaChart data={stats.activityTimeline} margin={{ top: 4, right: 16, left: -20, bottom: 0 }} style={{ outline: 'none' }}>
                 <defs>
-                  <linearGradient id="grad-trips" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={LINE_COLORS.trips} stopOpacity={0.30} />
-                    <stop offset="95%" stopColor={LINE_COLORS.trips} stopOpacity={0} />
+                  <linearGradient id="grad-projects" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={LINE_COLORS.projects} stopOpacity={0.30} />
+                    <stop offset="95%" stopColor={LINE_COLORS.projects} stopOpacity={0} />
                   </linearGradient>
-                  <linearGradient id="grad-dives" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={LINE_COLORS.dives} stopOpacity={0.25} />
-                    <stop offset="95%" stopColor={LINE_COLORS.dives} stopOpacity={0} />
+                  <linearGradient id="grad-trips" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={LINE_COLORS.trips} stopOpacity={0.25} />
+                    <stop offset="95%" stopColor={LINE_COLORS.trips} stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="grad-media" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={LINE_COLORS.media} stopOpacity={0.20} />
@@ -233,12 +233,12 @@ export default function DashboardPage() {
                 <YAxis {...AXIS_PROPS} allowDecimals={false} />
                 <Tooltip content={<CustomTooltip />} />
                 <Legend wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                <Area type="monotone" dataKey="projects" stroke={LINE_COLORS.projects} strokeWidth={2}
+                  fill="url(#grad-projects)" fillOpacity={1}
+                  dot={{ r: 2, fill: LINE_COLORS.projects }} activeDot={{ r: 4 }} />
                 <Area type="monotone" dataKey="trips" stroke={LINE_COLORS.trips} strokeWidth={2}
                   fill="url(#grad-trips)" fillOpacity={1}
                   dot={{ r: 2, fill: LINE_COLORS.trips }} activeDot={{ r: 4 }} />
-                <Area type="monotone" dataKey="dives" stroke={LINE_COLORS.dives} strokeWidth={2}
-                  fill="url(#grad-dives)" fillOpacity={1}
-                  dot={{ r: 2, fill: LINE_COLORS.dives }} activeDot={{ r: 4 }} />
                 <Area type="monotone" dataKey="media" stroke={LINE_COLORS.media} strokeWidth={2}
                   fill="url(#grad-media)" fillOpacity={1}
                   dot={{ r: 2, fill: LINE_COLORS.media }} activeDot={{ r: 4 }} />
@@ -248,21 +248,21 @@ export default function DashboardPage() {
         </ChartCard>
       </div>
 
-      {/* Recent trips */}
+      {/* Recent projects */}
       <div className="mb-4 mt-8 flex items-center justify-between">
-        <h2 className="text-lg font-bold text-foreground">Recent Trips</h2>
-        <MarineButton variant="outline" onClick={() => navigate('/trips')}>
-          <span className="hidden sm:inline">View All Trips</span>
+        <h2 className="text-lg font-bold text-foreground">Recent Projects</h2>
+        <MarineButton variant="outline" onClick={() => navigate('/projects')}>
+          <span className="hidden sm:inline">View All Projects</span>
           <span className="sm:hidden">View All</span>
         </MarineButton>
       </div>
 
-      {trips === undefined || allTrips === undefined ? (
+      {projects === undefined || allProjects === undefined ? (
         <div className="space-y-3">{[1, 2, 3].map(i => <Skeleton key={i} className="h-14 w-full rounded-xl" />)}</div>
-      ) : recentTrips.length === 0 ? (
+      ) : recentProjects.length === 0 ? (
         <EmptyState
           icon={Map}
-          title="No trips yet"
+          title="No projects yet"
         />
       ) : (
         <>
@@ -280,40 +280,40 @@ export default function DashboardPage() {
                 </MarineTableRow>
               </MarineTableHeader>
               <MarineTableBody>
-                {recentTrips.map(trip => {
-                  const label = trip.status.charAt(0).toUpperCase() + trip.status.slice(1)
+                {recentProjects.map(project => {
+                  const label = project.status.charAt(0).toUpperCase() + project.status.slice(1)
                   return (
-                    <MarineTableRow key={trip._id} onClick={() => navigate(`/trips/${trip._id}`)}>
+                    <MarineTableRow key={project._id} onClick={() => navigate(`/projects/${project._id}`)}>
                       <MarineTableCell>
-                        <Link to={`/trips/${trip._id}`} onClick={e => e.stopPropagation()} className="text-sm font-medium text-foreground hover:text-cyan-600 transition-colors truncate block w-fit">
-                          {trip.name}
+                        <Link to={`/projects/${project._id}`} onClick={e => e.stopPropagation()} className="text-sm font-medium text-foreground hover:text-cyan-600 transition-colors truncate block w-fit">
+                          {project.name}
                         </Link>
                       </MarineTableCell>
                       <MarineTableCell>
-                        {trip.rov ? (
-                          <Link to={`/rovs/${trip.rov._id}`} onClick={e => e.stopPropagation()}
+                        {project.rov ? (
+                          <Link to={`/rovs/${project.rov._id}`} onClick={e => e.stopPropagation()}
                             className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] border border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50 transition-colors cursor-pointer truncate"
-                            title={trip.rov.name}>
+                            title={project.rov.name}>
                             <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">ROV</span>
-                            <span className="text-sm font-mono text-foreground">{trip.rov.name.replace(/^ROV\s+/i, '')}</span>
+                            <span className="text-sm font-mono text-foreground">{project.rov.name.replace(/^ROV\s+/i, '')}</span>
                           </Link>
                         ) : <span className="text-slate-400">—</span>}
                       </MarineTableCell>
                       <MarineTableCell>
-                        {trip.location ? (
-                          <span className="truncate max-w-xs block" title={trip.location}>{trip.location}</span>
+                        {project.location ? (
+                          <span className="truncate max-w-xs block" title={project.location}>{project.location}</span>
                         ) : <span className="text-slate-400">—</span>}
                       </MarineTableCell>
                       <MarineTableCell isMono>
-                        {trip.startTime ? (
-                          <span title={trip.endTime ? `${new Date(trip.startTime).toLocaleDateString()} → ${new Date(trip.endTime).toLocaleDateString()}` : new Date(trip.startTime).toLocaleDateString()}>
-                            {new Date(trip.startTime).toLocaleDateString()}
-                            {trip.endTime && ` → ${new Date(trip.endTime).toLocaleDateString()}`}
+                        {project.startTime ? (
+                          <span title={project.endTime ? `${new Date(project.startTime).toLocaleDateString()} → ${new Date(project.endTime).toLocaleDateString()}` : new Date(project.startTime).toLocaleDateString()}>
+                            {new Date(project.startTime).toLocaleDateString()}
+                            {project.endTime && ` → ${new Date(project.endTime).toLocaleDateString()}`}
                           </span>
                         ) : <span className="text-slate-400">—</span>}
                       </MarineTableCell>
                       <MarineTableCell>
-                        <MarineTableStatus status={trip.status} label={label} />
+                        <MarineTableStatus status={project.status} label={label} />
                       </MarineTableCell>
                       <MarineTableCell align="right">
                         <ChevronRight size={18} className="text-slate-300 dark:text-slate-500 group-hover:text-cyan-600 group-hover:translate-x-1 transition-all duration-200 ml-auto" />
@@ -327,43 +327,43 @@ export default function DashboardPage() {
 
           {/* Mobile card list */}
           <div className="xl:hidden space-y-2">
-            {recentTrips.map(trip => {
-              const label = trip.status.charAt(0).toUpperCase() + trip.status.slice(1)
+            {recentProjects.map(project => {
+              const label = project.status.charAt(0).toUpperCase() + project.status.slice(1)
               return (
-                <div key={trip._id} onClick={() => navigate(`/trips/${trip._id}`)}
+                <div key={project._id} onClick={() => navigate(`/projects/${project._id}`)}
                   className="bg-card rounded-lg border border-border shadow-sm p-4 cursor-pointer hover:bg-muted/50 transition-colors group">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex-1 space-y-2">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors truncate max-w-[200px] sm:max-w-xs">
-                          {trip.name}
+                          {project.name}
                         </span>
-                        <MarineTableStatus status={trip.status} label={label} />
+                        <MarineTableStatus status={project.status} label={label} />
                       </div>
 
                       <div className="flex flex-col gap-1.5 mt-2">
-                        {trip.rov && (
-                          <div onClick={e => { e.stopPropagation(); navigate(`/rovs/${trip.rov._id}`) }}
+                        {project.rov && (
+                          <div onClick={e => { e.stopPropagation(); navigate(`/rovs/${project.rov._id}`) }}
                             className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] border border-border bg-muted/30 hover:border-primary/50 hover:bg-muted/50 transition-colors cursor-pointer w-fit">
                             <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">ROV</span>
-                            <span className="text-sm font-mono text-foreground">{trip.rov.name.replace(/^ROV\s+/i, '')}</span>
+                            <span className="text-sm font-mono text-foreground">{project.rov.name.replace(/^ROV\s+/i, '')}</span>
                           </div>
                         )}
 
-                        {(trip.location || trip.startTime) && (
+                        {(project.location || project.startTime) && (
                           <div className="flex items-center gap-2 flex-wrap">
-                            {trip.location && (
+                            {project.location && (
                               <div className="flex items-center gap-1 text-sm font-medium text-foreground">
                                 <MapPin size={11} className="shrink-0 text-muted-foreground" />
-                                <span className="truncate max-w-[120px]">{trip.location}</span>
+                                <span className="truncate max-w-[120px]">{project.location}</span>
                               </div>
                             )}
-                            {trip.startTime && (
+                            {project.startTime && (
                               <div className="flex items-center gap-1 text-sm font-mono text-foreground">
                                 <Clock size={11} className="shrink-0 text-muted-foreground" />
                                 <span>
-                                  {new Date(trip.startTime).toLocaleDateString()}
-                                  {trip.endTime && ` → ${new Date(trip.endTime).toLocaleDateString()}`}
+                                  {new Date(project.startTime).toLocaleDateString()}
+                                  {project.endTime && ` → ${new Date(project.endTime).toLocaleDateString()}`}
                                 </span>
                               </div>
                             )}

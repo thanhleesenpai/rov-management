@@ -1,0 +1,48 @@
+@startuml uc_phanra_data
+left to right direction
+skinparam packageStyle rectangle
+skinparam usecase {
+  BackgroundColor White
+  BorderColor Black
+  FontSize 10
+}
+skinparam actor {
+  BackgroundColor White
+  BorderColor Black
+  FontSize 11
+  FontStyle bold
+}
+skinparam ArrowColor Black
+
+actor "Operator" as O
+
+rectangle "Phân hệ Upload & Quản lý Dữ liệu Thực địa" {
+  usecase "Tạo & cập nhật\nProject / Trip" as D1
+  usecase "Tải lên Sensor CSV\n(multi-file, overlap detect)" as D2
+  usecase "Tải lên DVL JSON" as D3
+  usecase "Tải lên Sonar" as D4
+  usecase "Tải lên Media (Video/Ảnh)\nqua S3 Presigned URL" as D5
+  usecase "Xem danh sách\nfile dữ liệu" as D6
+  usecase "Xóa file dữ liệu\ntheo tên" as D7
+  usecase "Xem biểu đồ cảm biến\n(Env / Nav / System)" as D8
+  usecase "Phát hiện bất thường\n(Z-Score Anomaly)" as D9
+  usecase "Đồng bộ Video\n& Biểu đồ (chart sync)" as D10
+  usecase "Trích xuất Bằng chứng\n(Photo / Video Clip)" as D11
+}
+
+O --> D1
+O --> D2
+O --> D3
+O --> D4
+O --> D5
+O --> D6
+O --> D8
+O --> D10
+O --> D11
+
+D7  .> D6  : <<extend>>
+D9  .> D8  : <<include>>
+D10 .> D5  : <<extend>>
+D11 .> D10 : <<extend>>
+
+@enduml

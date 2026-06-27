@@ -1,0 +1,220 @@
+<mxfile host="app.diagrams.net" version="24.7.5">
+  <diagram name="UC Tổng quan ROV">
+    <mxGraphModel grid="0" page="0" pageWidth="1500" pageHeight="980" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <!-- SYSTEM BOUNDARY -->
+        <mxCell id="boundary" value="Hệ thống Quản lý Vận hành ROV"
+          style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#000000;fontSize=13;fontStyle=1;verticalAlign=top;spacingTop=8;align=center;"
+          vertex="1" parent="1">
+          <mxGeometry x="185" y="50" width="1060" height="870" as="geometry"/>
+        </mxCell>
+
+        <!-- ACTORS LEFT -->
+        <mxCell id="aV" value="Viewer"
+          style="shape=mxgraph.flowchart.actor;fillColor=#000000;strokeColor=none;fontColor=#000000;fontSize=12;fontStyle=1;verticalLabelPosition=bottom;verticalAlign=top;html=1;"
+          vertex="1" parent="1">
+          <mxGeometry x="62" y="315" width="50" height="65" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="aO" value="Operator"
+          style="shape=mxgraph.flowchart.actor;fillColor=#000000;strokeColor=none;fontColor=#000000;fontSize=12;fontStyle=1;verticalLabelPosition=bottom;verticalAlign=top;html=1;"
+          vertex="1" parent="1">
+          <mxGeometry x="62" y="565" width="50" height="65" as="geometry"/>
+        </mxCell>
+
+        <!-- ACTORS RIGHT -->
+        <mxCell id="aA" value="Admin"
+          style="shape=mxgraph.flowchart.actor;fillColor=#000000;strokeColor=none;fontColor=#000000;fontSize=12;fontStyle=1;verticalLabelPosition=bottom;verticalAlign=top;html=1;"
+          vertex="1" parent="1">
+          <mxGeometry x="1318" y="248" width="50" height="65" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="aAI" value="Hệ thống AI"
+          style="shape=mxgraph.flowchart.actor;fillColor=#000000;strokeColor=none;fontColor=#000000;fontSize=12;fontStyle=1;verticalLabelPosition=bottom;verticalAlign=top;html=1;"
+          vertex="1" parent="1">
+          <mxGeometry x="1318" y="548" width="50" height="65" as="geometry"/>
+        </mxCell>
+
+        <!-- INHERITANCE O -|> V (arrow from O up to V, open triangle at V) -->
+        <mxCell id="inh_OV" value=""
+          style="endArrow=block;endFill=0;startArrow=none;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;"
+          edge="1" source="aO" target="aV" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== COLUMN 1: Viewer UCs (x=215–413) ========== -->
+        <mxCell id="UC1" value="Đăng nhập&lt;br&gt;(Email / Google OAuth2)"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#000000;"
+          vertex="1" parent="1">
+          <mxGeometry x="215" y="85" width="198" height="64" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="UC2" value="Xem Dashboard &amp; thống kê"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#000000;"
+          vertex="1" parent="1">
+          <mxGeometry x="215" y="170" width="198" height="54" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="UC3" value="Xem Project &amp; Trip"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#000000;"
+          vertex="1" parent="1">
+          <mxGeometry x="215" y="245" width="198" height="50" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="UC4" value="Xem biểu đồ cảm biến&lt;br&gt;&amp; Bản đồ GPS"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#000000;"
+          vertex="1" parent="1">
+          <mxGeometry x="215" y="316" width="198" height="64" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="UC5" value="Xem đồng bộ&lt;br&gt;Video &amp; Cảm biến"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#000000;"
+          vertex="1" parent="1">
+          <mxGeometry x="215" y="402" width="198" height="64" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== COLUMN 2: Operator UCs (x=573–783) ========== -->
+        <mxCell id="UC6" value="Tạo &amp; quản lý Project"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#000000;"
+          vertex="1" parent="1">
+          <mxGeometry x="573" y="85" width="210" height="54" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="UC7" value="Tạo &amp; quản lý Trip"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#000000;"
+          vertex="1" parent="1">
+          <mxGeometry x="573" y="161" width="210" height="54" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="UC8" value="Tải lên dữ liệu&lt;br&gt;cảm biến (CSV)"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#000000;"
+          vertex="1" parent="1">
+          <mxGeometry x="573" y="237" width="210" height="64" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="UC9" value="Tải lên DVL &amp; Sonar"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#000000;"
+          vertex="1" parent="1">
+          <mxGeometry x="573" y="323" width="210" height="54" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="UC10" value="Tải lên Media&lt;br&gt;(Video / Ảnh)"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#000000;"
+          vertex="1" parent="1">
+          <mxGeometry x="573" y="399" width="210" height="64" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="UC11" value="Trích xuất Bằng chứng&lt;br&gt;(Photo / Clip)"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#000000;"
+          vertex="1" parent="1">
+          <mxGeometry x="573" y="486" width="210" height="64" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="UC12" value="Phân tích vật thể&lt;br&gt;(YOLO)"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#000000;"
+          vertex="1" parent="1">
+          <mxGeometry x="573" y="573" width="210" height="64" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="UC13" value="Tạo báo cáo tóm tắt AI"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#000000;"
+          vertex="1" parent="1">
+          <mxGeometry x="573" y="660" width="210" height="54" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== COLUMN 3: Admin UCs (x=933–1145) ========== -->
+        <mxCell id="UC14" value="Quản lý Thiết bị ROV"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#000000;"
+          vertex="1" parent="1">
+          <mxGeometry x="933" y="195" width="215" height="64" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="UC15" value="Phân quyền Người dùng"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#000000;"
+          vertex="1" parent="1">
+          <mxGeometry x="933" y="388" width="215" height="64" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="UC16" value="Xem Nhật ký&lt;br&gt;hoạt động"
+          style="ellipse;whiteSpace=wrap;html=1;fontSize=11;fillColor=#ffffff;strokeColor=#000000;"
+          vertex="1" parent="1">
+          <mxGeometry x="933" y="581" width="215" height="64" as="geometry"/>
+        </mxCell>
+
+        <!-- ========== VIEWER → COLUMN 1 (exit right, enter left) ========== -->
+        <mxCell id="eV1" value="" style="endArrow=none;startArrow=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="aV" target="UC1" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="eV2" value="" style="endArrow=none;startArrow=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="aV" target="UC2" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="eV3" value="" style="endArrow=none;startArrow=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="aV" target="UC3" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="eV4" value="" style="endArrow=none;startArrow=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="aV" target="UC4" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="eV5" value="" style="endArrow=none;startArrow=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="aV" target="UC5" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- ========== OPERATOR → COLUMN 2 (exit right, enter left) ========== -->
+        <mxCell id="eO6"  value="" style="endArrow=none;startArrow=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="aO" target="UC6"  parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="eO7"  value="" style="endArrow=none;startArrow=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="aO" target="UC7"  parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="eO8"  value="" style="endArrow=none;startArrow=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="aO" target="UC8"  parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="eO9"  value="" style="endArrow=none;startArrow=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="aO" target="UC9"  parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="eO10" value="" style="endArrow=none;startArrow=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="aO" target="UC10" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="eO11" value="" style="endArrow=none;startArrow=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="aO" target="UC11" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="eO12" value="" style="endArrow=none;startArrow=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="aO" target="UC12" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="eO13" value="" style="endArrow=none;startArrow=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="aO" target="UC13" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- ========== ADMIN ← COLUMN 3 (exit left, enter right) ========== -->
+        <mxCell id="eA14" value="" style="endArrow=none;startArrow=none;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="aA" target="UC14" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="eA15" value="" style="endArrow=none;startArrow=none;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="aA" target="UC15" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="eA16" value="" style="endArrow=none;startArrow=none;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="aA" target="UC16" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>
+
+        <!-- ========== AI → UC12, UC13 (route ABOVE diagram to avoid Column 3) ========== -->
+        <mxCell id="eAI12" value="" style="endArrow=none;startArrow=none;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" source="aAI" target="UC12" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1343" y="20"/>
+              <mxPoint x="678" y="20"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <mxCell id="eAI13" value="" style="endArrow=none;startArrow=none;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" edge="1" source="aAI" target="UC13" parent="1">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1343" y="33"/>
+              <mxPoint x="800" y="33"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ========== INCLUDE / EXTEND ========== -->
+        <!-- UC5 .> UC11 : include -->
+        <mxCell id="eInc" value="&lt;&lt;include&gt;&gt;"
+          style="dashed=1;endArrow=open;endFill=0;startArrow=none;html=1;fontSize=10;fontStyle=2;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;"
+          edge="1" source="UC5" target="UC11" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- UC11 .> UC12 : extend -->
+        <mxCell id="eExt1" value="&lt;&lt;extend&gt;&gt;"
+          style="dashed=1;endArrow=open;endFill=0;startArrow=none;html=1;fontSize=10;fontStyle=2;"
+          edge="1" source="UC11" target="UC12" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- UC9 .> UC8 : extend -->
+        <mxCell id="eExt2" value="&lt;&lt;extend&gt;&gt;"
+          style="dashed=1;endArrow=open;endFill=0;startArrow=none;html=1;fontSize=10;fontStyle=2;"
+          edge="1" source="UC9" target="UC8" parent="1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- RBAC NOTE -->
+        <mxCell id="noteRBAC" value="&lt;b&gt;RBAC:&lt;/b&gt; Admin ⊇ Operator ⊇ Viewer"
+          style="text;html=1;strokeColor=#d6b656;fillColor=#fff2cc;align=left;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=11;spacingLeft=8;"
+          vertex="1" parent="1">
+          <mxGeometry x="215" y="800" width="268" height="36" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

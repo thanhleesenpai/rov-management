@@ -1,38 +1,221 @@
 \documentclass[../DoAn.tex]{subfiles}
 \begin{document}
 
-Chương 3 trình bày các cơ sở lý thuyết và công nghệ được lựa chọn để giải quyết những yêu cầu khắt khe đã đặt ra trong Chương 2. Thay vì mô tả dàn trải, chương này tập trung phân tích lý do hệ thống ưu tiên lựa chọn một công nghệ cụ thể dựa trên việc so sánh với các giải pháp thay thế khác, đặc biệt hướng đến các vấn đề cốt lõi như hiệu năng, xử lý dữ liệu lớn, tính linh hoạt và khả năng ứng dụng trí tuệ nhân tạo.
+Chương 3 phân tích các công nghệ cốt lõi được lựa chọn để xây dựng hệ thống, giải thích lý do ưu tiên từng giải pháp thay vì các lựa chọn thay thế, và mô tả chi tiết cơ chế hoạt động của ba thành phần kỹ thuật then chốt theo yêu cầu bố cục đồ án: hàng đợi tác vụ bất đồng bộ (Bull Queue), giao tiếp thời gian thực từ máy chủ đến trình duyệt (SSE), và kiến trúc nhận diện vật thể YOLOv8. Bảng~\ref{tab:techstack} tóm tắt toàn bộ hệ sinh thái công nghệ.
 
-\section{Công nghệ phát triển Giao diện Người dùng (Frontend)}
+\begin{table}[H]
+\centering
+\caption{Hệ sinh thái công nghệ của hệ thống}
+\label{tab:techstack}
+\small
+\begin{tabular}{|p{3.8cm}|p{4.8cm}|p{4.8cm}|}
+\hline
+\textbf{Tầng / Vai trò} & \textbf{Công nghệ (Phiên bản)} & \textbf{Ghi chú} \\
+\hline
+Giao diện người dùng & React 18.3, Vite 5.3, Tailwind CSS 3.4 & SPA, utility-first CSS, dark mode \\
+\hline
+Quản lý trạng thái & Zustand 4.5, React Query 5.4 & Client state + server state \\
+\hline
+Biểu đồ & Recharts 3.8 & AreaChart, LineChart, Brush \\
+\hline
+Bản đồ & Leaflet.js 1.9 (raw API) & Không dùng react-leaflet \\
+\hline
+Máy chủ & Node.js 20 LTS, Express.js 4.19 & REST API, SSE stream \\
+\hline
+ORM & Mongoose 8.4 & Schema, validation, index \\
+\hline
+Cơ sở dữ liệu & MongoDB Atlas & NoSQL document, 512MB free \\
+\hline
+Cache \& hàng đợi & Redis + Bull 4.16 (4 queues) & JWT blacklist + async jobs \\
+\hline
+Lưu trữ tệp & AWS S3 + Presigned URL & Upload thẳng từ trình duyệt \\
+\hline
+Xác thực & JWT (HS256) + Passport.js & Access 15 phút, Refresh 7 ngày \\
+\hline
+Giao tiếp realtime & Server-Sent Events (SSE) & Một chiều: server → client \\
+\hline
+Nhận diện vật thể & YOLOv8n + FastAPI, Python 3.11 & Microservice độc lập \\
+\hline
+LLM tóm tắt & Gemini 2.5 Flash & \texttt{@google/generative-ai} 0.24 \\
+\hline
+Phát hiện bất thường & Z-Score (tự cài đặt) & Ngưỡng $|z| > 2{,}5$ \\
+\hline
+Reverse Geocoding & OpenStreetMap Nominatim & Miễn phí, không cần API key \\
+\hline
+\end{tabular}
+\end{table}
+
+\section{Nền tảng Giao diện Người dùng (Frontend)}
 \label{section:3.1}
-Đặc tả ở phần 2.4 đặt ra yêu cầu giao diện (Cockpit) phải đáp ứng theo dõi video và biểu đồ cảm biến mà không giật lag.
 
-\textbf{ReactJS và Zustand:} ReactJS được lựa chọn làm thư viện phát triển giao diện chính nhờ cơ chế Virtual DOM giúp tối ưu hóa việc cập nhật các biểu đồ dữ liệu liên tục thay đổi mà không cần tải lại toàn trang. So với các giải pháp như VueJS hay Angular, hệ sinh thái của React cung cấp khả năng tích hợp linh hoạt hơn với các thư viện vẽ biểu đồ chuyên sâu như Recharts và Leaflet. Để quản lý trạng thái đồng bộ phức tạp giữa trình phát video và dữ liệu cảm biến, đồ án sử dụng Zustand thay vì Redux. Redux mang lại khả năng quản lý tốt nhưng cấu trúc (boilerplate) cồng kềnh, trong khi Zustand cung cấp một giải pháp quản lý trạng thái toàn cục tinh gọn, tốc độ truy xuất cực nhanh và ít bị nghẽn cổ chai khi dữ liệu luân chuyển liên tục.
+Yêu cầu phi chức năng ở Mục~\ref{section:2.4} đặt ra ngưỡng khắt khe: thanh đánh dấu đồng bộ giữa video và biểu đồ cảm biến phải phản hồi dưới 100ms, giao diện phải hỗ trợ dark mode và tương thích từ màn hình 375px đến 1440px. Tập hợp thư viện sau được lựa chọn để đáp ứng những ràng buộc này.
 
-\section{Công nghệ Máy chủ và Cơ sở dữ liệu (Backend)}
+\subsection{React 18 và Vite}
+
+\textbf{React 18.3}~\cite{reactjs} được lựa chọn làm nền tảng xây dựng giao diện nhờ cơ chế Virtual DOM và kiến trúc component hóa. Thay vì cập nhật trực tiếp DOM thật mỗi khi dữ liệu cảm biến thay đổi, React duy trì một bản sao DOM ảo trong bộ nhớ, tính toán phần khác biệt (diff), rồi chỉ áp dụng tối thiểu lên DOM thật. Điều này đặc biệt quan trọng trong TripDetailPage: khi video phát, sự kiện \texttt{timeupdate} của HTML5 Video API cập nhật liên tục, React chỉ re-render đúng thành phần \texttt{ReferenceLine} trên biểu đồ thay vì vẽ lại toàn bộ trang. So với Vue.js hay Angular, React cung cấp hệ sinh thái thư viện phong phú hơn và kiểm soát tường minh hơn khi làm việc với Canvas API và các API trình duyệt cấp thấp --- yêu cầu thiết yếu để xây dựng tính năng chụp ảnh frame (canvas burn-in) và bản đồ GPS.
+
+\textbf{Vite 5.3}~\cite{vite} thay thế Create React App làm công cụ build và máy chủ phát triển. Vite sử dụng ES Module native của trình duyệt trong môi trường development, loại bỏ bước bundle toàn bộ mã nguồn trước khi khởi động. Kết quả là thời gian khởi động máy chủ dev giảm xuống dưới 1 giây và Hot Module Replacement (HMR) phản hồi tức thì khi sửa code, tăng đáng kể tốc độ phát triển.
+
+\textbf{Tailwind CSS 3.4}~\cite{tailwindcss} cung cấp hệ thống lớp tiện ích (utility-first) tích hợp với thiết kế token ngữ nghĩa. Toàn bộ màu sắc trong hệ thống được định nghĩa qua biến CSS (\texttt{--background}, \texttt{--foreground}, \texttt{--card}, \texttt{--border},...) trong \texttt{index.css} và Tailwind ánh xạ các lớp như \texttt{bg-card}, \texttt{text-foreground} sang biến CSS tương ứng. Khi người dùng chuyển dark mode, script chỉ cần thêm class \texttt{dark} vào phần tử \texttt{<html>} --- toàn bộ hàng trăm component tự động đổi màu mà không cần viết CSS riêng.
+
+\subsection{Quản lý trạng thái: Zustand và React Query}
+
+Hệ thống phân chia trách nhiệm quản lý trạng thái thành hai lớp độc lập:
+
+\textbf{Zustand 4.5}~\cite{zustand} quản lý trạng thái phía client: thông tin xác thực người dùng (user object, access token, refresh token) và chế độ giao diện sáng/tối. Zustand dùng closure đơn giản thay vì Redux Store + Action + Reducer, giảm đáng kể boilerplate. Trạng thái auth được persist vào \texttt{localStorage} qua middleware \texttt{persist}, đảm bảo người dùng không bị đăng xuất khi reload trang. Khi Axios interceptor nhận lỗi 401 (access token hết hạn), nó gọi \texttt{POST /auth/refresh}, lưu token mới vào Zustand, rồi tự động thực hiện lại request ban đầu --- người dùng không nhận ra gián đoạn.
+
+\textbf{React Query 5.4}~\cite{reactquery} quản lý toàn bộ server state: fetching, caching tự động, background refetch, và invalidation. Khi YOLO phân tích xong và SSE đẩy sự kiện về trình duyệt, hook \texttt{useSSE} gọi \texttt{queryClient.invalidateQueries(['media'])} để React Query tự động tải lại dữ liệu media mà không cần reload trang hay polling thủ công.
+
+\subsection{Recharts và Leaflet.js}
+
+\textbf{Recharts 3.8}~\cite{recharts} xây dựng trên D3.js nhưng cung cấp API khai báo theo phong cách React, phù hợp hơn với kiến trúc component. Hệ thống dùng \texttt{AreaChart} cho biểu đồ môi trường (độ sâu, nhiệt độ, áp suất), \texttt{LineChart} cho điều hướng (yaw, pitch, roll) và hệ thống (điện áp, pin), \texttt{BarChart} cho timeline hoạt động trên Dashboard. Thành phần \texttt{<ReferenceLine>} được dùng làm thanh đồng bộ: khi video phát, \texttt{currentTime} được chuyển thành timestamp tuyệt đối theo công thức $t_{\text{sync}} = t_{\text{recordedAt}} + t_{\text{video}} \times 1000$ (ms), đặt làm giá trị \texttt{x} của ReferenceLine để cập nhật đồng bộ với từng sự kiện \texttt{timeupdate}. Thành phần \texttt{<Brush>} cho phép thu phóng trục thời gian; khi người dùng chọn video trong playlist, vùng Brush tự động nhảy đến khoảng thời gian tương ứng với video đó.
+
+\textbf{Leaflet.js 1.9}~\cite{leaflet} hiển thị bản đồ Marker tại tọa độ GPS của lượt lặn. Thư viện react-leaflet (wrapper React chính thức) không tương thích với React 18.3 do sử dụng lifecycle API cũ, vì vậy Leaflet được khởi tạo trực tiếp qua \texttt{useEffect} thuần trên phần tử \texttt{<div>} và dọn dẹp khi component unmount. Tile layer dùng OpenStreetMap --- miễn phí, không cần API key.
+
+\section{Nền tảng Máy chủ và Lưu trữ (Backend)}
 \label{section:3.2}
-Khối lượng dữ liệu thực địa từ ROV sinh ra rất lớn, đòi hỏi hệ thống lưu trữ và xử lý máy chủ phải cực kỳ linh hoạt và hiệu quả (đáp ứng yêu cầu phi chức năng ở phần 2.4).
 
-\textbf{Node.js và Express.js:} Node.js với mô hình I/O không đồng bộ hướng sự kiện (Event-driven, non-blocking I/O) là sự lựa chọn tối ưu để xây dựng các luồng truyền tải thời gian thực như Server-Sent Events (SSE) \cite{LectureA}. So với các mô hình đa luồng truyền thống như Spring Boot (Java) hay Django (Python), Node.js xử lý hàng nghìn kết nối đồng thời với mức tiêu thụ tài nguyên phần cứng thấp hơn nhiều.
+\subsection{Node.js và Express.js}
 
-\textbf{MongoDB và Amazon Web Services (AWS S3):} MongoDB, với thiết kế NoSQL hướng tài liệu, hoàn toàn phù hợp để lưu trữ dữ liệu cảm biến (Sensor Data). Cấu trúc của các tệp nhật ký cảm biến đôi khi bị thay đổi (bổ sung thêm cảm biến độ mặn, con quay hồi chuyển) khiến cho các hệ cơ sở dữ liệu quan hệ (như MySQL, PostgreSQL) trở nên cứng nhắc và chi phí thiết kế lại bảng rất cao. Đối với các tệp phương tiện (video, ảnh), thay vì lưu trực tiếp vào ổ cứng máy chủ gây nguy cơ quá tải, hệ thống tích hợp dịch vụ lưu trữ đám mây AWS S3. Cơ chế URL chỉ định trước (Presigned URL) cho phép trình duyệt của người dùng tải trực tiếp tệp tin lên vùng chứa của AWS mà không cần đi xuyên qua máy chủ Node.js, qua đó giảm tải toàn bộ băng thông mạng cho hệ thống chính.
+\textbf{Node.js 20 LTS}~\cite{nodejs} với mô hình I/O bất đồng bộ hướng sự kiện (non-blocking Event Loop) xử lý hiệu quả hàng nghìn kết nối HTTP đồng thời với chi phí tài nguyên thấp hơn so với mô hình đa luồng của Spring Boot (Java) hay Django (Python). Đặc điểm này quan trọng khi duy trì kết nối SSE kéo dài: mỗi kết nối SSE là một HTTP response không đóng, và Node.js giữ hàng trăm kết nối song song trên một tiến trình đơn mà không cần tạo thread mới.
 
-\section{Cơ chế Xử lý ngầm và Giao tiếp Thời gian thực}
+\textbf{Express.js 4.19}~\cite{expressjs} tổ chức backend theo mô hình module: mỗi thực thể nghiệp vụ (Projects, Trips, Media, Sensor, DVL, Sonar, Snapshots, Notifications, Audit) có bộ tệp riêng gồm \texttt{routes.js} → \texttt{controller.js} → \texttt{service.js} → \texttt{model.js}. Controller không chứa logic nghiệp vụ --- chỉ parse request và gọi Service; Service chứa toàn bộ logic. Response luôn qua hàm \texttt{success(res, data)} chuẩn hóa để đảm bảo định dạng JSON nhất quán.
+
+\subsection{MongoDB Atlas và Mongoose}
+
+\textbf{MongoDB Atlas}~\cite{mongodb} (cụm free tier, 512MB) lưu trữ toàn bộ dữ liệu có cấu trúc. Lựa chọn MongoDB thay vì PostgreSQL dựa trên hai lý do chính: (1) Schema cảm biến linh hoạt --- một lượt lặn có thể có đủ 7 trường đo (độ sâu, nhiệt độ, áp suất, yaw, pitch, roll, độ ẩm) hoặc chỉ 3 trường bắt buộc, không cần ALTER TABLE; (2) Mô hình tài liệu phù hợp với cấu trúc phân cấp tự nhiên Project → Trip → SensorData/Media của hệ thống.
+
+\textbf{Mongoose 8.4}~\cite{mongoose} cung cấp schema validation tại tầng ứng dụng, định nghĩa index kèm khai báo model, và populate để join dữ liệu. Index phức hợp được đặt tại các collection truy vấn thường xuyên:
+
+\begin{itemize}[leftmargin=*, topsep=2pt, itemsep=1pt]
+  \item \texttt{SensorData}: \texttt{\{ trip: 1, timestamp: -1 \}} --- truy vấn chuỗi thời gian của một lượt lặn
+  \item \texttt{Media}: \texttt{\{ trip: 1, order: 1 \}} --- lấy playlist media theo thứ tự kéo-thả
+  \item \texttt{Notification}: \texttt{\{ userId: 1, isRead: 1, createdAt: -1 \}} --- đếm badge thông báo chưa đọc
+  \item \texttt{AuditLog}: \texttt{\{ userId: 1, createdAt: -1 \}} --- phân trang nhật ký hoạt động
+\end{itemize}
+
+\subsection{AWS S3 và cơ chế Presigned URL}
+
+Video và ảnh ROV có thể đạt vài trăm MB mỗi tệp. Nếu upload đi qua Node.js, toàn bộ băng thông máy chủ sẽ bị chiếm dụng. Cơ chế \textbf{Presigned URL}~\cite{awss3} của AWS S3 giải quyết vấn đề này theo luồng bốn bước:
+
+\begin{enumerate}[leftmargin=*, topsep=4pt, itemsep=2pt]
+  \item Trình duyệt gửi \texttt{POST /media/presigned-url} (kèm tên file, MIME type, kích thước) lên Node.js.
+  \item Node.js dùng AWS SDK ký một \texttt{PutObjectCommand} URL với TTL 5 phút và trả về cho trình duyệt.
+  \item Trình duyệt \texttt{PUT} file trực tiếp lên S3 qua URL đã ký --- Node.js không nhận một byte dữ liệu nào.
+  \item Sau khi upload xong, trình duyệt gọi \texttt{PATCH /media/:id/confirm} để cập nhật \texttt{status = 'ready'}.
+\end{enumerate}
+
+Giới hạn kích thước tối đa là 500MB (kiểm tra tại bước 1 trước khi cấp URL). Định dạng được chấp nhận: video (MP4, WebM, MOV, AVI), ảnh (JPEG, PNG, WebP), và PDF. Tệp Sonar nhị phân (.sonar) được upload qua Multer trực tiếp đến Node.js rồi đẩy lên S3, do kích thước nhỏ và cần parse header nhị phân trước khi lưu.
+
+\subsection{Xác thực JWT, Blacklist Redis và Google OAuth}
+
+Hệ thống sử dụng cặp token có vòng đời bất đối xứng theo chuẩn RFC 7519~\cite{jwtspec}:
+
+\begin{itemize}[leftmargin=*, topsep=4pt, itemsep=2pt]
+  \item \textbf{Access Token} (HS256, TTL 15 phút): gửi kèm mọi request dưới dạng \texttt{Authorization: Bearer <token>}. Vòng đời ngắn giảm thiểu cửa sổ tấn công nếu token bị lộ.
+  \item \textbf{Refresh Token} (TTL 7 ngày): lưu trong MongoDB tại trường \texttt{user.refreshToken}. Axios interceptor tự động gọi \texttt{POST /auth/refresh} khi nhận lỗi 401, cấp Access Token mới và thực hiện lại request ban đầu mà không làm gián đoạn trải nghiệm người dùng.
+\end{itemize}
+
+Vấn đề của JWT là tính \textit{stateless}: khi người dùng đăng xuất hoặc bị Admin vô hiệu hóa, Access Token vẫn hợp lệ đến khi hết TTL 15 phút. \textbf{Redis}~\cite{redis} giải quyết bằng cơ chế blacklist: khi đăng xuất, token được thêm vào Redis với key pattern \texttt{blacklist:\{token\}} và TTL bằng thời gian sống còn lại. Middleware \texttt{authenticate} kiểm tra Redis trước khi chấp nhận mọi request. Nếu Redis không khả dụng, hệ thống vẫn hoạt động bình thường (fail-open) để không ảnh hưởng tính sẵn sàng trong môi trường phát triển.
+
+Ngoài đăng nhập bằng email/mật khẩu, hệ thống hỗ trợ \textbf{Google OAuth 2.0}~\cite{googleoauth} thông qua Passport.js~\cite{passportjs}. Khi người dùng nhấn ``Đăng nhập bằng Google'', Passport GoogleStrategy tra cứu email trong MongoDB: nếu tài khoản đã tồn tại (đăng ký bằng email) thì gán \texttt{googleId} và đăng nhập; nếu chưa tồn tại thì tạo tài khoản mới với \texttt{authProvider = 'google'} và role mặc định \texttt{viewer}. Tài khoản Google không có trường password và không hiển thị tab đổi mật khẩu trong giao diện.
+
+\section{Xử lý bất đồng bộ và Giao tiếp thời gian thực}
 \label{section:3.3}
-Luồng phân tích AI và nhận diện video tốn rất nhiều thời gian xử lý. Việc bắt người dùng chờ đợi phản hồi từ máy chủ HTTP (chặn luồng) là không thể chấp nhận được.
 
-\textbf{Redis và Bull Queue:} Để giải quyết bài toán này, các tác vụ AI được đẩy vào một hàng đợi tác vụ (Message Queue) mang tên Bull Queue, hoạt động trên nền tảng cơ sở dữ liệu khóa-giá trị Redis in-memory. So với các hệ thống đồ sộ như RabbitMQ hay Apache Kafka, Redis và Bull Queue nhẹ nhàng hơn, cực kỳ dễ cài đặt, đáp ứng tốc độ phản hồi tính bằng mili-giây và phù hợp hoàn hảo với một ứng dụng web tầm trung. Đồng thời, Redis cũng đóng vai trò làm Danh sách đen (Blacklist) để vô hiệu hóa tức thời các mã xác thực JWT khi người dùng đăng xuất, tăng cường tính bảo mật.
+Hai tính năng AI của hệ thống có độ trễ cao: phân tích YOLO trên video 30 giây mất từ 30 đến hơn 120 giây tùy phần cứng; tổng hợp AI qua Gemini mất 5--15 giây. Không thể chặn HTTP request trong thời gian đó. Phần này mô tả chi tiết hai thành phần giải quyết bài toán: Bull Queue xử lý tác vụ ngầm và SSE đẩy kết quả về trình duyệt khi hoàn tất.
 
-\textbf{Server-Sent Events (SSE):} Sau khi các tiến trình ngầm phân tích xong, máy chủ cần báo lại cho trình duyệt. Thông thường, WebSockets là giải pháp phổ biến. Tuy nhiên, do bản chất bài toán chỉ cần giao tiếp một chiều (máy chủ đẩy thông báo xuống trình duyệt, trình duyệt không đẩy luồng ngược lại), Server-Sent Events (SSE) qua giao thức HTTP/1.1 được lựa chọn. SSE đơn giản, tiết kiệm tài nguyên máy chủ hơn và được hỗ trợ cơ chế tự động kết nối lại (auto-reconnect) mặc định từ trình duyệt mà không cần lập trình viên phải xử lý thủ công như WebSockets.
+\subsection{Bull Queue và cơ chế xử lý bất đồng bộ}
 
-\section{Công nghệ Trí tuệ Nhân tạo (AI)}
+\textbf{Bull 4.16}~\cite{bullqueue} là thư viện hàng đợi tác vụ xây dựng trên Redis, đảm bảo ``at-least-once delivery'': nếu worker crash giữa chừng, job được tự động thử lại. Hệ thống khởi tạo bốn hàng đợi độc lập với cấu hình timeout phù hợp đặc thù từng tác vụ (Bảng~\ref{tab:queues}).
+
+\begin{table}[H]
+\centering
+\caption{Cấu hình các hàng đợi Bull Queue trong hệ thống}
+\label{tab:queues}
+\small
+\begin{tabular}{|p{3.8cm}|c|c|p{4.8cm}|}
+\hline
+\textbf{Tên hàng đợi} & \textbf{Timeout} & \textbf{Thử lại} & \textbf{Tác vụ} \\
+\hline
+\texttt{ai-summary} & 60s & 3 lần (backoff 2s) & Gọi Gemini API tổng hợp báo cáo \\
+\hline
+\texttt{media-analysis} & 25 phút & 1 lần & Phân tích video/ảnh bằng YOLOv8 \\
+\hline
+\texttt{snapshot-analysis} & 5 phút & 1 lần & Phân tích clip/ảnh bằng chứng \\
+\hline
+\texttt{email} & 60s & 3 lần (backoff 2s) & Gửi email thông báo \\
+\hline
+\end{tabular}
+\end{table}
+
+Luồng hoạt động điển hình khi Operator kích hoạt phân tích YOLO được mô tả như sau: (1) Controller đặt \texttt{media.analysisStatus = 'pending'}, thêm job vào \texttt{mediaAnalysisQueue} với payload \texttt{\{mediaId, mimeType, userId, model, confidence\}}, và trả về \textbf{HTTP 202} tức thì mà không chờ xử lý. (2) Worker chạy trong tiến trình Node.js song song với Event Loop chính, lấy job từ Redis, gọi YOLO Microservice, và lưu kết quả. (3) Sau khi hoàn tất, worker push SSE đến người dùng. (4) Frontend nhận SSE, gọi \texttt{invalidateQueries} để React Query tự động tải lại dữ liệu media.
+
+Hàng đợi \texttt{media-analysis} chỉ thử 1 lần vì nếu YOLO timeout ở lần đầu (video quá dài), lần thử lại cũng sẽ timeout lại. Ngược lại, \texttt{ai-summary} thử 3 lần với exponential backoff để xử lý lỗi mạng thoáng qua khi gọi Gemini API.
+
+\subsection{Server-Sent Events (SSE) và cơ chế đẩy thông báo}
+
+Sau khi tác vụ ngầm hoàn thành, máy chủ cần thông báo ngay cho trình duyệt mà không cần trình duyệt chủ động hỏi lại (polling). WebSocket~\cite{sse_mdn} hỗ trợ giao tiếp hai chiều nhưng yêu cầu nâng cấp giao thức (HTTP Upgrade) và thư viện client bổ sung. Vì bài toán chỉ cần giao tiếp \textit{một chiều} (server → client), \textbf{Server-Sent Events (SSE)} qua HTTP/1.1 thông thường được chọn thay thế.
+
+Khi trình duyệt mở kết nối \texttt{GET /notifications/stream}, máy chủ trả về response có header \texttt{Content-Type: text/event-stream} và giữ kết nối mở vô thời hạn. Mỗi tin nhắn được ghi theo định dạng:
+\begin{verbatim}
+data: {"type": "notification", "data": {...}}\n\n
+\end{verbatim}
+Hai ký tự xuống dòng liên tiếp (\texttt{\textbackslash{}n\textbackslash{}n}) đánh dấu kết thúc một sự kiện. EventSource API của trình duyệt tự động tái kết nối khi mất mạng mà không cần lập trình viên xử lý thủ công.
+
+Phía máy chủ, mỗi kết nối SSE được lưu vào cấu trúc \texttt{Map<userId, res>} trong bộ nhớ. Nếu người dùng mở tab thứ hai, kết nối cũ bị đóng để tránh nhận thông báo trùng lặp. Khi bất kỳ thành phần nào (Worker AI, Controller Trip, Controller Project) gọi \texttt{notificationService.create(userId, ...)}, hàm \texttt{pushSSE} tra cứu Map và ghi trực tiếp vào response stream của đúng người dùng đó. Kiến trúc in-memory Map đủ dùng cho hệ thống single-instance trên VPS; khi mở rộng sang multiple instances cần thay bằng Redis Pub/Sub.
+
+\section{Hệ thống Trí tuệ Nhân tạo}
 \label{section:3.4}
-Như đã trình bày ở phần Khảo sát, thiếu sót lớn nhất của các phần mềm hiện có là không có khả năng tự động phân tích và tóm tắt.
 
-\textbf{YOLOv8 (You Only Look Once phiên bản 8):} Để nhận diện vật thể dưới nước từ hàng chục nghìn khung hình video, YOLOv8 được chọn làm hạt nhân của dịch vụ vi mô (microservice) AI. YOLOv8 kết hợp giữa tốc độ trích xuất đặc trưng đáng kinh ngạc và độ chính xác cao. So với các phiên bản tiền nhiệm như YOLOv5 hay các họ mô hình Faster R-CNN nặng nề, YOLOv8 cung cấp khả năng dò tìm (tracking) ổn định, dễ dàng tích hợp qua FastAPI (Python) và chỉ tiêu thụ rất ít RAM. Mô hình này rất phù hợp để triển khai trực tiếp ngay trên các thiết bị giới hạn tài nguyên tính toán (Edge AI) hoặc máy chủ ảo giá rẻ.
+\subsection{YOLOv8 và Python Microservice}
 
-\textbf{Mô hình Ngôn ngữ Lớn (Gemini 2.5 Flash):} Việc tóm tắt chuyến đi cần tổng hợp lượng lớn dữ liệu rời rạc thành văn bản tự nhiên. API của Gemini 2.5 Flash được sử dụng bởi ưu điểm vượt trội về độ trễ thấp và cửa sổ ngữ cảnh (context window) khổng lồ. So với các phiên bản ChatGPT thông thường, Gemini Flash đem lại sự cân bằng hoàn hảo giữa hiệu năng và chi phí xử lý văn bản quy mô lớn.
+\textbf{YOLOv8}~\cite{yolov8} (You Only Look Once phiên bản 8, Ultralytics) là kiến trúc học sâu một giai đoạn (single-stage detector) cho bài toán phát hiện và theo dõi vật thể. Không giống kiến trúc hai giai đoạn như Faster R-CNN (đề xuất vùng nghi vấn trước, phân loại sau), YOLOv8 chia ảnh thành lưới và dự đoán bounding box lẫn nhãn đồng thời trong một lần forward pass duy nhất, giúp tốc độ inference nhanh hơn đáng kể. Biến thể được sử dụng là \textbf{YOLOv8n (nano)} với kích thước model xấp xỉ 6MB, có thể chạy trên CPU mà không cần GPU --- phù hợp với VPS giá rẻ.
 
-Chương 3 đã giải thích rõ lý do tại sao hệ sinh thái công nghệ (React, Node.js, MongoDB, Redis, YOLOv8) lại được ưu tiên lựa chọn để đáp ứng đúng các bài toán đặt ra ở phần Khảo sát. Việc kết hợp chặt chẽ giữa các công nghệ hiện đại này chính là nền móng để hệ thống bước vào giai đoạn thiết kế kiến trúc chi tiết, được trình bày trong Chương 4.
+Dịch vụ YOLO được đóng gói thành một \textbf{Python FastAPI microservice}~\cite{fastapi} độc lập chạy trên cổng 8000, không chia sẻ bộ nhớ với Node.js. Node.js giao tiếp qua \texttt{POST /detect} kèm presigned URL của tệp phương tiện, model và ngưỡng confidence. Kiến trúc microservice này cho phép thay thế hoặc nâng cấp mô hình AI mà không ảnh hưởng đến backend Node.js. Model được cache vào \texttt{dict} Python (\texttt{\_model\_cache}) để tránh đọc lại tệp \texttt{.pt} cho mỗi request.
+
+\textbf{Xử lý ảnh:} YOLOv8 chạy \texttt{predict()} một lần trên file PNG/JPEG, áp dụng Non-Maximum Suppression (NMS) nội bộ, và trả về danh sách \texttt{\{name, confidence, bbox\}}.
+
+\textbf{Xử lý video:} Phân tích từng frame của video là không thực tế về mặt tài nguyên. Hệ thống áp dụng \textbf{chiến lược lấy mẫu thích nghi} dựa trên độ dài đoạn video được xử lý (Bảng~\ref{tab:sampling}):
+
+\begin{table}[H]
+\centering
+\caption{Chiến lược lấy mẫu frame thích nghi của YOLO Microservice}
+\label{tab:sampling}
+\small
+\begin{tabular}{|c|c|p{6.0cm}|}
+\hline
+\textbf{Độ dài đoạn} & \textbf{Khoảng cách mẫu} & \textbf{Lý do} \\
+\hline
+$< 30$ giây & 0,2 giây & Video ngắn: mẫu dày để không bỏ sót sự kiện \\
+\hline
+30 giây -- 3 phút & 0,5 giây & Cân bằng độ chính xác và thời gian xử lý \\
+\hline
+$> 3$ phút & 1,0 giây & Video dài: giảm tải CPU, tránh timeout 25 phút \\
+\hline
+\end{tabular}
+\end{table}
+
+Trên mỗi frame được chọn, hệ thống chạy \textbf{ByteTrack}~\cite{bytetrack} (\texttt{m.track(tracker="bytetrack.yaml")}) thay vì chỉ predict. ByteTrack gán \texttt{trackId} ổn định theo thời gian: cùng một vật thể xuất hiện ở nhiều frame sẽ mang cùng \texttt{trackId}, giúp frontend nhảy đến đúng frame khi người dùng click vào nhãn. Sau đó \textbf{Cross-class NMS} (ngưỡng IoU = 0,3) loại bỏ bounding box chồng lấp từ các nhãn khác nhau. Kết quả trả về là mảng \texttt{[\{name, confidence, bbox, frameTime, trackId\}]} với \texttt{frameTime = frame\_idx / fps} (giây thực trong video).
+
+\subsection{Gemini 2.5 Flash và AI Summary}
+
+\textbf{Gemini 2.5 Flash}~\cite{geminiapi} (thư viện \texttt{@google/generative-ai} 0.24) được chọn để tổng hợp báo cáo nhiệm vụ bằng ngôn ngữ tự nhiên. So với GPT-4o, Gemini Flash có độ trễ thấp hơn và chi phí token thấp hơn --- phù hợp cho văn bản đầu vào khoảng 500--1000 token (thống kê chuyến khảo sát ROV). Toàn bộ quá trình chạy bất đồng bộ qua \texttt{aiSummaryQueue}: prompt được xây dựng từ tên project, địa điểm (\texttt{locationName}), danh sách trip kèm trạng thái, số file media và số điểm bất thường cảm biến. Gemini sinh ra hai phiên bản báo cáo song song: tiếng Việt (\texttt{aiSummary.vi}) và tiếng Anh (\texttt{aiSummary.en}), lưu vào MongoDB. Sau khi hoàn tất, worker push SSE đến người kích hoạt.
+
+\subsection{Phát hiện bất thường Z-Score}
+
+Sau khi dữ liệu cảm biến được tải lên, hệ thống tự động phát hiện các điểm bất thường bằng phương pháp Z-Score~\cite{zscore_grubbs}. Với mỗi metric $m$ trong tập \{depth, temp, temperature, pressure, voltage, battery\_percent, humidity\}, Z-Score của giá trị $x_i$ được tính:
+
+\[
+z_i = \left| \frac{x_i - \bar{x}}{\sigma} \right|
+\]
+
+trong đó $\bar{x}$ là giá trị trung bình và $\sigma$ là độ lệch chuẩn của toàn bộ chuỗi đo lường trong lượt lặn đó. Điểm $x_i$ được đánh dấu bất thường khi $z_i > 2{,}5$. Ngưỡng 2,5 được chọn thay vì giá trị phổ biến 3,0 để tăng độ nhạy --- trong môi trường ROV, ngay cả một spike nhỏ về điện áp hay nhiệt độ cũng có thể báo hiệu sự cố thiết bị. Kết quả trả về cùng mỗi response lấy sensor data: \texttt{anomalies: [\{index, metric, value, zScore, timestamp\}]}; frontend hiển thị bằng dot đỏ trên biểu đồ AreaChart và liệt kê trong panel cảnh báo của TripDetailPage.
+
+\subsection{Reverse Geocoding với OpenStreetMap Nominatim}
+
+Khi CSV cảm biến chứa cột \texttt{lat}/\texttt{lng}, hệ thống gọi \textbf{Nominatim API}~\cite{nominatim} của OpenStreetMap để chuyển tọa độ thành tên địa danh (ví dụ: \texttt{16.1031, 108.1403} → ``Hòa Cường, Đà Nẵng''). Nominatim là dịch vụ miễn phí, không cần API key, phù hợp với ngân sách đồ án. Hệ thống xử lý tên địa danh tiếng Việt bằng cách bóc tách các tiền tố hành chính (\textit{Phường, Quận, Thành phố},...) để trả về tên ngắn gọn. Địa danh này được truyền vào prompt AI Summary thay vì tọa độ số thô, giúp báo cáo AI có ngữ nghĩa hơn. Timeout của API call là 5 giây; nếu Nominatim không phản hồi, hệ thống bỏ qua và giữ \texttt{locationName = ''} mà không làm gián đoạn luồng upload.
+
+Chương 3 đã trình bày lý do lựa chọn và cơ chế hoạt động chi tiết của toàn bộ hệ sinh thái công nghệ. Hai cơ chế kỹ thuật then chốt --- Bull Queue và SSE --- kết hợp tạo ra luồng xử lý phi đồng bộ hoàn chỉnh: tác vụ AI nặng được đưa vào hàng đợi ngay lập tức (HTTP 202), Worker xử lý ngầm không chặn luồng chính, SSE đẩy kết quả về trình duyệt tức thì khi hoàn thành. Kiến trúc này, cùng với microservice YOLO tách rời và tích hợp Gemini AI, là nền tảng cho phần thiết kế chi tiết hệ thống được trình bày trong Chương 4.
 
 \end{document}

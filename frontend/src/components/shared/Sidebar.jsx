@@ -5,8 +5,8 @@ import { useAuthStore } from '@/store/auth.store'
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'operator', 'viewer'] },
   { to: '/rovs',      icon: Anchor,          label: 'ROVs',      roles: ['admin', 'operator', 'viewer'] },
-  { to: '/trips',     icon: Map,             label: 'Trips',     roles: ['admin', 'operator', 'viewer'] },
-  { to: '/dives',     icon: Briefcase,       label: 'Dives',     roles: ['admin', 'operator', 'viewer'] },
+  { to: '/projects',     icon: Map,             label: 'Projects',     roles: ['admin', 'operator', 'viewer'] },
+  { to: '/trips',     icon: Briefcase,       label: 'Trips',     roles: ['admin', 'operator', 'viewer'] },
   { to: '/users',     icon: Users,           label: 'Users',     roles: ['admin'] },
   { to: '/audit',     icon: ShieldCheck,     label: 'Audit Log', roles: ['admin'] },
 ]
@@ -21,7 +21,7 @@ function NavItem({ to, icon: Icon, label, collapsed, onClick }) {
         `flex items-center rounded-lg transition-colors duration-150 ${
           collapsed ? 'justify-center w-10 h-10 mx-auto' : 'gap-3 px-3 py-2.5'
         } ${isActive
-          ? 'bg-primary text-primary-foreground'
+          ? 'bg-cyan-700 text-white'
           : 'text-gray-400 hover:bg-gray-800 hover:text-white'
         }`
       }
@@ -49,7 +49,7 @@ export default function Sidebar({ collapsed, mobileOpen, onCloseMobile }) {
         </nav>
         {!collapsed && (
           <div className="px-5 py-3 border-t border-gray-700">
-            <p className="text-xs text-gray-500">v1.0.0</p>
+            <p className="text-xs text-gray-400">v1.0.0</p>
           </div>
         )}
       </aside>

@@ -1,0 +1,70 @@
+@startuml arch_module_dep
+skinparam backgroundColor White
+skinparam packageStyle rectangle
+skinparam component {
+  BackgroundColor White
+  BorderColor #555
+  FontSize 11
+}
+skinparam package {
+  FontStyle bold
+  FontSize 12
+}
+skinparam arrow {
+  Color #555
+  FontSize 9
+}
+skinparam ranksep 55
+skinparam nodesep 20
+
+package "Nền tảng" #EEF7FF {
+  component "[auth]" as AUTH
+  component "[users]" as USERS
+}
+
+package "Quản lý thiết bị & nhiệm vụ" #F0FFF0 {
+  component "[rovs]" as ROVS
+  component "[projects]" as PROJECTS
+  component "[trips]" as TRIPS
+}
+
+package "Dữ liệu thực địa" #FFFFF0 {
+  component "[sensor]" as SENSOR
+  component "[dvl]" as DVL
+  component "[sonar]" as SONAR
+  component "[media]" as MEDIA
+  component "[snapshots]" as SNAP
+}
+
+package "AI & Thông báo" #FFF0F0 {
+  component "[ai]" as AI
+  component "[notifications]" as NOTIF
+  component "[audit]" as AUDIT
+}
+
+package "Thống kê" #F5F5F5 {
+  component "[stats]" as STATS
+}
+
+AUTH --> USERS
+
+TRIPS --> PROJECTS
+TRIPS --> ROVS
+
+SENSOR --> TRIPS
+DVL --> TRIPS
+SONAR --> TRIPS
+MEDIA --> TRIPS
+SNAP --> TRIPS
+SNAP --> MEDIA
+
+AI --> PROJECTS
+AI --> NOTIF
+AUDIT --> USERS
+
+STATS --> PROJECTS
+STATS --> TRIPS
+STATS --> MEDIA
+STATS --> ROVS
+
+@enduml

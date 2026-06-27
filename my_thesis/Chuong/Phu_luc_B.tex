@@ -1,42 +1,212 @@
 \documentclass[../DoAn.tex]{subfiles}
 \begin{document}
-Phụ lục này bổ sung các đặc tả cho các Use Case cơ bản (nhóm chức năng CRUD và quản lý người dùng), vốn đóng vai trò nền tảng để hỗ trợ cho các Use Case nghiệp vụ chính đã được trình bày trong Chương 2.
+Phụ lục này bổ sung đặc tả chi tiết cho các Use Case cơ bản (nhóm chức năng CRUD và quản lý người dùng), vốn đóng vai trò nền tảng hỗ trợ cho các Use Case nghiệp vụ chính đã được trình bày trong Chương~2.
 
-\section{Đặc tả Use Case: Đăng nhập bằng tài khoản Google}
-- \textbf{Tên Use Case:} Đăng nhập (Google OAuth2).
-- \textbf{Tiền điều kiện:} Tác nhân có tài khoản Google hợp lệ.
-- \textbf{Luồng sự kiện chính:}
-  1. Tác nhân truy cập trang đăng nhập và chọn "Continue with Google".
-  2. Hệ thống chuyển hướng sang trang xác thực của Google.
-  3. Sau khi xác thực thành công, Google trả về thông tin hồ sơ (Email, Tên, Ảnh đại diện).
-  4. Hệ thống kiểm tra trong cơ sở dữ liệu. Nếu là người dùng mới, tự động tạo tài khoản với vai trò mặc định (Viewer).
-  5. Hệ thống cấp phát JSON Web Token (Access Token và Refresh Token).
-  6. Tác nhân được chuyển hướng vào trang Bảng điều khiển (Dashboard).
-- \textbf{Luồng sự kiện phát sinh:} Xác thực thất bại hoặc người dùng hủy bỏ, hệ thống đưa tác nhân quay lại trang đăng nhập kèm thông báo lỗi.
-- \textbf{Hậu điều kiện:} Tác nhân được đăng nhập thành công và có thể sử dụng các chức năng theo quyền hạn.
+\section{UC-B01: Đăng nhập bằng Email và Mật khẩu}
 
-\section{Đặc tả Use Case: Quản lý Chuyến đi và Lượt lặn}
-- \textbf{Tên Use Case:} Quản lý Nhiệm vụ (Trips/Dives Management).
-- \textbf{Tiền điều kiện:} Tác nhân có vai trò Operator hoặc Admin.
-- \textbf{Luồng sự kiện chính:}
-  1. Tác nhân chọn chức năng "Tạo chuyến đi mới".
-  2. Hệ thống hiển thị biểu mẫu yêu cầu nhập tên chuyến đi, chọn phương tiện ROV, vị trí và thời gian bắt đầu.
-  3. Tác nhân điền đầy đủ thông tin và xác nhận.
-  4. Hệ thống lưu vào cơ sở dữ liệu và chuyển hướng đến trang Chi tiết chuyến đi.
-  5. Tại đây, tác nhân tiếp tục chọn "Thêm lượt lặn" (Add Dive).
-  6. Hệ thống tạo một lượt lặn mới trực thuộc chuyến đi vừa tạo.
-- \textbf{Hậu điều kiện:} Chuyến đi và Lượt lặn được khởi tạo thành công, sẵn sàng tiếp nhận dữ liệu tải lên.
+\begin{longtable}{|p{3.5cm}|p{10.0cm}|}
+\caption{Đặc tả Use Case UC-B01: Đăng nhập bằng Email/Mật khẩu}\label{tab:ucb01}\\
+\hline
+\textbf{Mã Use Case} & UC-B01 \\
+\hline
+\textbf{Tên} & Đăng nhập bằng Email và Mật khẩu \\
+\hline
+\textbf{Tác nhân} & Viewer, Operator, Admin \\
+\hline
+\textbf{Tiền điều kiện} & Tác nhân có tài khoản đã được tạo trong hệ thống. \\
+\hline
+\textbf{Luồng chính} &
+(1) Tác nhân truy cập trang đăng nhập, nhập địa chỉ email và mật khẩu. \newline
+(2) Hệ thống xác thực thông tin với cơ sở dữ liệu. \newline
+(3) Hệ thống cấp phát Access Token (TTL 15 phút) và Refresh Token (TTL 7 ngày). \newline
+(4) Tác nhân được chuyển hướng đến trang Dashboard. \\
+\hline
+\textbf{Luồng phát sinh} & Mật khẩu sai hoặc email không tồn tại $\to$ hệ thống trả lỗi 401; tài khoản bị vô hiệu hóa $\to$ trả lỗi 403; vượt quá 20 lần đăng nhập trong 15 phút $\to$ Rate Limiter trả lỗi 429. \\
+\hline
+\textbf{Hậu điều kiện} & Tác nhân được xác thực và có thể truy cập các tính năng theo quyền hạn vai trò. \\
+\hline
+\end{longtable}
 
-\section{Đặc tả Use Case: Quản lý Người dùng (Admin)}
-- \textbf{Tên Use Case:} Quản trị Người dùng (User Management).
-- \textbf{Tiền điều kiện:} Tác nhân bắt buộc phải có đặc quyền Admin.
-- \textbf{Luồng sự kiện chính:}
-  1. Admin truy cập trang "Quản lý Người dùng".
-  2. Hệ thống hiển thị danh sách tất cả tài khoản trong hệ thống kèm trạng thái (Active/Disabled) và vai trò (Role).
-  3. Admin chọn một người dùng cụ thể và thay đổi vai trò từ Viewer sang Operator.
-  4. Admin lưu thay đổi. Hệ thống cập nhật cơ sở dữ liệu và lưu vết hành động vào Audit Log.
-  5. Khi người dùng bị thay đổi quyền thực hiện thao tác mới, hệ thống sẽ áp dụng quyền hạn mới ngay lập tức.
-- \textbf{Luồng sự kiện phát sinh:} Admin tự vô hiệu hóa (Disable) tài khoản của chính mình. Hệ thống sẽ chặn hành động này (Self-protection) và đưa ra cảnh báo.
-- \textbf{Hậu điều kiện:} Phân quyền hệ thống được cập nhật an toàn, minh bạch.
+\section{UC-B02: Đăng nhập bằng tài khoản Google (OAuth 2.0)}
+
+\begin{longtable}{|p{3.5cm}|p{10.0cm}|}
+\caption{Đặc tả Use Case UC-B02: Đăng nhập bằng Google OAuth 2.0}\label{tab:ucb02}\\
+\hline
+\textbf{Mã Use Case} & UC-B02 \\
+\hline
+\textbf{Tên} & Đăng nhập bằng tài khoản Google (OAuth 2.0) \\
+\hline
+\textbf{Tác nhân} & Viewer, Operator, Admin \\
+\hline
+\textbf{Tiền điều kiện} & Tác nhân có tài khoản Google hợp lệ. \\
+\hline
+\textbf{Luồng chính} &
+(1) Tác nhân truy cập trang đăng nhập và chọn \textit{``Continue with Google''}. \newline
+(2) Hệ thống chuyển hướng sang trang xác thực của Google (OAuth consent screen). \newline
+(3) Tác nhân xác nhận cấp quyền; Google trả về thông tin hồ sơ (email, tên, avatar). \newline
+(4) Hệ thống kiểm tra email trong cơ sở dữ liệu: nếu là người dùng mới, tự động tạo tài khoản với vai trò mặc định \textit{Viewer}; nếu đã tồn tại, liên kết \texttt{googleId}. \newline
+(5) Hệ thống cấp phát JWT và chuyển hướng về \texttt{/auth/callback} trên frontend. \newline
+(6) Tác nhân được đưa vào trang Dashboard. \\
+\hline
+\textbf{Luồng phát sinh} & Tác nhân hủy xác thực tại trang Google $\to$ hệ thống đưa về trang đăng nhập với thông báo lỗi; tài khoản bị vô hiệu hóa $\to$ trả lỗi 403. \\
+\hline
+\textbf{Hậu điều kiện} & Tác nhân đăng nhập thành công; tài khoản Google liên kết với hệ thống; tab \textit{``Đổi mật khẩu''} bị ẩn trên Profile vì Google user không có mật khẩu. \\
+\hline
+\end{longtable}
+
+\section{UC-B03: Quản lý Thiết bị ROV}
+
+\begin{longtable}{|p{3.5cm}|p{10.0cm}|}
+\caption{Đặc tả Use Case UC-B03: Quản lý Thiết bị ROV}\label{tab:ucb03}\\
+\hline
+\textbf{Mã Use Case} & UC-B03 \\
+\hline
+\textbf{Tên} & Quản lý Thiết bị ROV (CRUD) \\
+\hline
+\textbf{Tác nhân} & Admin (xóa), Operator/Admin (tạo/sửa), Viewer (xem) \\
+\hline
+\textbf{Tiền điều kiện} & Tác nhân đã đăng nhập. \\
+\hline
+\textbf{Luồng chính} &
+(1) Tác nhân truy cập trang \textit{ROV Registry}; hệ thống hiển thị danh sách thiết bị. \newline
+(2) Operator/Admin chọn \textit{``Thêm ROV mới''}, nhập tên, số serial, mô tả. \newline
+(3) Hệ thống lưu document ROV vào MongoDB, hiển thị trong danh sách. \newline
+(4) Tác nhân có thể chỉnh sửa thông tin ROV (Operator/Admin) hoặc xóa (Admin). \newline
+(5) Admin xóa ROV: hệ thống ghi nhật ký (Audit Log) và cập nhật thống kê. \\
+\hline
+\textbf{Luồng phát sinh} & Xóa ROV đang có Project liên kết $\to$ hệ thống vẫn cho phép xóa; các Project cũ vẫn giữ tham chiếu. Operator cố xóa $\to$ hệ thống trả lỗi 403. \\
+\hline
+\textbf{Hậu điều kiện} & Thông tin ROV được cập nhật trong hệ thống; hành động xóa được ghi vào Audit Log. \\
+\hline
+\end{longtable}
+
+\section{UC-B04: Tạo và Quản lý Chuyến khảo sát (Project)}
+
+\begin{longtable}{|p{3.5cm}|p{10.0cm}|}
+\caption{Đặc tả Use Case UC-B04: Quản lý Chuyến khảo sát}\label{tab:ucb04}\\
+\hline
+\textbf{Mã Use Case} & UC-B04 \\
+\hline
+\textbf{Tên} & Tạo và Quản lý Chuyến khảo sát (Project CRUD) \\
+\hline
+\textbf{Tác nhân} & Operator, Admin \\
+\hline
+\textbf{Tiền điều kiện} & Tác nhân đã đăng nhập với quyền Operator hoặc Admin; ít nhất một thiết bị ROV đã tồn tại. \\
+\hline
+\textbf{Luồng chính} &
+(1) Tác nhân chọn \textit{``Tạo Project mới''}, nhập tên, chọn ROV, địa điểm và thời gian bắt đầu dự kiến. \newline
+(2) Hệ thống tạo document Project với trạng thái khởi tạo \textit{planned}. \newline
+(3) Tác nhân chuyển trạng thái sang \textit{ongoing} khi bắt đầu thu thập dữ liệu thực địa. \newline
+(4) Sau khi hoàn tất, tác nhân chuyển sang \textit{completed} để mở khóa tính năng AI Summary. \newline
+(5) Admin có thể xóa Project; hệ thống cascade xóa toàn bộ Trip, Media, SensorData liên quan. \\
+\hline
+\textbf{Luồng phát sinh} & Xóa Project đang có Media trên S3 $\to$ hệ thống cascade xóa file S3 trước khi xóa document; thao tác không thể hoàn tác. \\
+\hline
+\textbf{Hậu điều kiện} & Project và toàn bộ dữ liệu con được quản lý nhất quán; mọi thay đổi trạng thái được ghi Audit Log. \\
+\hline
+\end{longtable}
+
+\section{UC-B05: Tạo Lượt lặn trong Chuyến khảo sát}
+
+\begin{longtable}{|p{3.5cm}|p{10.0cm}|}
+\caption{Đặc tả Use Case UC-B05: Tạo Lượt lặn (Trip)}\label{tab:ucb05}\\
+\hline
+\textbf{Mã Use Case} & UC-B05 \\
+\hline
+\textbf{Tên} & Tạo Lượt lặn trong Chuyến khảo sát \\
+\hline
+\textbf{Tác nhân} & Operator, Admin \\
+\hline
+\textbf{Tiền điều kiện} & Chuyến khảo sát (Project) đã tồn tại. \\
+\hline
+\textbf{Luồng chính} &
+(1) Tác nhân truy cập ProjectDetailPage, chọn \textit{``Thêm Trip mới''}. \newline
+(2) Hệ thống hiển thị form nhập tên, mô tả lượt lặn. \newline
+(3) Tác nhân xác nhận; hệ thống tạo document Trip với trạng thái \textit{pending} và liên kết với Project. \newline
+(4) Khi bắt đầu lặn thực tế, tác nhân chuyển trạng thái sang \textit{running}. \newline
+(5) Sau khi kết thúc và tải dữ liệu, tác nhân đánh dấu \textit{done} hoặc \textit{failed}. \newline
+(6) Hệ thống gửi thông báo SSE đến tác nhân tạo Trip khi trạng thái thay đổi thành \textit{done} hoặc \textit{failed}. \\
+\hline
+\textbf{Luồng phát sinh} & Xóa Trip $\to$ cascade xóa SensorData, DVLData, SonarFile, Media (S3 + DB), Snapshots (S3 + DB). \\
+\hline
+\textbf{Hậu điều kiện} & Trip được khởi tạo trong hệ thống, sẵn sàng tiếp nhận dữ liệu tải lên. \\
+\hline
+\end{longtable}
+
+\section{UC-B06: Tải lên Tệp phương tiện (Media Upload)}
+
+\begin{longtable}{|p{3.5cm}|p{10.0cm}|}
+\caption{Đặc tả Use Case UC-B06: Tải lên Tệp phương tiện qua Presigned URL}\label{tab:ucb06}\\
+\hline
+\textbf{Mã Use Case} & UC-B06 \\
+\hline
+\textbf{Tên} & Tải lên Tệp phương tiện (Media Upload qua AWS S3 Presigned URL) \\
+\hline
+\textbf{Tác nhân} & Operator, Admin \\
+\hline
+\textbf{Tiền điều kiện} & Lượt lặn (Trip) đã tồn tại; tác nhân có quyền Operator/Admin. \\
+\hline
+\textbf{Luồng chính} &
+(1) Tác nhân chọn tệp Video hoặc Ảnh trong giao diện Upload. \newline
+(2) Frontend gửi \texttt{POST /media/upload-url \{filename, type, size\}} đến backend; hệ thống trả về \texttt{presignedUrl} và \texttt{mediaId}. \newline
+(3) Frontend tải file trực tiếp lên AWS S3 bằng \texttt{PUT presignedUrl} (không qua backend, không tốn băng thông server). \newline
+(4) Frontend gửi \texttt{POST /media/:id/confirm}; hệ thống cập nhật \texttt{media.status = 'ready'} và tự động parse \texttt{recordedAt} từ tên file nếu có pattern \texttt{\_YYYYMMDD\_HHMMSS}. \newline
+(5) File xuất hiện trong MediaGallery của lượt lặn. \\
+\hline
+\textbf{Luồng phát sinh} & Bước PUT S3 thất bại $\to$ tác nhân không gọi confirm, document Media giữ trạng thái \textit{pending} và được dọn dẹp sau; file lớn hơn 500MB $\to$ presigned URL từ chối. \\
+\hline
+\textbf{Hậu điều kiện} & Tệp phương tiện được lưu trên S3 và liên kết với Trip; \texttt{analysisStatus = 'idle'} (chưa phân tích YOLO). \\
+\hline
+\end{longtable}
+
+\section{UC-B07: Quản lý Người dùng (Admin)}
+
+\begin{longtable}{|p{3.5cm}|p{10.0cm}|}
+\caption{Đặc tả Use Case UC-B07: Quản lý Người dùng}\label{tab:ucb07}\\
+\hline
+\textbf{Mã Use Case} & UC-B07 \\
+\hline
+\textbf{Tên} & Quản lý Người dùng (User Management) \\
+\hline
+\textbf{Tác nhân} & Admin \\
+\hline
+\textbf{Tiền điều kiện} & Tác nhân phải có đặc quyền Admin. \\
+\hline
+\textbf{Luồng chính} &
+(1) Admin truy cập trang \textit{``Quản lý Người dùng''}; hệ thống hiển thị danh sách tài khoản với trạng thái và vai trò. \newline
+(2) Admin thay đổi vai trò người dùng (ví dụ: Viewer $\to$ Operator). \newline
+(3) Admin kích hoạt hoặc vô hiệu hóa tài khoản. \newline
+(4) Hệ thống lưu thay đổi, đẩy thông báo SSE đến tài khoản bị ảnh hưởng và ghi Audit Log. \newline
+(5) Admin có thể thực hiện thao tác hàng loạt (Bulk): chọn nhiều tài khoản $\to$ đổi vai trò hoặc đổi trạng thái cùng lúc. \\
+\hline
+\textbf{Luồng phát sinh} & Admin tự vô hiệu hóa tài khoản của chính mình $\to$ hệ thống từ chối (self-protection) và hiển thị cảnh báo. \\
+\hline
+\textbf{Hậu điều kiện} & Phân quyền hệ thống được cập nhật an toàn; mọi thay đổi được ghi đầy đủ vào Audit Log. \\
+\hline
+\end{longtable}
+
+\section{UC-B08: Xem Dashboard tổng quan}
+
+\begin{longtable}{|p{3.5cm}|p{10.0cm}|}
+\caption{Đặc tả Use Case UC-B08: Xem Dashboard tổng quan}\label{tab:ucb08}\\
+\hline
+\textbf{Mã Use Case} & UC-B08 \\
+\hline
+\textbf{Tên} & Xem Dashboard tổng quan hệ thống \\
+\hline
+\textbf{Tác nhân} & Viewer, Operator, Admin \\
+\hline
+\textbf{Tiền điều kiện} & Tác nhân đã đăng nhập. \\
+\hline
+\textbf{Luồng chính} &
+(1) Tác nhân truy cập \texttt{/dashboard}; hệ thống gửi song song 7 aggregation query đến MongoDB. \newline
+(2) Hệ thống trả về dữ liệu thống kê: tổng Projects, Trips đang chạy, ROVs hoạt động, tổng người dùng. \newline
+(3) Giao diện hiển thị 4 thẻ KPI và 4 biểu đồ: Project Status (donut), Trips by Status (bar), ROV Utilization (horizontal bar), Activity Timeline 6 tháng gần nhất. \\
+\hline
+\textbf{Luồng phát sinh} & Mất kết nối MongoDB $\to$ hệ thống trả lỗi 500; giao diện hiển thị trạng thái lỗi thân thiện với nút thử lại. \\
+\hline
+\textbf{Hậu điều kiện} & Tác nhân có cái nhìn tổng quan về trạng thái hệ thống theo thời gian thực. \\
+\hline
+\end{longtable}
 
 \end{document}

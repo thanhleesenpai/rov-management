@@ -22,7 +22,7 @@ const ACTION_STYLE = {
   generate_summary: 'bg-amber-500/10 text-amber-600 border border-amber-500/20 dark:text-amber-400',
 }
 
-const ENTITIES = ['', 'ROV', 'Trip', 'Dive', 'User']
+const ENTITIES = ['', 'ROV', 'Project', 'Trip', 'User']
 const LIMIT = 20
 
 const timeAgo = (date) => {
@@ -70,7 +70,7 @@ export default function AuditPage() {
           {Array.from({ length: 8 }).map((_, i) => <Skeleton key={i} className="h-14 w-full rounded-xl" />)}
         </div>
       ) : isEmpty ? (
-        <EmptyState icon={ShieldCheck} title="No audit logs yet" description="Actions on trips, ROVs, and users will appear here." />
+        <EmptyState icon={ShieldCheck} title="No audit logs yet" description="Actions on projects, ROVs, and users will appear here." />
       ) : (
         <>
           {/* Mobile card list */}

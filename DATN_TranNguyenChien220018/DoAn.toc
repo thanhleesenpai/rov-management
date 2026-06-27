@@ -1,0 +1,225 @@
+\ttl@change@i {\@ne }{chapter}{0.0cm}{\bfseries \vspace {0.3cm}}{{\bfseries {\scshape } CHƯƠNG \thecontentslabel .\ }}{}{\titlerule *[0.3pc]{.}\contentspage }\relax 
+\ttl@change@v {chapter}{}{}{}\relax 
+\ttl@change@i {\@ne }{section}{0.0cm}{\vspace {0.3cm}}{\thecontentslabel \ }{}{\titlerule *[0.3pc]{.}\contentspage }\relax 
+\ttl@change@v {section}{}{}{}\relax 
+\ttl@change@i {\@ne }{subsection}{1.0cm}{\vspace {0.3cm}}{\thecontentslabel \ }{}{\titlerule *[0.3pc]{.}\contentspage }\relax 
+\ttl@change@v {subsection}{}{}{}\relax 
+\thispagestyle {empty}
+\contentsline {chapter}{\numberline {1}GIỚI THIỆU ĐỀ TÀI}{1}{chapter.1}%
+\contentsline {section}{\numberline {1.1}Đặt vấn đề}{1}{section.1.1}%
+\contentsline {subsection}{\numberline {1.1.1}Giới thiệu ROV và nhu cầu ứng dụng}{1}{subsection.1.1.1}%
+\contentsline {subsection}{\numberline {1.1.2}Nhiệm vụ đề tài}{1}{subsection.1.1.2}%
+\contentsline {subsection}{\numberline {1.1.3}Chia nhiệm vụ}{1}{subsection.1.1.3}%
+\contentsline {subsection}{\numberline {1.1.4}Cấu trúc báo cáo}{1}{subsection.1.1.4}%
+\contentsline {chapter}{\numberline {2}MÔ TẢ PHẦN CỨNG}{2}{chapter.2}%
+\contentsline {section}{\numberline {2.1}Cơ khí}{2}{section.2.1}%
+\contentsline {section}{\numberline {2.2}Động lực - Động cơ}{2}{section.2.2}%
+\contentsline {section}{\numberline {2.3}Sensor}{2}{section.2.3}%
+\contentsline {section}{\numberline {2.4}Cơ cấu điều khiển}{2}{section.2.4}%
+\contentsline {subsection}{\numberline {2.4.1}Động cơ}{2}{subsection.2.4.1}%
+\contentsline {subsection}{\numberline {2.4.2}Đèn}{2}{subsection.2.4.2}%
+\contentsline {subsection}{\numberline {2.4.3}Tay cầm}{2}{subsection.2.4.3}%
+\contentsline {section}{\numberline {2.5}Bộ điều khiển}{2}{section.2.5}%
+\contentsline {subsection}{\numberline {2.5.1}Máy tính nhúng}{2}{subsection.2.5.1}%
+\contentsline {subsection}{\numberline {2.5.2}Driver board}{2}{subsection.2.5.2}%
+\contentsline {section}{\numberline {2.6}Truyền thông (Ethernet + PLC)}{2}{section.2.6}%
+\contentsline {chapter}{\numberline {3}THIẾT KÊ HỆ THỐNG PHẦN MỀM}{3}{chapter.3}%
+\contentsline {section}{\numberline {3.1}Tổng quan kiến trúc phần mềm hệ thống ROV}{3}{section.3.1}%
+\contentsline {section}{\numberline {3.2}Kiến trúc tổng thể hệ thống}{4}{section.3.2}%
+\contentsline {section}{\numberline {3.3}Bảng đặc tả chức năng}{4}{section.3.3}%
+\contentsline {subsection}{\numberline {3.3.1}Điều khiển bằng tay}{4}{subsection.3.3.1}%
+\contentsline {subsection}{\numberline {3.3.2}Điều khiển tự động}{5}{subsection.3.3.2}%
+\contentsline {subsubsection}{\numberline {a}Giữ hướng (Hold Heading)}{5}{subsubsection.3.3.2.1}%
+\contentsline {subsubsection}{\numberline {b}Giữ độ sâu (Hold Depth)}{6}{subsubsection.3.3.2.2}%
+\contentsline {subsubsection}{\numberline {c}Giữ vị trí theo DVL}{6}{subsubsection.3.3.2.3}%
+\contentsline {subsubsection}{\numberline {d}Giữ vị trí theo Vision}{7}{subsubsection.3.3.2.4}%
+\contentsline {subsection}{\numberline {3.3.3}Hiển thị dữ liệu thời gian thực từ ROV}{7}{subsection.3.3.3}%
+\contentsline {subsection}{\numberline {3.3.4}Lưu trữ dữ liệu từ ROV}{7}{subsection.3.3.4}%
+\contentsline {subsection}{\numberline {3.3.5}Lưu trữ dữ liệu lên web}{8}{subsection.3.3.5}%
+\contentsline {section}{\numberline {3.4}Thiết kế module}{9}{section.3.4}%
+\contentsline {subsection}{\numberline {3.4.1}Thiết kế module firmware trên ROV}{9}{subsection.3.4.1}%
+\contentsline {subsubsection}{\numberline {a}Nhóm module cảm biến}{10}{subsubsection.3.4.1.1}%
+\contentsline {subsubsection}{\numberline {b}Nhóm module điều khiển}{10}{subsubsection.3.4.1.2}%
+\contentsline {subsubsection}{\numberline {c}Nhóm module cơ cấu chấp hành}{11}{subsubsection.3.4.1.3}%
+\contentsline {subsubsection}{\numberline {d}Nhóm module camera}{12}{subsubsection.3.4.1.4}%
+\contentsline {subsubsection}{\numberline {e}Nhóm module truyền thông}{12}{subsubsection.3.4.1.5}%
+\contentsline {subsubsection}{\numberline {f}Nhóm module telemetry}{12}{subsubsection.3.4.1.6}%
+\contentsline {subsubsection}{\numberline {g}Nhóm module cấu hình}{13}{subsubsection.3.4.1.7}%
+\contentsline {subsection}{\numberline {3.4.2}Thiết kế module phần mềm GCS}{13}{subsection.3.4.2}%
+\contentsline {subsection}{\numberline {3.4.3}Kiến trúc tổng thể phần mềm GCS}{14}{subsection.3.4.3}%
+\contentsline {subsection}{\numberline {3.4.4}Nhóm module truyền thông}{14}{subsection.3.4.4}%
+\contentsline {subsubsection}{\numberline {a}MavlinkService}{14}{subsubsection.3.4.4.1}%
+\contentsline {subsubsection}{\numberline {b}CameraService}{15}{subsubsection.3.4.4.2}%
+\contentsline {subsubsection}{\numberline {c}SonarService}{16}{subsubsection.3.4.4.3}%
+\contentsline {subsubsection}{\numberline {d}DVLService}{16}{subsubsection.3.4.4.4}%
+\contentsline {subsection}{\numberline {3.4.5}Nhóm module điều khiển}{16}{subsection.3.4.5}%
+\contentsline {subsubsection}{\numberline {a}JoystickService}{16}{subsubsection.3.4.5.1}%
+\contentsline {subsection}{\numberline {3.4.6}Nhóm module xử lý dữ liệu thời gian thực}{17}{subsection.3.4.6}%
+\contentsline {subsubsection}{\numberline {a}TelemetryService}{17}{subsubsection.3.4.6.1}%
+\contentsline {subsection}{\numberline {3.4.7}Nhóm module ghi dữ liệu nhiệm vụ}{17}{subsection.3.4.7}%
+\contentsline {subsubsection}{\numberline {a}CameraRecorderService}{17}{subsubsection.3.4.7.1}%
+\contentsline {subsubsection}{\numberline {b}SonarRecorder}{18}{subsubsection.3.4.7.2}%
+\contentsline {subsubsection}{\numberline {c}DVLRecorder}{18}{subsubsection.3.4.7.3}%
+\contentsline {subsubsection}{\numberline {d}TelemetryRecorder}{18}{subsubsection.3.4.7.4}%
+\contentsline {subsubsection}{\numberline {e}MasterRecordingService}{18}{subsubsection.3.4.7.5}%
+\contentsline {subsection}{\numberline {3.4.8}Nhóm module quản lý hệ thống}{19}{subsection.3.4.8}%
+\contentsline {subsubsection}{\numberline {a}LogService}{19}{subsubsection.3.4.8.1}%
+\contentsline {subsubsection}{\numberline {b}WebUploadService}{19}{subsubsection.3.4.8.2}%
+\contentsline {subsection}{\numberline {3.4.9}Nhóm module giao diện người dùng}{19}{subsection.3.4.9}%
+\contentsline {subsection}{\numberline {3.4.10}Thiết kế module hệ thống quản lý thông tin web}{20}{subsection.3.4.10}%
+\contentsline {subsubsection}{\numberline {a}Nhóm module Backend API}{20}{subsubsection.3.4.10.1}%
+\contentsline {subsubsection}{\numberline {b}Nhóm module Frontend}{21}{subsubsection.3.4.10.2}%
+\contentsline {subsubsection}{\numberline {c}Nhóm module xử lý bất đồng bộ}{21}{subsubsection.3.4.10.3}%
+\contentsline {section}{\numberline {3.5}Quan hệ giữa các module}{22}{section.3.5}%
+\contentsline {chapter}{\numberline {4}XÂY DỰNG PHẦN MỀM TRÊN ROV}{23}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Kiến trúc tổng thể và luồng dữ liệu}{23}{section.4.1}%
+\contentsline {section}{\numberline {4.2}Module cảm biến}{23}{section.4.2}%
+\contentsline {subsection}{\numberline {4.2.1}Đo độ sâu và nhiệt độ nước (MS5837)}{23}{subsection.4.2.1}%
+\contentsline {paragraph}{Nguyên lý đo}{23}{paragraph*.32}%
+\contentsline {paragraph}{Thiết kế tích hợp}{23}{paragraph*.33}%
+\contentsline {subsection}{\numberline {4.2.2}IMU ICM20602 (gia tốc, con quay, từ kế) + pitch,roll,yaw qua Extended Kalman filter}{24}{subsection.4.2.2}%
+\contentsline {subsection}{\numberline {4.2.3}Đo nhiệt độ và độ ẩm khoang kín (Si7021)}{25}{subsection.4.2.3}%
+\contentsline {subsection}{\numberline {4.2.4}Module giám sát năng lượng qua ADC ADS1115 (Điện áp, Dòng điện, SOC)}{26}{subsection.4.2.4}%
+\contentsline {section}{\numberline {4.3}Module truyền thông}{28}{section.4.3}%
+\contentsline {subsection}{\numberline {4.3.1}Kết nối GCS(ping\_server)}{28}{subsection.4.3.1}%
+\contentsline {subsection}{\numberline {4.3.2}Nhận lệnh điều khiển(control\_loop)}{28}{subsection.4.3.2}%
+\contentsline {section}{\numberline {4.4}Moudle điểu khiển}{28}{section.4.4}%
+\contentsline {subsection}{\numberline {4.4.1}Điều khiển thủ công - Mixing matrix và điểu khiển động cơ}{28}{subsection.4.4.1}%
+\contentsline {subsection}{\numberline {4.4.2}Điều khiển tự động}{28}{subsection.4.4.2}%
+\contentsline {subsubsection}{\numberline {a}PID giữ hướng}{28}{subsubsection.4.4.2.1}%
+\contentsline {subsubsection}{\numberline {b}PID giữ độ sâu}{28}{subsubsection.4.4.2.2}%
+\contentsline {subsubsection}{\numberline {c}PID tự động giữ ổn định vị trí}{28}{subsubsection.4.4.2.3}%
+\contentsline {subsubsection}{\numberline {d}PID dự ổn định dựa vào AI bám theo vật thể}{28}{subsubsection.4.4.2.4}%
+\contentsline {section}{\numberline {4.5}Module cơ cấu chấp hành}{28}{section.4.5}%
+\contentsline {subsection}{\numberline {4.5.1}Điều khiển ESC và cơ cấu chấp hành qua PCA9685}{28}{subsection.4.5.1}%
+\contentsline {paragraph}{Kiến trúc phần cứng và Quản lý GPIO.}{28}{paragraph*.34}%
+\contentsline {paragraph}{Nguyên lý phát xung và Cấu hình tần số.}{28}{paragraph*.35}%
+\contentsline {paragraph}{Mô hình ánh xạ dữ liệu (Data Abstraction Layers).}{29}{paragraph*.36}%
+\contentsline {paragraph}{Thiết kế tối ưu hóa Bus I2C và An toàn hệ thống.}{30}{paragraph*.37}%
+\contentsline {subsection}{\numberline {4.5.2}Điểu khiển đèn chiếu sáng}{30}{subsection.4.5.2}%
+\contentsline {subsection}{\numberline {4.5.3}Điểu khiển độ ngẩng camera}{30}{subsection.4.5.3}%
+\contentsline {subsection}{\numberline {4.5.4}Điểu khiển tay gắp (Gripper)}{30}{subsection.4.5.4}%
+\contentsline {section}{\numberline {4.6}Module telemtry}{30}{section.4.6}%
+\contentsline {subsection}{\numberline {4.6.1}Đóng gói và phát dữ liệu về cho GCS}{30}{subsection.4.6.1}%
+\contentsline {section}{\numberline {4.7}Moule cấu hình động cơ}{30}{section.4.7}%
+\contentsline {subsubsection}{\numberline {a}UDP config listener}{30}{subsubsection.4.7.0.1}%
+\contentsline {subsubsection}{\numberline {b}Load, Save THRUSTER\_MAP}{30}{subsubsection.4.7.0.2}%
+\contentsline {chapter}{\numberline {5}GCS}{31}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Cơ sở lý thuyết}{31}{section.5.1}%
+\contentsline {subsection}{\numberline {5.1.1}Tổng quan chức năng Track and Catch trong hệ thống ROV}{31}{subsection.5.1.1}%
+\contentsline {subsection}{\numberline {5.1.2}Cơ sở về truyền luồng hình ảnh MJPEG}{31}{subsection.5.1.2}%
+\contentsline {subsection}{\numberline {5.1.3}Cơ sở về theo dõi mục tiêu bằng Optical Flow}{31}{subsection.5.1.3}%
+\contentsline {subsection}{\numberline {5.1.4}Chuẩn hóa sai lệch ảnh cho điều khiển}{31}{subsection.5.1.4}%
+\contentsline {subsection}{\numberline {5.1.5}Cơ sở điều khiển PID cho Track and Catch}{31}{subsection.5.1.5}%
+\contentsline {subsection}{\numberline {5.1.6}Cơ sở điều khiển ROV và mixing matrix}{31}{subsection.5.1.6}%
+\contentsline {subsection}{\numberline {5.1.7}Cơ sở truyền thông và tích hợp hệ thống}{31}{subsection.5.1.7}%
+\contentsline {subsection}{\numberline {5.1.8}Cơ chế an toàn khi vận hành}{31}{subsection.5.1.8}%
+\contentsline {chapter}{\numberline {6}ĐIỀU KHIỂN TỰ ĐỘNG}{32}{chapter.6}%
+\contentsline {section}{\numberline {6.1}Cơ sở lý thuyết}{32}{section.6.1}%
+\contentsline {subsection}{\numberline {6.1.1}Cơ sở lý thuyết điều khiển chuyển động ROV}{32}{subsection.6.1.1}%
+\contentsline {subsubsection}{\numberline {a}Nguyên lý phân bổ lực đẩy bằng ma trận trộn}{33}{subsubsection.6.1.1.1}%
+\contentsline {subsubsection}{\numberline {b}Ý nghĩa vật lý của các cột trong ma trận trộn}{35}{subsubsection.6.1.1.2}%
+\contentsline {subsubsection}{\numberline {c}Tổng hợp nhiều lệnh chuyển động}{37}{subsubsection.6.1.1.3}%
+\contentsline {subsubsection}{\numberline {d}Chuẩn hóa và giới hạn lệnh động cơ}{37}{subsubsection.6.1.1.4}%
+\contentsline {subsubsection}{\numberline {e}Chuyển đổi lệnh động cơ sang tín hiệu PWM}{38}{subsubsection.6.1.1.5}%
+\contentsline {subsection}{\numberline {6.1.2}Ánh xạ động cơ logic sang kênh PWM thực tế}{39}{subsection.6.1.2}%
+\contentsline {subsubsection}{\numberline {a}Mối quan hệ giữa bộ điều khiển PID và ma trận trộn}{39}{subsubsection.6.1.2.1}%
+\contentsline {subsubsection}{\numberline {b}Ý nghĩa đối với bài toán điều khiển ROV trong đồ án}{40}{subsubsection.6.1.2.2}%
+\contentsline {subsection}{\numberline {6.1.3}Thuật toán Optical Flow}{41}{subsection.6.1.3}%
+\contentsline {subsubsection}{\numberline {a}Khái niệm chuyển động biểu kiến trong ảnh}{42}{subsubsection.6.1.3.1}%
+\contentsline {subsubsection}{\numberline {b}Phân biệt chuyển động thật và Optical Flow}{43}{subsubsection.6.1.3.2}%
+\contentsline {subsubsection}{\numberline {c}Giả thiết bảo toàn độ sáng}{43}{subsubsection.6.1.3.3}%
+\contentsline {subsubsection}{\numberline {d}Khai triển Taylor và phương trình ràng buộc Optical Flow}{44}{subsubsection.6.1.3.4}%
+\contentsline {subsubsection}{\numberline {e}Ý nghĩa của các thành phần $I_x$, $I_y$, $I_t$}{45}{subsubsection.6.1.3.5}%
+\contentsline {subsubsection}{\numberline {f}Vấn đề aperture problem}{46}{subsubsection.6.1.3.6}%
+\contentsline {subsubsection}{\numberline {g}Sparse Optical Flow và Dense Optical Flow}{46}{subsubsection.6.1.3.7}%
+\contentsline {subsubsection}{\numberline {h}Phương pháp Lucas--Kanade}{47}{subsubsection.6.1.3.8}%
+\contentsline {subsubsection}{\numberline {i}Lựa chọn điểm đặc trưng}{48}{subsubsection.6.1.3.9}%
+\contentsline {subsubsection}{\numberline {j}Pyramidal Lucas--Kanade}{49}{subsubsection.6.1.3.10}%
+\contentsline {subsubsection}{\numberline {k}Theo dõi bounding box mục tiêu}{50}{subsubsection.6.1.3.11}%
+\contentsline {subsubsection}{\numberline {l}Ước lượng thay đổi tỉ lệ mục tiêu}{51}{subsubsection.6.1.3.12}%
+\contentsline {subsubsection}{\numberline {m}Chuẩn hóa sai lệch ảnh}{53}{subsubsection.6.1.3.13}%
+\contentsline {subsubsection}{\numberline {n}Sai lệch frame-to-frame và sai lệch so với điểm tham chiếu}{54}{subsubsection.6.1.3.14}%
+\contentsline {subsubsection}{\numberline {o}Đánh giá độ tin cậy của tracking}{54}{subsubsection.6.1.3.15}%
+\contentsline {subsubsection}{\numberline {p}Kiểm tra diện tích bounding box}{55}{subsubsection.6.1.3.16}%
+\contentsline {subsubsection}{\numberline {q}Quy trình Optical Flow trong hệ thống bám mục tiêu}{56}{subsubsection.6.1.3.17}%
+\contentsline {subsubsection}{\numberline {r}Biến đổi sai lệch ảnh thành sai số điều khiển}{57}{subsubsection.6.1.3.18}%
+\contentsline {subsubsection}{\numberline {s}Liên hệ với điều khiển phản hồi}{58}{subsubsection.6.1.3.19}%
+\contentsline {subsubsection}{\numberline {t}Ưu điểm của Optical Flow trong hệ thống ROV}{59}{subsubsection.6.1.3.20}%
+\contentsline {subsubsection}{\numberline {u}Giới hạn của Optical Flow trong môi trường dưới nước}{59}{subsubsection.6.1.3.21}%
+\contentsline {subsubsection}{\numberline {v}Các trường hợp lỗi thường gặp}{60}{subsubsection.6.1.3.22}%
+\contentsline {subsubsection}{\numberline {w}Vai trò của tiền xử lý ảnh}{61}{subsubsection.6.1.3.23}%
+\contentsline {subsubsection}{\numberline {x}Tái khởi tạo điểm đặc trưng}{61}{subsubsection.6.1.3.24}%
+\contentsline {subsubsection}{\numberline {y}Sử dụng thống kê bền vững để giảm ảnh hưởng của outlier}{62}{subsubsection.6.1.3.25}%
+\contentsline {subsubsection}{\numberline {z}Mối quan hệ giữa Optical Flow và điều khiển Track and Catch}{62}{subsubsection.6.1.3.26}%
+\contentsline {chapter}{\numberline {7}QUẢN LÝ THÔNG TIN VÀ PHÂN TÍCH DỮ LIỆU}{64}{chapter.7}%
+\contentsline {section}{\numberline {7.1}Tổng quan phân hệ}{64}{section.7.1}%
+\contentsline {subsection}{\numberline {7.1.1}Bài toán đặt ra}{64}{subsection.7.1.1}%
+\contentsline {subsection}{\numberline {7.1.2}Biểu đồ use case tổng quát}{65}{subsection.7.1.2}%
+\contentsline {subsection}{\numberline {7.1.3}Yêu cầu phi chức năng}{68}{subsection.7.1.3}%
+\contentsline {section}{\numberline {7.2}Kiến trúc và hệ sinh thái công nghệ}{69}{section.7.2}%
+\contentsline {subsection}{\numberline {7.2.1}Kiến trúc tổng quan}{69}{subsection.7.2.1}%
+\contentsline {subsection}{\numberline {7.2.2}Hệ sinh thái công nghệ}{71}{subsection.7.2.2}%
+\contentsline {subsection}{\numberline {7.2.3}Thiết kế cơ sở dữ liệu}{72}{subsection.7.2.3}%
+\contentsline {subsection}{\numberline {7.2.4}Mô hình triển khai đề xuất}{73}{subsection.7.2.4}%
+\contentsline {section}{\numberline {7.3}Phân quyền và xác thực}{74}{section.7.3}%
+\contentsline {subsection}{\numberline {7.3.1}Mô hình phân quyền RBAC}{74}{subsection.7.3.1}%
+\contentsline {subsection}{\numberline {7.3.2}Cơ chế xác thực JWT và Google OAuth}{75}{subsection.7.3.2}%
+\contentsline {subsection}{\numberline {7.3.3}Vòng đời Project và Trip}{76}{subsection.7.3.3}%
+\contentsline {subsection}{\numberline {7.3.4}Vòng đời phân tích Media}{77}{subsection.7.3.4}%
+\contentsline {section}{\numberline {7.4}Hiện thực các chức năng cốt lõi}{78}{section.7.4}%
+\contentsline {subsection}{\numberline {7.4.1}Dashboard và thống kê tổng quan}{78}{subsection.7.4.1}%
+\contentsline {subsection}{\numberline {7.4.2}Quản lý Project và Trip}{79}{subsection.7.4.2}%
+\contentsline {subsection}{\numberline {7.4.3}Giao diện Cockpit TripDetailPage}{80}{subsection.7.4.3}%
+\contentsline {subsection}{\numberline {7.4.4}Upload đa nguồn dữ liệu thực địa}{81}{subsection.7.4.4}%
+\contentsline {subsection}{\numberline {7.4.5}Thông báo realtime và Audit Log}{81}{subsection.7.4.5}%
+\contentsline {subsection}{\numberline {7.4.6}Sơ đồ tuần tự các luồng nghiệp vụ chính}{83}{subsection.7.4.6}%
+\contentsline {section}{\numberline {7.5}Giải pháp đồng bộ hóa Video và Dữ liệu cảm biến}{85}{section.7.5}%
+\contentsline {subsection}{\numberline {7.5.1}Bài toán đặt ra}{85}{subsection.7.5.1}%
+\contentsline {subsection}{\numberline {7.5.2}Giải pháp hiện thực}{85}{subsection.7.5.2}%
+\contentsline {subsection}{\numberline {7.5.3}Kết quả đạt được}{86}{subsection.7.5.3}%
+\contentsline {section}{\numberline {7.6}Kiến trúc xử lý bất đồng bộ tích hợp YOLOv8}{86}{section.7.6}%
+\contentsline {subsection}{\numberline {7.6.1}Bài toán đặt ra}{86}{subsection.7.6.1}%
+\contentsline {subsection}{\numberline {7.6.2}Giải pháp hiện thực}{86}{subsection.7.6.2}%
+\contentsline {subsection}{\numberline {7.6.3}AI Analyze Popover -- Cấu hình phân tích}{87}{subsection.7.6.3}%
+\contentsline {subsection}{\numberline {7.6.4}Kết quả đạt được}{88}{subsection.7.6.4}%
+\contentsline {section}{\numberline {7.7}Hệ thống trích xuất bằng chứng (Evidence System)}{88}{section.7.7}%
+\contentsline {subsection}{\numberline {7.7.1}Bài toán đặt ra}{88}{subsection.7.7.1}%
+\contentsline {subsection}{\numberline {7.7.2}Giải pháp hiện thực}{89}{subsection.7.7.2}%
+\contentsline {subsection}{\numberline {7.7.3}Kết quả đạt được}{89}{subsection.7.7.3}%
+\contentsline {section}{\numberline {7.8}Phát hiện bất thường cảm biến tự động (Z-Score)}{90}{section.7.8}%
+\contentsline {subsection}{\numberline {7.8.1}Bài toán đặt ra}{90}{subsection.7.8.1}%
+\contentsline {subsection}{\numberline {7.8.2}Giải pháp hiện thực}{90}{subsection.7.8.2}%
+\contentsline {subsection}{\numberline {7.8.3}Kết quả đạt được}{90}{subsection.7.8.3}%
+\contentsline {section}{\numberline {7.9}Tóm tắt nhiệm vụ bằng Mô hình ngôn ngữ lớn (Gemini)}{90}{section.7.9}%
+\contentsline {subsection}{\numberline {7.9.1}Bài toán đặt ra}{90}{subsection.7.9.1}%
+\contentsline {subsection}{\numberline {7.9.2}Giải pháp hiện thực}{91}{subsection.7.9.2}%
+\contentsline {subsection}{\numberline {7.9.3}Kết quả đạt được}{91}{subsection.7.9.3}%
+\contentsline {section}{\numberline {7.10}Kiểm thử hệ thống}{92}{section.7.10}%
+\contentsline {subsection}{\numberline {7.10.1}Kiểm thử chức năng (Functional Test)}{92}{subsection.7.10.1}%
+\contentsline {subsection}{\numberline {7.10.2}Kiểm thử tải (Load Test)}{93}{subsection.7.10.2}%
+\contentsline {subsection}{\numberline {7.10.3}Kiểm thử hiệu năng Lighthouse}{93}{subsection.7.10.3}%
+\contentsline {chapter}{\numberline {8}KẾT QUẢ THỰC NGHIỆM}{95}{chapter.8}%
+\contentsline {chapter}{\numberline {9}KẾT LUẬN}{96}{chapter.9}%
+\contentsline {section}{\numberline {9.1}Kết luận}{96}{section.9.1}%
+\contentsline {section}{\numberline {9.2}Hướng phát triển}{96}{section.9.2}%
+\contentsline {chapter}{TÀI LIỆU THAM KHẢO}{99}{section*.72}%
+\contentsline {chapter}{PHỤ LỤC}{100}{section*.73}%
+\ttl@change@i {\@ne }{chapter}{0.0cm}{\bfseries \vspace {0.3cm}}{{\bfseries {\scshape } \thecontentslabel .\ }}{}{\titlerule *[0.3pc]{.}\contentspage }\relax 
+\ttl@change@v {chapter}{}{}{}\relax 
+\contentsline {chapter}{\numberline {A}HƯỚNG DẪN VIẾT ĐỒ ÁN TỐT NGHIỆP}{100}{appendix.1.A}%
+\contentsline {section}{\numberline {A.1}Ngành học}{101}{section.1.A.1}%
+\contentsline {section}{\numberline {A.2}Đánh dấu (bullet) và đánh số (numering)}{101}{section.1.A.2}%
+\contentsline {section}{\numberline {A.3}Cách thêm bảng}{102}{section.1.A.3}%
+\contentsline {section}{\numberline {A.4}Chèn hình ảnh}{102}{section.1.A.4}%
+\contentsline {section}{\numberline {A.5}Tài liệu tham khảo}{102}{section.1.A.5}%
+\contentsline {paragraph}{Cách liệt kê}{102}{paragraph*.76}%
+\contentsline {paragraph}{Các loại tài liệu tham khảo}{103}{paragraph*.77}%
+\contentsline {section}{\numberline {A.6}Cách viết phương trình và công thức toán học}{103}{section.1.A.6}%
+\contentsline {section}{\numberline {A.7}Qui cách đóng quyển}{103}{section.1.A.7}%
+\contentsline {chapter}{\numberline {B}ĐẶC TẢ USE CASE}{105}{appendix.1.B}%
+\contentsline {section}{\numberline {B.1}UC-01: Tải lên và đồng bộ dữ liệu cảm biến}{105}{section.1.B.1}%
+\contentsline {section}{\numberline {B.2}UC-02: Kích hoạt phân tích nhận diện vật thể bằng YOLOv8}{105}{section.1.B.2}%
+\contentsline {section}{\numberline {B.3}UC-03: Trích xuất và phân tích bằng chứng}{106}{section.1.B.3}%
+\contentsline {section}{\numberline {B.4}UC-04: Tạo báo cáo tóm tắt bằng ngôn ngữ tự nhiên}{107}{section.1.B.4}%
+\contentsfinish 

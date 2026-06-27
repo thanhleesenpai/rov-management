@@ -139,6 +139,7 @@ export function MarineTableActionMenu({ children }) {
       <div className="relative flex items-center" ref={buttonRef}>
         <button
           type="button"
+          aria-label="Actions"
           onClick={toggleMenu}
           className={`p-1 rounded transition-colors ${isOpen ? 'bg-muted text-primary' : 'text-muted-foreground hover:text-primary hover:bg-muted'}`}
         >

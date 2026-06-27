@@ -24,6 +24,7 @@
 \usepackage[ruled,vlined]{algorithm2e}  % Hỗ trợ viết các giải thuật
 \usepackage{capt-of} % Cho phép sử dụng caption lớn đối với landscape page
 \usepackage{multirow} % Merge cells
+\usepackage{longtable} % Bảng trải dài qua nhiều trang, tránh khoảng trắng do float [H]
 \usepackage{fancyhdr} % Cho phép tùy biến header và footer
 % \usepackage[natbib,backend=biber,style=ieee]{biblatex} % Giúp chèn tài liệu tham khảo
 \usepackage{appendix}
@@ -76,7 +77,7 @@
 \setlength{\headheight}{10pt}
 
 \def \TITLE{ĐỒ ÁN TỐT NGHIỆP}
-\def \AUTHOR{NGUYỄN VĂN ABC}
+\def \AUTHOR{LÊ MINH THÀNH}
 
 % ===================================================
 \titleformat{\chapter}[hang]{\centering\bfseries}{CHƯƠNG \thechapter.\ }{0pt}{}[]
@@ -156,6 +157,7 @@
 \newtheorem{example}{Ví dụ}[chapter] % Định nghĩa môi trường ví dụ
 
 \onehalfspacing
+\raggedbottom % Không stretch vertical space để fill trang — tránh khoảng trắng lớn sau [H] float
 %Khoảng cách xuống dòng
 \setlength{\parskip}{6pt}
 %Lùi đầu dòng
@@ -329,9 +331,6 @@
     {{\bfseries{\scshape} \thecontentslabel.\ }} % numbered format
     {}         % unnumbered format
     {\titlerule*[0.3pc]{.}\contentspage}         % filler-page-format, e.g dots
-\chapter{HƯỚNG DẪN VIẾT ĐỒ ÁN TỐT NGHIỆP}
-\subfile{Chuong/Phu_luc_A}
-\newpage
 \chapter{ĐẶC TẢ USE CASE}
 \subfile{Chuong/Phu_luc_B}
 \end{document}

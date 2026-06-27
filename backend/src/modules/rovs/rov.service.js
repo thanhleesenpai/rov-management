@@ -1,5 +1,5 @@
 const ROV = require('./rov.model');
-const Trip = require('../trips/trip.model');
+const Project = require('../projects/project.model');
 
 const getAll = async ({ page = 1, limit = 10, search, status } = {}) => {
   const query = {};
@@ -37,16 +37,16 @@ const remove = async (id) => {
   const rov = await ROV.findById(id);
   if (!rov) throw { statusCode: 404, message: 'ROV not found' };
 
-  // Check if there are trips using this ROV
-  const tripCount = await Trip.countDocuments({ rov: id });
-  if (tripCount > 0) {
+  // Check if there are projects using this ROV
+  const projectCount = await Project.countDocuments({ rov: id });
+  if (projectCount > 0) {
     throw {
       statusCode: 400,
-      message: `Cannot delete this ROV. It is being used in ${tripCount} trip(s). Please set its status to "Maintenance" or "Retired" instead.`
+      message: `Cannot delete this ROV. It is being used in ${projectCount} project(s). Please set its status to "Maintenance" or "Retired" instead.`
     };
   }
 
-  // Only delete if no trips are using this ROV
+  // Only delete if no projects are using this ROV
   return ROV.findByIdAndDelete(id);
 };
 

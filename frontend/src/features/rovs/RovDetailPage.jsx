@@ -17,16 +17,16 @@ const STATUS_LABEL = {
   retired:     { text: 'Retired',     cls: 'bg-muted text-muted-foreground' }
 }
 
-const TRIP_STATUS = {
+const PROJECT_STATUS = {
   planned:   { text: 'Planned',   cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
   ongoing:   { text: 'Ongoing',   cls: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300' },
   completed: { text: 'Completed', cls: 'bg-muted text-muted-foreground' },
   cancelled: { text: 'Cancelled', cls: 'bg-red-100 text-red-600 dark:bg-red-900/40 dark:text-red-300' }
 }
 
-function calcTotalHours(trips) {
+function calcTotalHours(projects) {
   let ms = 0
-  trips.forEach(t => {
+  projects.forEach(t => {
     if (t.startTime && t.endTime) ms += new Date(t.endTime) - new Date(t.startTime)
   })
   const h = ms / 3600000
@@ -44,16 +44,16 @@ export default function RovDetailPage() {
     queryFn: () => api.get(`/rovs/${id}`).then(r => r.data)
   })
 
-  const { data: tripsData, isLoading: tripsLoading } = useQuery({
-    queryKey: ['trips', { rovId: id }],
-    queryFn: () => api.get('/trips', { params: { rovId: id, limit: 100 } }).then(r => r.data),
+  const { data: projectsData, isLoading: projectsLoading } = useQuery({
+    queryKey: ['projects', { rovId: id }],
+    queryFn: () => api.get('/projects', { params: { rovId: id, limit: 100 } }).then(r => r.data),
     enabled: !!id
   })
 
   const canEdit = ['admin', 'operator'].includes(user?.role)
-  const trips = tripsData?.data || []
-  const completedTrips = trips.filter(t => t.status === 'completed').length
-  const ongoingTrips   = trips.filter(t => t.status === 'ongoing').length
+  const projects = projectsData?.data || []
+  const completedProjects = projects.filter(t => t.status === 'completed').length
+  const ongoingProjects   = projects.filter(t => t.status === 'ongoing').length
 
   if (isLoading) return (
     <div className="space-y-4">
@@ -91,10 +91,10 @@ export default function RovDetailPage() {
         {/* ── Stats (KPI Metrics) ── */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
-            { icon: Map,          label: 'Total Trips',  value: tripsLoading ? '…' : trips.length,          color: 'text-blue-500',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
-            { icon: CheckCircle2, label: 'Completed',    value: tripsLoading ? '…' : completedTrips,        color: 'text-green-500',  bg: 'bg-green-50 dark:bg-green-900/20' },
-            { icon: Anchor,       label: 'Active Now',   value: tripsLoading ? '…' : ongoingTrips,          color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20' },
-            { icon: Clock,        label: 'Total Hours',  value: tripsLoading ? '…' : calcTotalHours(trips), color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+            { icon: Map,          label: 'Total Projects',  value: projectsLoading ? '…' : projects.length,          color: 'text-blue-500',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+            { icon: CheckCircle2, label: 'Completed',    value: projectsLoading ? '…' : completedProjects,        color: 'text-green-500',  bg: 'bg-green-50 dark:bg-green-900/20' },
+            { icon: Anchor,       label: 'Active Now',   value: projectsLoading ? '…' : ongoingProjects,          color: 'text-orange-500', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+            { icon: Clock,        label: 'Total Hours',  value: projectsLoading ? '…' : calcTotalHours(projects), color: 'text-purple-500', bg: 'bg-purple-50 dark:bg-purple-900/20' },
           ].map(({ icon: Icon, label, value, color, bg }) => (
             <div key={label} className="bg-card border border-border rounded-md p-4 shadow-sm">
               <div className="flex items-center gap-3">
@@ -140,17 +140,17 @@ export default function RovDetailPage() {
           )}
         </div>
 
-        {/* ── Trip history ── */}
+        {/* ── Project history ── */}
         <div>
-          <h2 className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-3">Trip History</h2>
+          <h2 className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold mb-3">Project History</h2>
 
-          {tripsLoading ? (
+          {projectsLoading ? (
             <div className="space-y-2">
               {[1, 2, 3].map(i => <Skeleton key={i} className="h-14 w-full" />)}
             </div>
-          ) : trips.length === 0 ? (
+          ) : projects.length === 0 ? (
             <div className="text-center py-10 text-muted-foreground text-sm">
-              No trips recorded for this ROV.
+              No projects recorded for this ROV.
             </div>
           ) : (
             <>
@@ -159,7 +159,7 @@ export default function RovDetailPage() {
                 <MarineTable>
                   <MarineTableHeader>
                     <MarineTableRow>
-                      <MarineTableHead>Trip Name</MarineTableHead>
+                      <MarineTableHead>Project Name</MarineTableHead>
                       <MarineTableHead>Location</MarineTableHead>
                       <MarineTableHead>Dates</MarineTableHead>
                       <MarineTableHead>Status</MarineTableHead>
@@ -167,30 +167,30 @@ export default function RovDetailPage() {
                     </MarineTableRow>
                   </MarineTableHeader>
                   <MarineTableBody>
-                    {trips.map(trip => {
-                      const ts = TRIP_STATUS[trip.status] || TRIP_STATUS.planned
+                    {projects.map(project => {
+                      const ts = PROJECT_STATUS[project.status] || PROJECT_STATUS.planned
                       return (
-                        <MarineTableRow key={trip._id} onClick={() => navigate(`/trips/${trip._id}`)}>
+                        <MarineTableRow key={project._id} onClick={() => navigate(`/projects/${project._id}`)}>
                           <MarineTableCell>
-                            <Link to={`/trips/${trip._id}`} onClick={e => e.stopPropagation()} className="text-sm font-medium text-foreground hover:text-cyan-600 transition-colors truncate block w-fit">
-                              {trip.name}
+                            <Link to={`/projects/${project._id}`} onClick={e => e.stopPropagation()} className="text-sm font-medium text-foreground hover:text-cyan-600 transition-colors truncate block w-fit">
+                              {project.name}
                             </Link>
                           </MarineTableCell>
                           <MarineTableCell>
-                            {trip.location ? (
-                              <span className="truncate max-w-xs block" title={trip.location}>{trip.location}</span>
+                            {project.location ? (
+                              <span className="truncate max-w-xs block" title={project.location}>{project.location}</span>
                             ) : <span className="text-slate-400">—</span>}
                           </MarineTableCell>
                           <MarineTableCell isMono>
-                            {trip.startTime ? (
-                              <span title={trip.endTime ? `${new Date(trip.startTime).toLocaleDateString()} → ${new Date(trip.endTime).toLocaleDateString()}` : new Date(trip.startTime).toLocaleDateString()}>
-                                {new Date(trip.startTime).toLocaleDateString()}
-                                {trip.endTime && ` → ${new Date(trip.endTime).toLocaleDateString()}`}
+                            {project.startTime ? (
+                              <span title={project.endTime ? `${new Date(project.startTime).toLocaleDateString()} → ${new Date(project.endTime).toLocaleDateString()}` : new Date(project.startTime).toLocaleDateString()}>
+                                {new Date(project.startTime).toLocaleDateString()}
+                                {project.endTime && ` → ${new Date(project.endTime).toLocaleDateString()}`}
                               </span>
                             ) : <span className="text-slate-400">—</span>}
                           </MarineTableCell>
                           <MarineTableCell>
-                            <MarineTableStatus status={trip.status} label={ts.text} />
+                            <MarineTableStatus status={project.status} label={ts.text} />
                           </MarineTableCell>
                           <MarineTableCell align="right">
                             <ChevronRight size={18} className="text-slate-300 dark:text-slate-500 group-hover:text-cyan-600 group-hover:translate-x-1 transition-all duration-200 ml-auto" />
@@ -204,35 +204,35 @@ export default function RovDetailPage() {
 
               {/* Mobile card list */}
               <div className="xl:hidden space-y-2">
-                {trips.map(trip => {
-                  const ts = TRIP_STATUS[trip.status] || TRIP_STATUS.planned
+                {projects.map(project => {
+                  const ts = PROJECT_STATUS[project.status] || PROJECT_STATUS.planned
                   return (
-                    <div key={trip._id} onClick={() => navigate(`/trips/${trip._id}`)}
+                    <div key={project._id} onClick={() => navigate(`/projects/${project._id}`)}
                       className="bg-card rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0 flex-1 space-y-2">
                           <div className="flex items-center justify-between gap-2 flex-wrap">
                             <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors truncate max-w-[160px] sm:max-w-xs">
-                              {trip.name}
+                              {project.name}
                             </span>
-                            <MarineTableStatus status={trip.status} label={ts.text} />
+                            <MarineTableStatus status={project.status} label={ts.text} />
                           </div>
                           
-                          {(trip.location || trip.startTime) && (
+                          {(project.location || project.startTime) && (
                             <div className="flex flex-col gap-1.5 mt-2">
                               <div className="flex items-center gap-2 flex-wrap">
-                                {trip.location && (
+                                {project.location && (
                                   <div className="flex items-center gap-1 font-sans text-xs text-slate-500 dark:text-slate-400">
                                     <MapPin size={11} className="shrink-0" />
-                                    <span className="truncate max-w-[120px]">{trip.location}</span>
+                                    <span className="truncate max-w-[120px]">{project.location}</span>
                                   </div>
                                 )}
-                                {trip.startTime && (
+                                {project.startTime && (
                                   <div className="flex items-center gap-1 font-mono text-xs tracking-tight text-slate-500 dark:text-slate-400">
                                     <Clock size={11} className="shrink-0" />
                                     <span>
-                                      {new Date(trip.startTime).toLocaleDateString()}
-                                      {trip.endTime && ` → ${new Date(trip.endTime).toLocaleDateString()}`}
+                                      {new Date(project.startTime).toLocaleDateString()}
+                                      {project.endTime && ` → ${new Date(project.endTime).toLocaleDateString()}`}
                                     </span>
                                   </div>
                                 )}

@@ -15,20 +15,20 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 
 const BUCKET = process.env.S3_BUCKET;
 
-async function uploadImage(diveId, dataUrl, suffix = '') {
+async function uploadImage(tripId, dataUrl, suffix = '') {
   if (!dataUrl) return null; // Handle null dataUrl (CORS case)
   const [header, b64] = dataUrl.split(',');
   const mimeMatch = header.match(/data:([^;]+)/);
   const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
   const ext  = mime === 'image/png' ? 'png' : 'jpg';
   const buf  = Buffer.from(b64, 'base64');
-  const key  = `snapshots/${diveId}/${uuidv4()}${suffix}.${ext}`;
+  const key  = `snapshots/${tripId}/${uuidv4()}${suffix}.${ext}`;
   await s3.send(new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: buf, ContentType: mime }));
   return key;
 }
 
 // Extract frame from S3 video using FFmpeg when dataUrl is not available (CORS case)
-async function extractFrameFromVideo(diveId, parentMediaId, imageTime) {
+async function extractFrameFromVideo(tripId, parentMediaId, imageTime) {
   try {
     const Media = require('../media/media.model');
     const media = await Media.findById(parentMediaId).lean();
@@ -58,7 +58,7 @@ async function extractFrameFromVideo(diveId, parentMediaId, imageTime) {
             const buffer = await fs.readFile(tempFile);
             if (buffer.length === 0) throw new Error('FFmpeg produced empty output');
 
-            const key = `snapshots/${diveId}/${uuidv4()}.png`;
+            const key = `snapshots/${tripId}/${uuidv4()}.png`;
             await s3.send(new PutObjectCommand({
               Bucket: BUCKET,
               Key: key,
@@ -85,22 +85,22 @@ async function extractFrameFromVideo(diveId, parentMediaId, imageTime) {
   }
 }
 
-const create = async ({ type, diveId, tripId, userId, parentMediaId, imageTime, startTime, endTime, dataUrl, note }) => {
+const create = async ({ type, tripId, projectId, userId, parentMediaId, imageTime, startTime, endTime, dataUrl, note }) => {
   let imageS3Key    = null;
   let thumbnailS3Key = null;
 
   if (dataUrl) {
     // Client sent base64 image (no CORS issue)
     if (type === 'photo') {
-      imageS3Key = await uploadImage(diveId, dataUrl);
+      imageS3Key = await uploadImage(tripId, dataUrl);
     } else {
-      thumbnailS3Key = await uploadImage(diveId, dataUrl, '-thumb');
+      thumbnailS3Key = await uploadImage(tripId, dataUrl, '-thumb');
     }
   } else {
     // Canvas was tainted (CORS) — extract frame from S3 video using FFmpeg
     if (type === 'photo' && imageTime != null) {
       try {
-        imageS3Key = await extractFrameFromVideo(diveId, parentMediaId, imageTime);
+        imageS3Key = await extractFrameFromVideo(tripId, parentMediaId, imageTime);
       } catch (err) {
         console.error('Frame extraction failed:', err.message);
         // Continue anyway — snapshot created without image
@@ -108,7 +108,7 @@ const create = async ({ type, diveId, tripId, userId, parentMediaId, imageTime, 
     } else if (type === 'clip' && startTime != null && endTime != null) {
       // Extract thumbnail at startTime
       try {
-        thumbnailS3Key = await extractFrameFromVideo(diveId, parentMediaId, startTime);
+        thumbnailS3Key = await extractFrameFromVideo(tripId, parentMediaId, startTime);
       } catch (err) {
         console.error('Thumbnail extraction failed:', err.message);
         // Continue anyway
@@ -117,15 +117,15 @@ const create = async ({ type, diveId, tripId, userId, parentMediaId, imageTime, 
   }
 
   return Snapshot.create({
-    type, dive: diveId, trip: tripId, createdBy: userId, parentMediaId,
+    type, trip: tripId, project: projectId, createdBy: userId, parentMediaId,
     imageS3Key, imageTime,
     startTime, endTime, thumbnailS3Key,
     note: note || '',
   });
 };
 
-const getByDive = async (diveId) => {
-  const snaps = await Snapshot.find({ dive: diveId }).sort({ createdAt: -1 }).lean();
+const getByTrip = async (tripId) => {
+  const snaps = await Snapshot.find({ trip: tripId }).sort({ createdAt: -1 }).lean();
   return Promise.all(snaps.map(async (s) => {
     const key = s.type === 'photo' ? s.imageS3Key : s.thumbnailS3Key;
     if (!key) return s;
@@ -265,4 +265,36 @@ const proxyImage = async (snapshotId, res) => {
   Body.pipe(res);
 };
 
-module.exports = { create, getByDive, remove, bulkRemove, enqueueAnalysis, updateNote, getDownloadUrl, streamClipDownload, proxyImage, cancelAnalysis };
+// Stream a single frame from the parent video at an arbitrary timestamp.
+// Used for clip evidence "download current frame" — avoids CORS and stale thumbnail issues.
+const streamFrameAt = async (snapshotId, time, res) => {
+  const snap = await Snapshot.findById(snapshotId).lean();
+  if (!snap) throw { statusCode: 404, message: 'Snapshot not found' };
+  if (!snap.parentMediaId) throw { statusCode: 400, message: 'No parent video' };
+
+  const media = await Media.findById(snap.parentMediaId).lean();
+  if (!media?.s3Key) throw { statusCode: 404, message: 'Parent video not found' };
+
+  const videoUrl = await getSignedUrl(
+    s3,
+    new GetObjectCommand({ Bucket: BUCKET, Key: media.s3Key }),
+    { expiresIn: 300 },
+  );
+
+  const seekSec = Math.max(0, parseFloat(time) || 0);
+
+  res.setHeader('Content-Type', 'image/png');
+  res.setHeader('Cache-Control', 'no-store');
+
+  ffmpeg(videoUrl)
+    .seekInput(seekSec)
+    .frames(1)
+    .outputOptions(['-f image2', '-vcodec png'])
+    .on('error', (err) => {
+      console.error('FFmpeg frameAt error:', err.message);
+      if (!res.headersSent) res.status(500).json({ message: 'Frame extraction failed' });
+    })
+    .pipe(res, { end: true });
+};
+
+module.exports = { create, getByTrip, remove, bulkRemove, enqueueAnalysis, updateNote, getDownloadUrl, streamClipDownload, proxyImage, streamFrameAt, cancelAnalysis };

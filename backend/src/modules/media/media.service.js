@@ -21,9 +21,9 @@ const getMediaType = (mimeType) => {
 };
 
 // Tạo presigned URL để client upload thẳng lên S3
-const createPresignedUploadUrl = async ({ diveId, tripId, userId, fileName, mimeType, size, recordedAt }) => {
+const createPresignedUploadUrl = async ({ tripId, projectId, userId, fileName, mimeType, size, recordedAt }) => {
   const ext = fileName.split('.').pop();
-  const s3Key = `dives/${diveId}/${uuidv4()}.${ext}`;
+  const s3Key = `trips/${tripId}/${uuidv4()}.${ext}`;
 
   const command = new PutObjectCommand({
     Bucket: BUCKET,
@@ -34,13 +34,13 @@ const createPresignedUploadUrl = async ({ diveId, tripId, userId, fileName, mime
   const uploadUrl = await getSignedUrl(s3, command, { expiresIn: 300 }); // 5 phút
 
   // Tìm order cao nhất hiện tại để media mới luôn nằm ở cuối
-  const last = await Media.findOne({ dive: diveId }).sort({ order: -1 }).select('order').lean();
+  const last = await Media.findOne({ trip: tripId }).sort({ order: -1 }).select('order').lean();
   const nextOrder = last ? last.order + 1 : 0;
 
   // Lưu metadata vào DB với status pending
   const media = await Media.create({
-    dive: diveId,
     trip: tripId,
+    project: projectId,
     uploadedBy: userId,
     originalName: fileName,
     s3Key,
@@ -58,19 +58,27 @@ const createPresignedUploadUrl = async ({ diveId, tripId, userId, fileName, mime
 
 // Sau khi upload xong, client gọi để confirm
 const confirmUpload = async (mediaId) => {
-  const media = await Media.findByIdAndUpdate(
-    mediaId,
-    { status: 'ready', analysisStatus: 'idle' },
-    { new: true }
-  ).populate('uploadedBy', 'fullName');
-
+  const media = await Media.findById(mediaId);
   if (!media) throw { statusCode: 404, message: 'Media not found' };
-  return media;
+
+  const update = { status: 'ready', analysisStatus: 'idle' };
+
+  // Filename timestamp always wins over auto-sync value set during presigned URL creation.
+  // Only fall back to auto-sync (already stored in media.recordedAt) if filename has no pattern.
+  if (media.originalName) {
+    const { parseTimestampFromFilename } = require('../../utils/parseTimestamp.util');
+    const parsed = parseTimestampFromFilename(media.originalName);
+    if (parsed) update.recordedAt = parsed;
+    // else: keep whatever recordedAt was stored (auto-sync or null)
+  }
+
+  return Media.findByIdAndUpdate(mediaId, update, { new: true })
+    .populate('uploadedBy', 'fullName');
 };
 
 // All media sorted by user-defined order then createdAt (recordedAt doesn't affect ordering)
-const getByDive = async (diveId) => {
-  return Media.find({ dive: diveId, status: 'ready' })
+const getByTrip = async (tripId) => {
+  return Media.find({ trip: tripId, status: 'ready' })
     .populate('uploadedBy', 'fullName')
     .sort({ order: 1, createdAt: 1 });
 };
@@ -84,9 +92,9 @@ const reorder = async (items) => {
   );
 };
 
-// Lấy danh sách media của 1 trip
-const getByTrip = async (tripId) => {
-  return Media.find({ trip: tripId, status: 'ready' })
+// Lấy danh sách media của 1 project
+const getByProject = async (projectId) => {
+  return Media.find({ project: projectId, status: 'ready' })
     .populate('uploadedBy', 'fullName')
     .sort({ createdAt: -1 });
 };
@@ -105,11 +113,11 @@ const createViewUrl = async (mediaId) => {
   return { url, media };
 };
 
-// Chuyển media sang dive khác
-const moveToDive = async (mediaId, newDiveId) => {
+// Chuyển media sang trip khác
+const moveToTrip = async (mediaId, newTripId) => {
   const media = await Media.findById(mediaId);
   if (!media) throw { statusCode: 404, message: 'Media not found' };
-  media.dive = newDiveId;
+  media.trip = newTripId;
   media.order = 0;
   await media.save();
   return media;
@@ -181,4 +189,4 @@ const cancelAnalysis = async (mediaId) => {
   return media;
 };
 
-module.exports = { createPresignedUploadUrl, confirmUpload, getByDive, getByTrip, createViewUrl, remove, bulkRemove, reorder, moveToDive, getPublicUrl, update, enqueueAnalysis, cancelAnalysis };
+module.exports = { createPresignedUploadUrl, confirmUpload, getByTrip, getByProject, createViewUrl, remove, bulkRemove, reorder, moveToTrip, getPublicUrl, update, enqueueAnalysis, cancelAnalysis };

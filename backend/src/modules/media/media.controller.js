@@ -1,5 +1,5 @@
 const mediaService = require('./media.service');
-const Dive = require('../dives/dive.model');
+const Trip = require('../trips/trip.model');
 const { success, error } = require('../../utils/response.util');
 
 const YOLO_URL = process.env.YOLO_SERVICE_URL || 'http://localhost:8000';
@@ -16,10 +16,10 @@ const ALLOWED_TYPES = [
 // Lấy presigned URL để upload
 const getUploadUrl = async (req, res, next) => {
   try {
-    const { diveId, fileName, mimeType, size, recordedAt } = req.body;
-    let { tripId } = req.body;
-    if (!diveId || !fileName || !mimeType || !size) {
-      return error(res, 'Missing required fields: diveId, fileName, mimeType, size', 400);
+    const { tripId, fileName, mimeType, size, recordedAt } = req.body;
+    let { projectId } = req.body;
+    if (!tripId || !fileName || !mimeType || !size) {
+      return error(res, 'Missing required fields: tripId, fileName, mimeType, size', 400);
     }
     if (size > MAX_SIZE) {
       return error(res, 'File too large. Maximum allowed size is 500MB', 400);
@@ -27,14 +27,14 @@ const getUploadUrl = async (req, res, next) => {
     if (!ALLOWED_TYPES.includes(mimeType)) {
       return error(res, `File type not allowed. Accepted: video, image, PDF`, 400);
     }
-    // Derive tripId from dive if not provided by client
-    if (!tripId) {
-      const dive = await Dive.findById(diveId).select('trip').lean();
-      if (!dive) return error(res, 'Dive not found', 404);
-      tripId = dive.trip;
+    // Derive projectId from trip if not provided by client
+    if (!projectId) {
+      const trip = await Trip.findById(tripId).select('project').lean();
+      if (!trip) return error(res, 'Trip not found', 404);
+      projectId = trip.project;
     }
     const result = await mediaService.createPresignedUploadUrl({
-      diveId, tripId,
+      tripId, projectId,
       userId: req.user._id,
       fileName, mimeType, size, recordedAt,
     });
@@ -54,20 +54,20 @@ const confirmUpload = async (req, res, next) => {
   }
 };
 
-// Media của 1 dive
-const getByDive = async (req, res, next) => {
+// Media của 1 trip
+const getByTrip = async (req, res, next) => {
   try {
-    const media = await mediaService.getByDive(req.params.diveId);
+    const media = await mediaService.getByTrip(req.params.tripId);
     return success(res, media);
   } catch (err) {
     next(err);
   }
 };
 
-// Media của 1 trip
-const getByTrip = async (req, res, next) => {
+// Media của 1 project
+const getByProject = async (req, res, next) => {
   try {
-    const media = await mediaService.getByTrip(req.params.tripId);
+    const media = await mediaService.getByProject(req.params.projectId);
     return success(res, media);
   } catch (err) {
     next(err);
@@ -107,9 +107,9 @@ const reorder = async (req, res, next) => {
 
 const moveMedia = async (req, res, next) => {
   try {
-    const { diveId } = req.body;
-    if (!diveId) return error(res, 'diveId is required', 400);
-    const media = await mediaService.moveToDive(req.params.id, diveId);
+    const { tripId } = req.body;
+    if (!tripId) return error(res, 'tripId is required', 400);
+    const media = await mediaService.moveToTrip(req.params.id, tripId);
     return success(res, media, 'Media moved');
   } catch (err) {
     next(err);
@@ -168,4 +168,4 @@ const cancelAnalyze = async (req, res, next) => {
   }
 };
 
-module.exports = { getUploadUrl, confirmUpload, getByDive, getByTrip, getViewUrl, remove, bulkDelete, reorder, moveMedia, update, analyze, cancelAnalyze, getModels };
+module.exports = { getUploadUrl, confirmUpload, getByTrip, getByProject, getViewUrl, remove, bulkDelete, reorder, moveMedia, update, analyze, cancelAnalyze, getModels };
