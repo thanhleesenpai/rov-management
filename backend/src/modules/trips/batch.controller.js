@@ -198,11 +198,19 @@ function parseCsvBuffer(buffer, filename = '') {
 
 const { reverseGeocode } = require('../../utils/geocode.util');
 
+// Parse session_YYYYMMDD_HHMMSS → UTC Date (session IDs use UTC+7 Vietnam local time)
+function parseSessionId(sessionId) {
+  const m = sessionId.match(/session_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+  if (!m) return null;
+  return new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}+07:00`);
+}
+
 // ─── File classifier ──────────────────────────────────────────────────────────
 
 function classifyFile(filename) {
   const lower = filename.toLowerCase();
-  const base = filename.split('/').pop().toLowerCase(); // sproject directory prefix
+  const base = filename.split('/').pop().toLowerCase(); // strip directory prefix
+  if (base === 'trip.json') return 'manifest';
   if (base.match(/^dvl_.*\.json$/)) return 'dvl';
   if (lower.endsWith('.sonar')) return 'sonar';
   if (base.match(/^log_.*\.csv$/) || base.match(/^.*\.csv$/)) return 'sensor';
@@ -347,8 +355,33 @@ const uploadBatch = async (req, res, next) => {
     const results = {
       sensor: null, dvl: null,
       sonar: null, video: [], image: [],
-      unknown: [], errors: [],
+      manifest: null, unknown: [], errors: [],
     };
+
+    // Parse trip_master.json if present — builds videoSuggestions for frontend display
+    const manifestEntry = files.find(f => f.filename === 'trip.json');
+    if (manifestEntry) {
+      try {
+        const manifest = JSON.parse(manifestEntry.buffer.toString('utf8'));
+        const videoSuggestions = [];
+        for (const session of manifest.sessions || []) {
+          const sessionStart = parseSessionId(session.session_id);
+          for (const asset of session.assets || []) {
+            if ((asset.type === 'video' || asset.type === 'photo') && sessionStart) {
+              videoSuggestions.push({
+                filename: asset.file.split('/').pop(),
+                recordedAt: new Date(sessionStart.getTime() + (asset.start_ms || 0)).toISOString(),
+                type: asset.type,
+                status: asset.status,
+              });
+            }
+          }
+        }
+        results.manifest = { detected: true, videoSuggestions };
+      } catch {
+        results.manifest = { detected: false, error: 'Failed to parse trip.json' };
+      }
+    }
 
     // Process each file sequentially so append/overlap logic is race-condition-free
     for (const { filename, buffer } of files) {
@@ -386,6 +419,8 @@ const uploadBatch = async (req, res, next) => {
           }
         } else if (type === 'video' || type === 'image') {
           results[type].push({ filename, note: 'Use media upload for video/image files' });
+        } else if (type === 'manifest') {
+          // Already parsed above — skip processing
         } else {
           results.unknown.push(filename);
         }

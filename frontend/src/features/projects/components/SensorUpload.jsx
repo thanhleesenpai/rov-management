@@ -223,7 +223,7 @@ export default function SensorUpload({ trip, projectId, projectGpsLocation, onCl
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10000] p-4">
       <div className="bg-card rounded-xl shadow-xl w-full max-w-md border border-border">
 
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">

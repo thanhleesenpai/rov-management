@@ -1,5 +1,8 @@
 \documentclass[../DoAn.tex]{subfiles}
 \begin{document}
+{%
+\hyphenpenalty=10000
+\exhyphenpenalty=10000
 
 \begin{center}
     \Large{\textbf{ABSTRACT}}\\
@@ -14,4 +17,5 @@ The system follows a proposed deployment model using Docker Compose with four se
 
 The system establishes a foundation for the comprehensive digitization of ROV operations and data management workflows, replacing fragmented manual processes with a centralized, multi-user, and automated platform. In terms of future development, the system can be extended to integrate a real-time Ground Control Station (GCS) stream when network connectivity is available in the field, to fine-tune the YOLOv8 model on domain-specific ROV datasets (coral reefs, debris classification, marine species) for improved detection accuracy, or to develop a companion mobile application for on-site operator use. The microservice architecture already in place provides a natural extension point for incorporating additional specialized AI models without restructuring the existing system.
 
+}% end hyphenpenalty group
 \end{document}

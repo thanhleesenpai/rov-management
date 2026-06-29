@@ -64,7 +64,7 @@ Hệ thống phân chia trách nhiệm quản lý trạng thái thành hai lớp
 
 \textbf{Zustand 4.5}~\cite{zustand} quản lý trạng thái phía client: thông tin xác thực người dùng (user object, access token, refresh token) và chế độ giao diện sáng/tối. Zustand dùng closure đơn giản thay vì Redux Store + Action + Reducer, giảm đáng kể boilerplate. Trạng thái auth được persist vào \texttt{localStorage} qua middleware \texttt{persist}, đảm bảo người dùng không bị đăng xuất khi reload trang. Khi Axios interceptor nhận lỗi 401 (access token hết hạn), nó gọi \texttt{POST /auth/refresh}, lưu token mới vào Zustand, rồi tự động thực hiện lại request ban đầu --- người dùng không nhận ra gián đoạn.
 
-\textbf{React Query 5.4}~\cite{reactquery} quản lý toàn bộ server state: fetching, caching tự động, background refetch, và invalidation. Khi YOLO phân tích xong và SSE đẩy sự kiện về trình duyệt, hook \texttt{useSSE} gọi \texttt{queryClient.invalidateQueries(['media'])} để React Query tự động tải lại dữ liệu media mà không cần reload trang hay polling thủ công.
+\textbf{React Query 5.4}~\cite{reactquery} quản lý toàn bộ server state: fetching, caching tự động, background refetch, và invalidation. Khi YOLO phân tích xong và SSE đẩy sự kiện về trình duyệt, hook \texttt{useSSE} gọi \code{queryClient.invalidateQueries(['media'])} để React Query tự động tải lại dữ liệu media mà không cần reload trang hay polling thủ công.
 
 \subsection{Recharts và Leaflet.js}
 
@@ -90,7 +90,7 @@ Hệ thống phân chia trách nhiệm quản lý trạng thái thành hai lớp
 \begin{itemize}[leftmargin=*, topsep=2pt, itemsep=1pt]
   \item \texttt{SensorData}: \texttt{\{ trip: 1, timestamp: -1 \}} --- truy vấn chuỗi thời gian của một lượt lặn
   \item \texttt{Media}: \texttt{\{ trip: 1, order: 1 \}} --- lấy playlist media theo thứ tự kéo-thả
-  \item \texttt{Notification}: \texttt{\{ userId: 1, isRead: 1, createdAt: -1 \}} --- đếm badge thông báo chưa đọc
+  \item \texttt{Notification}: \texttt{\{ userId: 1, isRead: 1,\allowbreak{} createdAt: -1 \}} --- đếm badge thông báo chưa đọc
   \item \texttt{AuditLog}: \texttt{\{ userId: 1, createdAt: -1 \}} --- phân trang nhật ký hoạt động
 \end{itemize}
 
@@ -112,7 +112,7 @@ Giới hạn kích thước tối đa là 500MB (kiểm tra tại bước 1 trư
 Hệ thống sử dụng cặp token có vòng đời bất đối xứng theo chuẩn RFC 7519~\cite{jwtspec}:
 
 \begin{itemize}[leftmargin=*, topsep=4pt, itemsep=2pt]
-  \item \textbf{Access Token} (HS256, TTL 15 phút): gửi kèm mọi request dưới dạng \texttt{Authorization: Bearer <token>}. Vòng đời ngắn giảm thiểu cửa sổ tấn công nếu token bị lộ.
+  \item \textbf{Access Token} (HS256, TTL 15 phút): gửi kèm mọi request dưới dạng \code{Authorization: Bearer <token>}. Vòng đời ngắn giảm thiểu cửa sổ tấn công nếu token bị lộ.
   \item \textbf{Refresh Token} (TTL 7 ngày): lưu trong MongoDB tại trường \texttt{user.refreshToken}. Axios interceptor tự động gọi \texttt{POST /auth/refresh} khi nhận lỗi 401, cấp Access Token mới và thực hiện lại request ban đầu mà không làm gián đoạn trải nghiệm người dùng.
 \end{itemize}
 
@@ -149,7 +149,7 @@ Hai tính năng AI của hệ thống có độ trễ cao: phân tích YOLO trê
 \end{tabular}
 \end{table}
 
-Luồng hoạt động điển hình khi Operator kích hoạt phân tích YOLO được mô tả như sau: (1) Controller đặt \texttt{media.analysisStatus = 'pending'}, thêm job vào \texttt{mediaAnalysisQueue} với payload \texttt{\{mediaId, mimeType, userId, model, confidence\}}, và trả về \textbf{HTTP 202} tức thì mà không chờ xử lý. (2) Worker chạy trong tiến trình Node.js song song với Event Loop chính, lấy job từ Redis, gọi YOLO Microservice, và lưu kết quả. (3) Sau khi hoàn tất, worker push SSE đến người dùng. (4) Frontend nhận SSE, gọi \texttt{invalidateQueries} để React Query tự động tải lại dữ liệu media.
+Luồng hoạt động điển hình khi Operator kích hoạt phân tích YOLO được mô tả như sau: (1) Controller đặt \code{media.analysisStatus = 'pending'}, thêm job vào \texttt{mediaAnalysisQueue} với payload \texttt{\{mediaId, mimeType, userId,\allowbreak{} model, confidence\}}, và trả về \textbf{HTTP 202} tức thì mà không chờ xử lý. (2) Worker chạy trong tiến trình Node.js song song với Event Loop chính, lấy job từ Redis, gọi YOLO Microservice, và lưu kết quả. (3) Sau khi hoàn tất, worker push SSE đến người dùng. (4) Frontend nhận SSE, gọi \texttt{invalidateQueries} để React Query tự động tải lại dữ liệu media.
 
 Hàng đợi \texttt{media-analysis} chỉ thử 1 lần vì nếu YOLO timeout ở lần đầu (video quá dài), lần thử lại cũng sẽ timeout lại. Ngược lại, \texttt{ai-summary} thử 3 lần với exponential backoff để xử lý lỗi mạng thoáng qua khi gọi Gemini API.
 
@@ -157,13 +157,13 @@ Hàng đợi \texttt{media-analysis} chỉ thử 1 lần vì nếu YOLO timeout 
 
 Sau khi tác vụ ngầm hoàn thành, máy chủ cần thông báo ngay cho trình duyệt mà không cần trình duyệt chủ động hỏi lại (polling). WebSocket~\cite{sse_mdn} hỗ trợ giao tiếp hai chiều nhưng yêu cầu nâng cấp giao thức (HTTP Upgrade) và thư viện client bổ sung. Vì bài toán chỉ cần giao tiếp \textit{một chiều} (server → client), \textbf{Server-Sent Events (SSE)} qua HTTP/1.1 thông thường được chọn thay thế.
 
-Khi trình duyệt mở kết nối \texttt{GET /notifications/stream}, máy chủ trả về response có header \texttt{Content-Type: text/event-stream} và giữ kết nối mở vô thời hạn. Mỗi tin nhắn được ghi theo định dạng:
+Khi trình duyệt mở kết nối \code{GET /notifications/stream}, máy chủ trả về response có header \code{Content-Type: text/event-stream} và giữ kết nối mở vô thời hạn. Mỗi tin nhắn được ghi theo định dạng:
 \begin{verbatim}
 data: {"type": "notification", "data": {...}}\n\n
 \end{verbatim}
 Hai ký tự xuống dòng liên tiếp (\texttt{\textbackslash{}n\textbackslash{}n}) đánh dấu kết thúc một sự kiện. EventSource API của trình duyệt tự động tái kết nối khi mất mạng mà không cần lập trình viên xử lý thủ công.
 
-Phía máy chủ, mỗi kết nối SSE được lưu vào cấu trúc \texttt{Map<userId, res>} trong bộ nhớ. Nếu người dùng mở tab thứ hai, kết nối cũ bị đóng để tránh nhận thông báo trùng lặp. Khi bất kỳ thành phần nào (Worker AI, Controller Trip, Controller Project) gọi \texttt{notificationService.create(userId, ...)}, hàm \texttt{pushSSE} tra cứu Map và ghi trực tiếp vào response stream của đúng người dùng đó. Kiến trúc in-memory Map đủ dùng cho hệ thống single-instance trên VPS; khi mở rộng sang multiple instances cần thay bằng Redis Pub/Sub.
+Phía máy chủ, mỗi kết nối SSE được lưu vào cấu trúc \texttt{Map<userId, res>} trong bộ nhớ. Nếu người dùng mở tab thứ hai, kết nối cũ bị đóng để tránh nhận thông báo trùng lặp. Khi bất kỳ thành phần nào (Worker AI, Controller Trip, Controller Project) gọi \code{notificationService.create(userId, ...)}, hàm \texttt{pushSSE} tra cứu Map và ghi trực tiếp vào response stream của đúng người dùng đó. Kiến trúc in-memory Map đủ dùng cho hệ thống single-instance trên VPS; khi mở rộng sang multiple instances cần thay bằng Redis Pub/Sub.
 
 \section{Hệ thống Trí tuệ Nhân tạo}
 \label{section:3.4}
@@ -196,7 +196,7 @@ $> 3$ phút & 1,0 giây & Video dài: giảm tải CPU, tránh timeout 25 phút 
 \end{tabular}
 \end{table}
 
-Trên mỗi frame được chọn, hệ thống chạy \textbf{ByteTrack}~\cite{bytetrack} (\texttt{m.track(tracker="bytetrack.yaml")}) thay vì chỉ predict. ByteTrack gán \texttt{trackId} ổn định theo thời gian: cùng một vật thể xuất hiện ở nhiều frame sẽ mang cùng \texttt{trackId}, giúp frontend nhảy đến đúng frame khi người dùng click vào nhãn. Sau đó \textbf{Cross-class NMS} (ngưỡng IoU = 0,3) loại bỏ bounding box chồng lấp từ các nhãn khác nhau. Kết quả trả về là mảng \texttt{[\{name, confidence, bbox, frameTime, trackId\}]} với \texttt{frameTime = frame\_idx / fps} (giây thực trong video).
+Trên mỗi frame được chọn, hệ thống chạy \textbf{ByteTrack}~\cite{bytetrack} (\code{m.track(tracker="bytetrack.yaml")}) thay vì chỉ predict. ByteTrack gán \texttt{trackId} ổn định theo thời gian: cùng một vật thể xuất hiện ở nhiều frame sẽ mang cùng \texttt{trackId}, giúp frontend nhảy đến đúng frame khi người dùng click vào nhãn. Sau đó \textbf{Cross-class NMS} (ngưỡng IoU = 0,3) loại bỏ bounding box chồng lấp từ các nhãn khác nhau. Kết quả trả về là mảng \texttt{[\{name, confidence, bbox,\allowbreak{} frameTime, trackId\}]} với \texttt{frameTime = frame\_idx / fps} (giây thực trong video).
 
 \subsection{Gemini 2.5 Flash và AI Summary}
 
@@ -210,7 +210,7 @@ Sau khi dữ liệu cảm biến được tải lên, hệ thống tự động 
 z_i = \left| \frac{x_i - \bar{x}}{\sigma} \right|
 \]
 
-trong đó $\bar{x}$ là giá trị trung bình và $\sigma$ là độ lệch chuẩn của toàn bộ chuỗi đo lường trong lượt lặn đó. Điểm $x_i$ được đánh dấu bất thường khi $z_i > 2{,}5$. Ngưỡng 2,5 được chọn thay vì giá trị phổ biến 3,0 để tăng độ nhạy --- trong môi trường ROV, ngay cả một spike nhỏ về điện áp hay nhiệt độ cũng có thể báo hiệu sự cố thiết bị. Kết quả trả về cùng mỗi response lấy sensor data: \texttt{anomalies: [\{index, metric, value, zScore, timestamp\}]}; frontend hiển thị bằng dot đỏ trên biểu đồ AreaChart và liệt kê trong panel cảnh báo của TripDetailPage.
+trong đó $\bar{x}$ là giá trị trung bình và $\sigma$ là độ lệch chuẩn của toàn bộ chuỗi đo lường trong lượt lặn đó. Điểm $x_i$ được đánh dấu bất thường khi $z_i > 2{,}5$. Ngưỡng 2,5 được chọn thay vì giá trị phổ biến 3,0 để tăng độ nhạy --- trong môi trường ROV, ngay cả một spike nhỏ về điện áp hay nhiệt độ cũng có thể báo hiệu sự cố thiết bị. Kết quả trả về cùng mỗi response lấy sensor data: \texttt{anomalies:\allowbreak{} [\{index, metric, value,\allowbreak{} zScore, timestamp\}]}; frontend hiển thị bằng dot đỏ trên biểu đồ AreaChart và liệt kê trong panel cảnh báo của TripDetailPage.
 
 \subsection{Reverse Geocoding với OpenStreetMap Nominatim}
 

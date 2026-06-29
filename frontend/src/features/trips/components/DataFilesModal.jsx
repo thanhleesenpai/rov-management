@@ -119,7 +119,7 @@ export default function DataFilesModal({ tripId, tripTitle, canEdit, onClose }) 
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-0 sm:p-4"
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[10000] p-0 sm:p-4"
       onClick={e => e.target === e.currentTarget && onClose()}>
       <div className="bg-card rounded-t-xl sm:rounded-xl shadow-2xl w-full max-w-2xl border border-border flex flex-col max-h-[90svh] sm:max-h-[80vh]">
 

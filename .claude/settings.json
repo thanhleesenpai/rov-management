@@ -69,7 +69,26 @@
       "Bash(ls /d/plantuml*)",
       "Bash(python generate_puml.py state_project.puml)",
       "Bash(python generate_puml.py state_trip.puml)",
-      "Bash(xargs grep -l \"emailQueue\\\\|email.worker\\\\|nodemailer\")"
+      "Bash(xargs grep -l \"emailQueue\\\\|email.worker\\\\|nodemailer\")",
+      "Bash(git reset *)",
+      "Bash(git rm *)",
+      "Bash(rm -f \"backend/.env.tmp.19544.076d2886e59e\")",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(grep -n \"trip_master\\\\|trip\\\\\\\\_master\\\\|Sensors/\" \"d:/Code/rov-management/my_thesis/Chuong/Phu_luc_B.tex\")",
+      "Bash(awk 'length\\($0\\) > 80')",
+      "Bash(grep -n 'texttt{[^}]\\\\{25,\\\\}}' \"d:/Code/rov-management/my_thesis/Chuong/3_Cong_nghe.tex\")",
+      "Bash(grep -n 'texttt{[^}]\\\\{25,\\\\}}' \"d:/Code/rov-management/DATN_TranNguyenChien220018/Chuong/7_Quan_ly_ttin.tex\")",
+      "Bash(grep -n 'texttt{[^}]\\\\{25,\\\\}}' \"d:/Code/rov-management/my_thesis/Chuong/5_Giai_phap_dong_gop.tex\")",
+      "Bash(grep -n 'texttt{[^}]\\\\{25,\\\\}}' \"d:/Code/rov-management/my_thesis/Chuong/Phu_luc_B.tex\")",
+      "Bash(grep -n 'texttt{[^}]\\\\{25,\\\\}}' \"d:/Code/rov-management/my_thesis/Chuong/4_Ket_qua_thuc_nghiem.tex\")",
+      "Bash(grep -rn 'texttt{[^}]\\\\{30,\\\\}}' \"d:/Code/rov-management/my_thesis/Chuong/\" --include=\"*.tex\")",
+      "Bash(grep -v '\\\\\\\\{')",
+      "Bash(grep -v '\\\\\\\\_')",
+      "Bash(grep -v '\\\\\\\\\\\\[')",
+      "Bash(grep -rn 'texttt{[^}]\\\\{30,\\\\}}' \"d:/Code/rov-management/DATN_TranNguyenChien220018/Chuong/\" --include=\"*.tex\")",
+      "Bash(python -c ' *)"
     ]
   }
 }

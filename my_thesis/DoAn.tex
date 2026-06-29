@@ -158,6 +158,15 @@
 
 \onehalfspacing
 \raggedbottom % Không stretch vertical space để fill trang — tránh khoảng trắng lớn sau [H] float
+\setlength{\emergencystretch}{3em} % Cho phép giãn tối đa 3em/dòng để tránh chữ tràn lề
+% \code{...} dùng cho inline code dài: \path{} cho phép ngắt dòng tại . / = ( ) - _ v.v.
+% Dùng thay cho \texttt{} khi chuỗi >28 ký tự và không chứa \{ \} \_
+\newcommand{\code}[1]{\path{#1}}
+% Tắt tự động ngắt từ (hyphenation) trong \texttt{} để tránh ngắt giữa chữ kiểu "analy-\ntis"
+% \texttt{} vẫn có thể ngắt tại khoảng trắng hoặc \allowbreak{} — chỉ không ngắt giữa từ
+\DeclareRobustCommand\texttt[1]{{\ttfamily\hyphenchar\font=-1 #1}}
+% Ngăn LaTeX ngắt các từ kỹ thuật tiếng Anh ở giữa từ trong văn bản thường
+\hyphenation{Compose MongoDB YOLOv8 YOLOv8n FastAPI microservice frontend backend QGroundControl BlueOS ByteTrack Recharts Leaflet Zustand Passport Nominatim OpenStreetMap presigned middleware}
 %Khoảng cách xuống dòng
 \setlength{\parskip}{6pt}
 %Lùi đầu dòng

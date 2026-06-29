@@ -42,36 +42,43 @@ Từ phân tích trên, phân hệ \textit{``Quản lý Thông tin Nhiệm vụ 
 
 Biểu đồ Use Case tổng quát (Hình~\ref{fig:ch7-uc-tongquat}) mô tả sự tương tác giữa ba nhóm người dùng (Viewer, Operator, Admin) và hai tác nhân hệ thống bên ngoài (YOLO Service và Gemini AI). Quyền hạn được tổ chức theo mô hình kế thừa tăng dần: Viewer chỉ xem, Operator thêm quyền tải lên và phân tích, Admin có toàn quyền bao gồm xóa tài nguyên và quản lý người dùng.
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\includegraphics[width=0.90\linewidth, height=0.60\textheight, keepaspectratio]{uc_tongquat.png}
+\includegraphics[width=0.95\linewidth, height=0.88\textheight, keepaspectratio]{uc_tongquat.png}
 \caption{Biểu đồ Use Case tổng quát phân hệ quản lý thông tin ROV}
 \label{fig:ch7-uc-tongquat}
 \end{figure}
 
 Hình~\ref{fig:ch7-uc-data} và Hình~\ref{fig:ch7-uc-ai} làm rõ hai phân hệ quan trọng nhất. Phân hệ Dữ liệu Thực địa mô tả luồng upload đa loại tệp (CSV, DVL, Sonar, Media), quản lý theo tên file nguồn (\texttt{sourceFile}), và kích hoạt chế độ đồng bộ Video--Biểu đồ khi video có trường \texttt{recordedAt}. Phân hệ AI Phân tích cho thấy Operator cấu hình mô hình và ngưỡng confidence trước khi chạy phân tích bất đồng bộ qua Bull Queue, kết quả được đẩy về qua SSE.
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\includegraphics[width=0.90\linewidth, height=0.52\textheight, keepaspectratio]{uc_phanra_data.png}
+\includegraphics[width=0.95\linewidth, height=0.88\textheight, keepaspectratio]{uc_phanra_data.png}
 \caption{Biểu đồ Use Case phân rã -- Phân hệ Upload và Quản lý Dữ liệu Thực địa}
 \label{fig:ch7-uc-data}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\includegraphics[width=0.90\linewidth, height=0.52\textheight, keepaspectratio]{uc_phanra_ai.png}
+\includegraphics[width=0.95\linewidth, height=0.88\textheight, keepaspectratio]{uc_phanra_ai.png}
 \caption{Biểu đồ Use Case phân rã -- Phân hệ AI Phân tích}
 \label{fig:ch7-uc-ai}
 \end{figure}
 
 Hình~\ref{fig:ch7-act-workflow} tóm tắt luồng nghiệp vụ đầu cuối từ khi Operator trở về từ thực địa đến khi có báo cáo tổng kết, gồm năm giai đoạn: đăng nhập và tạo mới Project/Trip; tải lên dữ liệu; xem lại video và trích xuất bằng chứng; đánh dấu hoàn tất Trip; kích hoạt AI tóm tắt.
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\includegraphics[width=\linewidth, height=0.82\textheight, keepaspectratio]{act_data_workflow.png}
-\caption{Biểu đồ hoạt động -- Quy trình phân tích dữ liệu nhiệm vụ ROV}
-\label{fig:ch7-act-workflow}
+\includegraphics[width=0.95\linewidth, height=0.88\textheight, keepaspectratio]{act_data_workflow_a.png}
+\caption{Biểu đồ hoạt động -- Quy trình phân tích dữ liệu nhiệm vụ ROV — Giai đoạn a: Thu thập và xử lý dữ liệu}
+\label{fig:ch7-act-workflow-a}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\linewidth, height=0.88\textheight, keepaspectratio]{act_data_workflow_b.png}
+\caption{Biểu đồ hoạt động -- Quy trình phân tích dữ liệu nhiệm vụ ROV — Giai đoạn b: Phân tích và tổng kết}
+\label{fig:ch7-act-workflow-b}
 \end{figure}
 
 \subsection{Yêu cầu phi chức năng}
@@ -211,7 +218,7 @@ Index phức hợp được đặt tại các collection truy vấn thường xu
 \begin{itemize}[leftmargin=*, topsep=2pt, itemsep=2pt]
 \item \texttt{SensorData}: \texttt{\{trip:~1, timestamp:~$-1$\}}
 \item \texttt{Media}: \texttt{\{trip:~1, order:~1\}}
-\item \texttt{Notification}: \texttt{\{userId:~1, isRead:~1, createdAt:~$-1$\}}
+\item \texttt{Notification}: \texttt{\{userId:~1, isRead:~1,\allowbreak{} createdAt:~$-1$\}}
 \end{itemize}
 
 \subsection{Mô hình triển khai đề xuất}
@@ -296,18 +303,18 @@ Ngoài đăng nhập email/mật khẩu, hệ thống hỗ trợ \textbf{Google 
 
 Hệ thống quản lý hai thực thể trung tâm có vòng đời nhiều giai đoạn. \textbf{Chuyến khảo sát (Project)} có bốn trạng thái: \textit{planned} $\to$ \textit{ongoing} $\to$ \textit{completed} / \textit{cancelled}. Hành vi duy nhất ràng buộc theo trạng thái là: chỉ Project ở trạng thái \textit{completed} mới được phép kích hoạt tóm tắt AI (Hình~\ref{fig:ch7-state-project}).
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\includegraphics[width=0.85\linewidth]{state_project.png}
+\includegraphics[width=0.90\linewidth]{state_project.png}
 \caption{Sơ đồ trạng thái vòng đời Chuyến khảo sát (Project)}
 \label{fig:ch7-state-project}
 \end{figure}
 
 \textbf{Lượt lặn (Trip)} có bốn trạng thái: \textit{pending} $\to$ \textit{running} $\to$ \textit{done} / \textit{failed}. Khi Trip chuyển sang \textit{done} hoặc \textit{failed}, hệ thống tự động đẩy thông báo SSE đến người tạo Trip. Các tính năng phân tích YOLO và đồng bộ video--biểu đồ được Operator kích hoạt thủ công, không ràng buộc theo trạng thái (Hình~\ref{fig:ch7-state-trip}).
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\includegraphics[width=\linewidth, height=0.70\textheight, keepaspectratio]{state_trip.png}
+\includegraphics[width=0.95\linewidth, height=0.88\textheight, keepaspectratio]{state_trip.png}
 \caption{Sơ đồ trạng thái vòng đời Lượt lặn (Trip)}
 \label{fig:ch7-state-trip}
 \end{figure}
@@ -441,7 +448,7 @@ Hình~\ref{fig:ch7-seq-sensor} mô tả luồng tải lên dữ liệu cảm bi�
 \label{fig:ch7-seq-sensor}
 \end{figure}
 
-Hình~\ref{fig:ch7-seq-ai} mô tả luồng phân tích YOLO bất đồng bộ gồm bảy bước: Operator chọn cấu hình AI; Backend nhận request, cập nhật \texttt{analysisStatus = 'pending'} và enqueue job; trả về HTTP~202 ngay lập tức; Bull Worker lấy job, gọi YOLO Microservice với presigned URL; YOLO chạy inference và trả labels; Worker lưu kết quả vào MongoDB; đẩy SSE về Frontend để invalidate query và cập nhật giao diện mà không cần tải lại trang.
+Hình~\ref{fig:ch7-seq-ai} mô tả luồng phân tích YOLO bất đồng bộ gồm bảy bước: Operator chọn cấu hình AI; Backend nhận request, cập nhật \code{analysisStatus = 'pending'} và enqueue job; trả về HTTP~202 ngay lập tức; Bull Worker lấy job, gọi YOLO Microservice với presigned URL; YOLO chạy inference và trả labels; Worker lưu kết quả vào MongoDB; đẩy SSE về Frontend để invalidate query và cập nhật giao diện mà không cần tải lại trang.
 
 \begin{figure}[H]
 \centering
@@ -463,14 +470,14 @@ Một trong những khó khăn lớn nhất của đội ngũ vận hành ROV l�
 Giải pháp sử dụng thuật toán \textbf{Ánh xạ thời gian dựa trên độ lệch gốc (Time Offset Mapping)} thực hiện qua bốn bước:
 
 \begin{itemize}[leftmargin=*, topsep=4pt, itemsep=4pt]
-  \item \textbf{Bước 1 -- Chuẩn hóa đầu vào:} Video tải lên được gán trường \texttt{recordedAt} (thời điểm bắt đầu ghi hình theo ISO 8601). Nếu tên file có định dạng \texttt{\_YYYYMMDD\_HHMMSS}, hệ thống tự động parse mà không cần nhập tay. Tệp CSV bắt buộc có cột \texttt{timestamp} mỗi dòng.
+  \item \textbf{Bước 1 -- Chuẩn hóa đầu vào:} Video tải lên được gán trường \texttt{recordedAt} (thời điểm bắt đầu ghi hình theo ISO 8601) theo cơ chế ưu tiên ba cấp: (1)~nếu lô tải lên kèm tệp \texttt{trip.json} (manifest xuất tự động từ ROV), hệ thống đọc \texttt{sessionStart +\allowbreak{} asset.start\_ms} để gán \texttt{recordedAt} với độ chính xác mili-giây; (2)~nếu không có manifest, hệ thống tự động parse từ tên file theo mẫu \texttt{\_YYYYMMDD\_HHMMSS}; (3)~nếu cả hai đều không có, \texttt{recordedAt} được đặt là \texttt{null} và Operator có thể nhập thủ công qua giao diện. Tệp CSV bắt buộc có cột \texttt{timestamp} mỗi dòng.
 
   \item \textbf{Bước 2 -- Tính toán timestamp đồng bộ:} Tại Frontend, sự kiện \texttt{timeupdate} của phần tử HTML5 \texttt{<video>} được lắng nghe liên tục khi video phát. Giá trị \texttt{currentTime} (giây) được chuyển thành timestamp tuyệt đối:
   \[
   t_{\text{sync}} = t_{\text{recordedAt}} + t_{\text{video}} \times 1000 \quad \text{(mili-giây UTC)}
   \]
 
-  \item \textbf{Bước 3 -- Cập nhật ReferenceLine:} Giá trị $t_{\text{sync}}$ được truyền vào thành phần \texttt{<ReferenceLine x=\{$t_{\text{sync}}$\}>} của Recharts --- thanh đỏ di chuyển mượt mà trên biểu đồ đồng bộ với video đang phát mà không gây re-render toàn trang nhờ kiến trúc Virtual DOM của React.
+  \item \textbf{Bước 3 -- Cập nhật ReferenceLine:} Giá trị $t_{\text{sync}}$ được truyền vào thành phần \texttt{<ReferenceLine\allowbreak{} x=\{$t_{\text{sync}}$\}>} của Recharts --- thanh đỏ di chuyển mượt mà trên biểu đồ đồng bộ với video đang phát mà không gây re-render toàn trang nhờ kiến trúc Virtual DOM của React.
 
   \item \textbf{Bước 4 -- Tự động frame Brush:} Khi người dùng chọn video khác trong playlist, vùng zoom Brush tự động nhảy đến khoảng thời gian tương ứng của video đó (tính từ \texttt{recordedAt} và \texttt{duration}), giúp người dùng quan sát đúng đoạn dữ liệu mà không cần kéo thủ công.
 \end{itemize}
@@ -492,11 +499,11 @@ Nhận diện vật thể trong video ROV (cá, chướng ngại vật, vết n�
 Giải pháp xây dựng kiến trúc ba thành phần phối hợp:
 
 \begin{itemize}[leftmargin=*, topsep=4pt, itemsep=4pt]
-  \item \textbf{Node.js HTTP endpoint:} \texttt{POST /media/:id/analyze} nhận cấu hình \{model, confidence\}, đặt \texttt{analysisStatus = 'pending'}, enqueue job vào \texttt{mediaAnalysisQueue} (lưu trên Redis), và trả về \textbf{HTTP 202 ngay lập tức} mà không chờ xử lý.
+  \item \textbf{Node.js HTTP endpoint:} \code{POST /media/:id/analyze} nhận cấu hình \{model, confidence\}, đặt \code{analysisStatus = 'pending'}, enqueue job vào \texttt{mediaAnalysisQueue} (lưu trên Redis), và trả về \textbf{HTTP 202 ngay lập tức} mà không chờ xử lý.
 
-  \item \textbf{Node.js Bull Worker (xử lý ngầm):} Chạy song song với Event Loop chính. Khi có job, Worker tạo presigned GET URL cho file trên S3, gọi \texttt{POST yolo-service:8000/detect} với tham số model và confidence. Sau khi nhận kết quả, Worker lưu labels vào MongoDB, cập nhật \texttt{analysisStatus = 'done'} và đẩy SSE thông báo về Frontend.
+  \item \textbf{Node.js Bull Worker (xử lý ngầm):} Chạy song song với Event Loop chính. Khi có job, Worker tạo presigned GET URL cho file trên S3, gọi \code{POST yolo-service:8000/detect} với tham số model và confidence. Sau khi nhận kết quả, Worker lưu labels vào MongoDB, cập nhật \code{analysisStatus = 'done'} và đẩy SSE thông báo về Frontend.
 
-  \item \textbf{Python FastAPI YOLO Microservice:} Dịch vụ HTTP độc lập, không kết nối Redis hay MongoDB. Nhận \texttt{POST /detect}, tải file từ presigned URL, chạy YOLOv8 với \textbf{chiến lược lấy mẫu thích nghi}: $<30$\,s lấy mẫu 0,2\,s/frame; 30\,s--3\,phút lấy mẫu 0,5\,s/frame; $>3$\,phút lấy mẫu 1,0\,s/frame. Mỗi frame áp dụng ByteTrack để gán \texttt{trackId} ổn định và Cross-class NMS (IoU = 0,3). Trả về mảng \texttt{\{name, confidence, bbox, frameTime, trackId\}}.
+  \item \textbf{Python FastAPI YOLO Microservice:} Dịch vụ HTTP độc lập, không kết nối Redis hay MongoDB. Nhận \texttt{POST /detect}, tải file từ presigned URL, chạy YOLOv8 với \textbf{chiến lược lấy mẫu thích nghi}: $<30$\,s lấy mẫu 0,2\,s/frame; 30\,s--3\,phút lấy mẫu 0,5\,s/frame; $>3$\,phút lấy mẫu 1,0\,s/frame. Mỗi frame áp dụng ByteTrack để gán \texttt{trackId} ổn định và Cross-class NMS (IoU = 0,3). Trả về mảng \texttt{\{name, confidence, bbox,\allowbreak{} frameTime, trackId\}}.
 \end{itemize}
 
 Khi video đang phát, bounding box SVG cập nhật theo frame hiện tại dựa trên \texttt{frameTime}; Operator nhấp vào nhãn để lọc và chỉ hiển thị bounding box của lớp đó (Hình~\ref{fig:ch7-yolo}).
@@ -523,7 +530,7 @@ Việc cho phép điều chỉnh ngưỡng confidence giải quyết thực tế
 
 \subsection{Kết quả đạt được}
 
-Kiến trúc này đảm bảo tính khả dụng tuyệt đối cho hệ thống web chính: người dùng có thể đẩy nhiều video vào hàng đợi phân tích ngầm và thoải mái làm việc trên các trang khác. Nếu YOLO Microservice không phản hồi, Worker ghi \texttt{analysisStatus = 'failed'} mà không crash hàng đợi; Operator có thể kích hoạt lại bất kỳ lúc nào. Kiến trúc microservice tách rời cho phép thay thế hoặc nâng cấp mô hình AI mà không ảnh hưởng đến Backend Node.js.
+Kiến trúc này đảm bảo tính khả dụng tuyệt đối cho hệ thống web chính: người dùng có thể đẩy nhiều video vào hàng đợi phân tích ngầm và thoải mái làm việc trên các trang khác. Nếu YOLO Microservice không phản hồi, Worker ghi \code{analysisStatus = 'failed'} mà không crash hàng đợi; Operator có thể kích hoạt lại bất kỳ lúc nào. Kiến trúc microservice tách rời cho phép thay thế hoặc nâng cấp mô hình AI mà không ảnh hưởng đến Backend Node.js.
 
 %-----------------------------------------------------------
 \section{Hệ thống trích xuất bằng chứng (Evidence System)}
@@ -543,7 +550,7 @@ Hệ thống bằng chứng cung cấp hai loại artefact độc lập:
   \item \textbf{Clip (Đoạn video):} Nhấn ``🎬'' bắt đầu $\to$ dừng, hệ thống chỉ ghi \texttt{startTime} và \texttt{endTime} (giây trong video gốc) --- \textbf{không cắt hay sao chép file video vật lý}. Lựa chọn này tiết kiệm hoàn toàn băng thông và dung lượng S3.
 \end{itemize}
 
-Mỗi bằng chứng lưu vào collection \texttt{snapshots} riêng với \texttt{parentMediaId} liên kết đến video gốc, không lẫn vào playlist \texttt{media}. Hệ thống cho phép phân tích YOLO riêng từng bằng chứng qua \texttt{POST /snapshots/:id/analyze}: với Clip, YOLO Microservice nhận thêm \texttt{startTime/endTime} và chỉ xử lý frames trong khoảng đó, giảm đáng kể thời gian so với phân tích toàn bộ video. EvidenceViewer (Hình~\ref{fig:ch7-evidence}) hiển thị dưới dạng overlay inline --- bảo toàn ngữ cảnh xem của Operator; với Clip, trình phát bị giới hạn trong $[t_{\text{start}}, t_{\text{end}}]$ và tự seek về \texttt{startTime} khi đến \texttt{endTime}.
+Mỗi bằng chứng lưu vào collection \texttt{snapshots} riêng với \texttt{parentMediaId} liên kết đến video gốc, không lẫn vào playlist \texttt{media}. Hệ thống cho phép phân tích YOLO riêng từng bằng chứng qua \code{POST /snapshots/:id/analyze}: với Clip, YOLO Microservice nhận thêm \texttt{startTime/endTime} và chỉ xử lý frames trong khoảng đó, giảm đáng kể thời gian so với phân tích toàn bộ video. EvidenceViewer (Hình~\ref{fig:ch7-evidence}) hiển thị dưới dạng overlay inline --- bảo toàn ngữ cảnh xem của Operator; với Clip, trình phát bị giới hạn trong $[t_{\text{start}}, t_{\text{end}}]$ và tự seek về \texttt{startTime} khi đến \texttt{endTime}.
 
 \begin{figure}[H]
 \centering
@@ -573,7 +580,7 @@ z_i = \left| \frac{x_i - \mu}{\sigma} \right|
 \label{eq:ch7-zscore}
 \end{equation}
 
-trong đó $\mu$ là giá trị trung bình và $\sigma$ là độ lệch chuẩn của toàn chuỗi. Điểm đo được đánh dấu bất thường khi $z_i > 2{,}5$. Ngưỡng 2,5 được chọn thay vì giá trị thông thường 3,0 để tăng độ nhạy phù hợp với đặc thù dữ liệu cảm biến môi trường thay đổi chậm --- ngay cả spike nhỏ về điện áp hay nhiệt độ cũng có thể báo hiệu sự cố thiết bị. Thuật toán áp dụng song song cho 7 metric: \texttt{depth}, \texttt{temp}, \texttt{temperature}, \texttt{pressure}, \texttt{voltage}, \texttt{battery\_percent} và \texttt{humidity}. Kết quả trả về cùng mỗi response sensor data: \texttt{anomalies: [\{index, metric, value, zScore, timestamp\}]}. So sánh với các lựa chọn thay thế: IQR kém nhạy với spike nhọn ngắn hạn; Isolation Forest đòi hỏi dữ liệu gán nhãn không có sẵn --- Z-Score được chọn vì không cần huấn luyện, tính toán đủ nhanh để chạy inline tại API endpoint.
+trong đó $\mu$ là giá trị trung bình và $\sigma$ là độ lệch chuẩn của toàn chuỗi. Điểm đo được đánh dấu bất thường khi $z_i > 2{,}5$. Ngưỡng 2,5 được chọn thay vì giá trị thông thường 3,0 để tăng độ nhạy phù hợp với đặc thù dữ liệu cảm biến môi trường thay đổi chậm --- ngay cả spike nhỏ về điện áp hay nhiệt độ cũng có thể báo hiệu sự cố thiết bị. Thuật toán áp dụng song song cho 7 metric: \texttt{depth}, \texttt{temp}, \texttt{temperature}, \texttt{pressure}, \texttt{voltage}, \texttt{battery\_percent} và \texttt{humidity}. Kết quả trả về cùng mỗi response sensor data: \texttt{anomalies:\allowbreak{} [\{index, metric, value,\allowbreak{} zScore, timestamp\}]}. So sánh với các lựa chọn thay thế: IQR kém nhạy với spike nhọn ngắn hạn; Isolation Forest đòi hỏi dữ liệu gán nhãn không có sẵn --- Z-Score được chọn vì không cần huấn luyện, tính toán đủ nhanh để chạy inline tại API endpoint.
 
 \subsection{Kết quả đạt được}
 

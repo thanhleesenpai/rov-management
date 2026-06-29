@@ -34,7 +34,7 @@ export default function TripForm({ projectId, tripData, onClose }) {
   })
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[10000] p-4">
       <div className="bg-card rounded-xl shadow-xl w-full max-w-md border border-border">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="font-semibold text-foreground">{isEdit ? 'Edit Trip' : 'New Trip'}</h2>

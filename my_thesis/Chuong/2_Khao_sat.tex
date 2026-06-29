@@ -110,9 +110,9 @@ Xem Nhật ký hoạt động (Audit Log) & \checkmark & --- & --- \\
 
 Biểu đồ Use Case tổng quát (Hình~\ref{fig:uc_tongquat}) mô tả bức tranh toàn cảnh về sự tương tác giữa các tác nhân và hệ thống. Hệ thống có năm tác nhân: ba tác nhân người dùng (Viewer, Operator, Admin) kế thừa quyền theo chiều tăng dần, và hai tác nhân hệ thống bên ngoài là YOLO Service (FastAPI/YOLOv8) và Gemini AI (Google) tham gia vào các tác vụ phân tích. Các nhóm chức năng chính bao gồm: Quản lý danh mục ROV, Quản lý chuyến khảo sát và lượt lặn, Quản lý dữ liệu thực địa và phương tiện, và Tương tác với trí tuệ nhân tạo.
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\includegraphics[width=0.9\linewidth, height=0.62\textheight, keepaspectratio]{Hinhve/uc_tongquat.png}
+\includegraphics[width=0.95\linewidth, height=0.88\textheight, keepaspectratio]{Hinhve/uc_tongquat.png}
 \caption{Biểu đồ Use Case tổng quát của hệ thống}
 \label{fig:uc_tongquat}
 \end{figure}
@@ -122,9 +122,9 @@ Biểu đồ Use Case tổng quát (Hình~\ref{fig:uc_tongquat}) mô tả bức 
 
 Phân hệ upload và quản lý dữ liệu thực địa là lõi nghiệp vụ của hệ thống. Hình~\ref{fig:uc_phanra_data} làm rõ các thao tác chi tiết của Operator sau khi một lượt lặn được khởi tạo. Operator tải lên nhiều loại tệp dữ liệu: CSV cảm biến (hỗ trợ nhiều file, tự động phát hiện chồng lấp thời gian), JSON DVL và tệp Sonar. Hệ thống lưu từng tệp theo tên nguồn (\texttt{sourceFile}), cho phép xóa từng file riêng lẻ mà không ảnh hưởng đến các file còn lại. Nếu video có trường \textit{recordedAt} (thời điểm bắt đầu quay), chế độ đồng bộ Video--Biểu đồ được kích hoạt tự động. Trong khi xem, Operator có thể trích xuất bằng chứng (Photo/Clip) từ video đang đồng bộ.
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\includegraphics[width=0.9\linewidth, height=0.55\textheight, keepaspectratio]{Hinhve/uc_phanra_data.png}
+\includegraphics[width=0.95\linewidth, height=0.88\textheight, keepaspectratio]{Hinhve/uc_phanra_data.png}
 \caption{Biểu đồ Use Case phân rã Phân hệ Upload và Quản lý Dữ liệu Thực địa}
 \label{fig:uc_phanra_data}
 \end{figure}
@@ -134,9 +134,9 @@ Phân hệ upload và quản lý dữ liệu thực địa là lõi nghiệp v�
 
 Phân hệ AI Phân tích là điểm khác biệt lớn nhất của hệ thống so với các giải pháp truyền thống. Hình~\ref{fig:uc_phanra_ai} thể hiện sự tham gia của hai tác nhân hệ thống bên ngoài: YOLO Service (Python FastAPI) và Gemini AI (Google). Operator cấu hình tham số trước khi chạy phân tích (lựa chọn mô hình và ngưỡng confidence), sau đó kích hoạt phân tích cho toàn bộ tệp phương tiện hoặc riêng từng bằng chứng đã trích xuất. Kết quả nhận diện hiển thị dưới dạng bounding box đồng bộ theo từng khung hình; Operator có thể nhấp vào nhãn để lọc và chỉ hiển thị bounding box của lớp đó. Khi Project hoàn tất, Operator kích hoạt Gemini AI để sinh báo cáo tóm tắt bằng ngôn ngữ tự nhiên và có thể tái tạo nếu cần.
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\includegraphics[width=0.9\linewidth, height=0.55\textheight, keepaspectratio]{Hinhve/uc_phanra_ai.png}
+\includegraphics[width=0.95\linewidth, height=0.88\textheight, keepaspectratio]{Hinhve/uc_phanra_ai.png}
 \caption{Biểu đồ Use Case phân rã Phân hệ AI Phân tích}
 \label{fig:uc_phanra_ai}
 \end{figure}
@@ -153,11 +153,18 @@ Hình~\ref{fig:act_workflow} mô tả luồng nghiệp vụ đầu cuối từ k
   \item Kích hoạt AI tóm tắt (Gemini) để sinh ra văn bản báo cáo nhiệm vụ.
 \end{enumerate}
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\includegraphics[width=\linewidth, height=0.85\textheight, keepaspectratio]{Hinhve/act_data_workflow.png}
-\caption{Biểu đồ hoạt động quy trình phân tích dữ liệu nhiệm vụ}
-\label{fig:act_workflow}
+\includegraphics[width=0.95\linewidth, height=0.88\textheight, keepaspectratio]{Hinhve/act_data_workflow_a.png}
+\caption{Biểu đồ hoạt động quy trình phân tích dữ liệu nhiệm vụ — Giai đoạn a: Thu thập và xử lý dữ liệu}
+\label{fig:act_workflow_a}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\linewidth, height=0.88\textheight, keepaspectratio]{Hinhve/act_data_workflow_b.png}
+\caption{Biểu đồ hoạt động quy trình phân tích dữ liệu nhiệm vụ — Giai đoạn b: Phân tích và tổng kết}
+\label{fig:act_workflow_b}
 \end{figure}
 
 \section{Đặc tả chức năng}
@@ -303,9 +310,9 @@ Hình~\ref{fig:state_project} mô tả sơ đồ hoạt động của một Chuy
 
 Sau khi được tạo mới, Project bắt đầu ở trạng thái \textit{planned} — giai đoạn lên kế hoạch trước khi thực địa bắt đầu. Khi Operator hoặc Admin kích hoạt thu thập dữ liệu, Project chuyển sang \textit{ongoing}; đây là trạng thái chính trong suốt quá trình thực địa. Khi toàn bộ lượt lặn hoàn tất, Project được đánh dấu \textit{completed} — trạng thái này mở khóa tính năng tạo báo cáo tóm tắt bằng Gemini AI và đẩy thông báo SSE đến người tạo Project. Nếu chiến dịch bị hủy bỏ, Admin có thể chuyển Project sang \textit{cancelled} — đây là trạng thái đầu cuối thay thế, toàn bộ dữ liệu đã thu thập vẫn được giữ nguyên trong hệ thống.
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\includegraphics[width=0.85\linewidth]{Hinhve/state_project.png}
+\includegraphics[width=0.90\linewidth]{Hinhve/state_project.png}
 \caption{Sơ đồ trạng thái vòng đời Chuyến khảo sát (Project)}
 \label{fig:state_project}
 \end{figure}
@@ -317,9 +324,9 @@ Hình~\ref{fig:state_trip} mô tả sơ đồ hoạt động của một Lượt
 
 Trip mới được tạo ở trạng thái \textit{pending} — chứa thông tin cấu hình nhưng chưa có dữ liệu thực địa. Khi Operator bắt đầu lặn, Trip chuyển sang \textit{running}. Sau khi kết thúc lặn và tải dữ liệu về bờ (CSV cảm biến, video, DVL, Sonar), Operator đánh dấu Trip là \textit{done} nếu thành công — hệ thống gửi thông báo in-app (SSE) đến người tạo Trip. Nếu xảy ra sự cố, Trip chuyển sang \textit{failed} — thông báo in-app tương tự được đẩy đến người tạo và toàn bộ dữ liệu đã tải lên vẫn được giữ nguyên; Operator có thể tạo Lượt lặn mới để thử lại.
 
-\begin{figure}[H]
+\begin{figure}[htbp]
 \centering
-\includegraphics[width=\linewidth, height=0.72\textheight, keepaspectratio]{Hinhve/state_trip.png}
+\includegraphics[width=0.95\linewidth, height=0.88\textheight, keepaspectratio]{Hinhve/state_trip.png}
 \caption{Sơ đồ trạng thái vòng đời Lượt lặn (Trip)}
 \label{fig:state_trip}
 \end{figure}

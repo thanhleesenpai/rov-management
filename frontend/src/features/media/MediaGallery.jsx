@@ -298,7 +298,7 @@ function Lightbox({ mediaList, initialIndex, onClose }) {
   }, [onClose, mediaList.length])
 
   return (
-    <div className={`fixed inset-0 flex items-center justify-center z-50 transition-colors duration-200 ${visible ? 'bg-black/90' : 'bg-black/0'}`}
+    <div className={`fixed inset-0 flex items-center justify-center z-[10000] transition-colors duration-200 ${visible ? 'bg-black/90' : 'bg-black/0'}`}
       onClick={onClose}>
       <div className={`relative max-w-5xl w-full max-h-[90vh] px-4 sm:px-16 transition-all duration-200 ${visible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}
         onClick={e => e.stopPropagation()}>

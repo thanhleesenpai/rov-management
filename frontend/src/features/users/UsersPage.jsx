@@ -34,7 +34,7 @@ function UserEditForm({ user, onClose, onSave, isSelf, saving }) {
   const [form, setForm] = useState({ fullName: user.fullName, role: user.role })
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[10000] p-4">
       <div className="bg-card rounded-xl shadow-xl w-full max-w-sm border border-border">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="font-semibold text-foreground">Edit User</h2>
@@ -74,7 +74,7 @@ function UserEditForm({ user, onClose, onSave, isSelf, saving }) {
 function ConfirmModal({ isOpen, onClose, onConfirm, title, message, confirmText, isDanger }) {
   if (!isOpen) return null
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[10000] p-4">
       <div className="bg-card rounded-xl shadow-xl w-full max-w-sm border border-border overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <h2 className="font-semibold text-foreground">{title}</h2>

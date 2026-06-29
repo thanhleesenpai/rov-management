@@ -148,9 +148,9 @@ Phụ lục này bổ sung đặc tả chi tiết cho các Use Case cơ bản (n
 \hline
 \textbf{Luồng chính} &
 (1) Tác nhân chọn tệp Video hoặc Ảnh trong giao diện Upload. \newline
-(2) Frontend gửi \texttt{POST /media/upload-url \{filename, type, size\}} đến backend; hệ thống trả về \texttt{presignedUrl} và \texttt{mediaId}. \newline
+(2) Frontend gửi \texttt{POST /media/upload-url\allowbreak{} \{filename, type, size\}} đến backend; hệ thống trả về \texttt{presignedUrl} và \texttt{mediaId}. \newline
 (3) Frontend tải file trực tiếp lên AWS S3 bằng \texttt{PUT presignedUrl} (không qua backend, không tốn băng thông server). \newline
-(4) Frontend gửi \texttt{POST /media/:id/confirm}; hệ thống cập nhật \texttt{media.status = 'ready'} và tự động parse \texttt{recordedAt} từ tên file nếu có pattern \texttt{\_YYYYMMDD\_HHMMSS}. \newline
+(4) Frontend gửi \texttt{POST /media/:id/confirm}; hệ thống cập nhật \texttt{media.status = 'ready'} và áp dụng cơ chế ưu tiên: nếu \texttt{recordedAt} đã được gán từ \texttt{trip\_master.json} (bước tải lên lô) thì giữ nguyên; ngược lại, tự động parse từ tên file nếu có mẫu \texttt{\_YYYYMMDD\_HHMMSS}; nếu không, \texttt{recordedAt} là \texttt{null}. \newline
 (5) File xuất hiện trong MediaGallery của lượt lặn. \\
 \hline
 \textbf{Luồng phát sinh} & Bước PUT S3 thất bại $\to$ tác nhân không gọi confirm, document Media giữ trạng thái \textit{pending} và được dọn dẹp sau; file lớn hơn 500MB $\to$ presigned URL từ chối. \\

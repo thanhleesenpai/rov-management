@@ -136,7 +136,7 @@ export default function MediaUpload({ tripId, projectId, onClose }) {
   const isUploading = files.some(f => f.status === 'uploading')
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10000] p-4">
       <div className="bg-card rounded-xl shadow-xl w-full max-w-lg border border-border">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">

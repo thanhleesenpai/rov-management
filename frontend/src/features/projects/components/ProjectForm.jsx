@@ -37,7 +37,7 @@ function MapPickerModal({ initLat, initLng, onSelect, onClose }) {
   }, [])
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/60 z-[10000] flex items-center justify-center p-4">
       <div className="bg-card w-full max-w-2xl rounded-xl shadow-xl border border-border flex flex-col overflow-hidden">
         <div className="flex items-center justify-between p-4 border-b border-border bg-card">
           <h3 className="font-semibold text-foreground">Select Location</h3>
@@ -278,7 +278,7 @@ export default function ProjectForm({ projectData, onClose }) {
   )
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[10000] p-4">
       <div className="bg-card rounded-xl shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto border border-border">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-card">
           <h2 className="font-semibold text-foreground">{isEdit ? 'Edit Project' : 'New Project'}</h2>

@@ -1,5 +1,5 @@
 # KẾ HOẠCH VIẾT LẠI ĐỒ ÁN TỐT NGHIỆP
-## Hệ thống quản lý vận hành ROV tích hợp trí tuệ nhân tạo
+## Xây dựng phần mềm điều khiển vận hành ROV - Phân hệ quản lý thông tin nhiệm vụ
 
 **Tài liệu tham chiếu:**
 - Ví dụ mẫu: `DoAn_20225277_v3.pdf` (đồ án đặt vé sự kiện)

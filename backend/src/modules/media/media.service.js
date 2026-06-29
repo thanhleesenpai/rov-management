@@ -63,13 +63,13 @@ const confirmUpload = async (mediaId) => {
 
   const update = { status: 'ready', analysisStatus: 'idle' };
 
-  // Filename timestamp always wins over auto-sync value set during presigned URL creation.
-  // Only fall back to auto-sync (already stored in media.recordedAt) if filename has no pattern.
-  if (media.originalName) {
+  // Priority: manifest (set during presigned URL) > filename > sensor auto-sync > null
+  // If recordedAt already stored (came from manifest or sensor auto-sync) → keep it.
+  // If null → fall back to filename pattern parsing.
+  if (media.originalName && !media.recordedAt) {
     const { parseTimestampFromFilename } = require('../../utils/parseTimestamp.util');
     const parsed = parseTimestampFromFilename(media.originalName);
     if (parsed) update.recordedAt = parsed;
-    // else: keep whatever recordedAt was stored (auto-sync or null)
   }
 
   return Media.findByIdAndUpdate(mediaId, update, { new: true })

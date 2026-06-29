@@ -1,0 +1,44 @@
+@startuml act_data_workflow_a
+skinparam backgroundColor White
+skinparam activity {
+  BackgroundColor White
+  BorderColor #555
+  DiamondBackgroundColor #FFF7E0
+  DiamondBorderColor #888
+  FontSize 13
+}
+skinparam swimlane {
+  BorderColor #888
+  TitleFontStyle bold
+  TitleFontSize 13
+}
+skinparam arrow {
+  Color #555
+  FontSize 11
+}
+
+|Operator|
+start
+:Kết thúc nhiệm vụ thực địa\n(ROV về bờ);
+:Đăng nhập hệ thống;
+:Tạo Chuyến khảo sát (Project)\nvà Lượt lặn (Trip) tương ứng;
+:Upload file ZIP (CSV cảm biến,\nVideo/Ảnh, trip.json);
+
+|Backend|
+:Validate file & cột dữ liệu;
+:Parse recordedAt theo ưu tiên:\n(1) trip.json manifest\n(2) tên file _YYYYMMDD_HHMMSS\n(3) null;
+:Lưu SensorData vào MongoDB\n(gán sourceFile);
+:Tính Z-Score phát hiện bất thường\n(|z| > 2.5 → đánh dấu anomaly);
+:Reverse Geocoding GPS → Địa danh\n(Nominatim OSM);
+:Lưu Media lên AWS S3\n(xác nhận Presigned URL);
+
+|Operator|
+:Xem biểu đồ cảm biến đồng bộ\nvới video trong TripDetailPage;
+
+note right #FFFF99
+  **Tiếp theo Hình b**
+end note
+
+stop
+
+@enduml

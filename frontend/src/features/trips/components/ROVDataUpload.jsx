@@ -11,18 +11,20 @@ import api from '@/lib/axios'
 // ── Type config ───────────────────────────────────────────────────────────────
 
 const TYPE = {
-  sensor:  { label: 'Sensor CSV', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',      Icon: Activity  },
-  dvl:     { label: 'DVL Path',   cls: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300', Icon: Radio  },
-  sonar:   { label: 'Sonar',      cls: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',       Icon: Waves     },
-  video:   { label: 'Video',      cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',   Icon: Film      },
-  image:   { label: 'Image',      cls: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300',       Icon: ImageIcon },
-  zip:     { label: 'ZIP',        cls: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300', Icon: Archive },
-  unknown: { label: 'Unknown',    cls: 'bg-muted text-muted-foreground',                                          Icon: File      },
+  sensor:   { label: 'Sensor CSV', cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',        Icon: Activity  },
+  dvl:      { label: 'DVL Path',   cls: 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300', Icon: Radio     },
+  sonar:    { label: 'Sonar',      cls: 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/40 dark:text-cyan-300',         Icon: Waves     },
+  video:    { label: 'Video',      cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300',     Icon: Film      },
+  image:    { label: 'Image',      cls: 'bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300',         Icon: ImageIcon },
+  zip:      { label: 'ZIP',        cls: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-300', Icon: Archive   },
+  manifest: { label: 'Manifest',   cls: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300', Icon: File      },
+  unknown:  { label: 'Unknown',    cls: 'bg-muted text-muted-foreground',                                           Icon: File      },
 }
 
 function classify(filepath) {
   const lower = filepath.toLowerCase()
   const base  = lower.split('/').pop()
+  if (base === 'trip.json')  return 'manifest'
   if (base.match(/^dvl_.*\.json$/)) return 'dvl'
   if (lower.endsWith('.sonar'))     return 'sonar'
   if (lower.endsWith('.zip'))       return 'zip'
@@ -30,6 +32,13 @@ function classify(filepath) {
   if (lower.match(/\.(mp4|webm|mov|avi|mkv)$/)) return 'video'
   if (lower.match(/\.(jpg|jpeg|png|webp)$/))    return 'image'
   return 'unknown'
+}
+
+// Parse session_YYYYMMDD_HHMMSS → Date (UTC+7)
+function parseSessionId(sessionId) {
+  const m = sessionId.match(/session_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/)
+  if (!m) return null
+  return new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}+07:00`)
 }
 
 function fmtSize(b) {
@@ -183,19 +192,44 @@ function parseCsvPreview(text, filename) {
 
 // ── Auto-sync: apply sensor first timestamp to video items ────────────────────
 
-// If the filename already encodes a timestamp (pattern _YYYYMMDD_HHMMSS), the
-// backend will parse it in confirmUpload — don't override with sensor auto-sync.
-function filenameHasTimestamp(name = '') {
-  return /_\d{8}_\d{6}/.test(name)
+// Parse _YYYYMMDD_HHMMSS from filename → Date (UTC+7), mirrors backend parseTimestamp.util.js
+function parseTimestampFromFilename(filename = '') {
+  const m = filename.match(/_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/)
+  if (!m) return null
+  return new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}+07:00`)
 }
 
 function applyAutoSync(items) {
+  // Priority 1: manifest — ms-precision timestamps from ROV log
+  const manifestItem = items.find(i => i.type === 'manifest' && i.manifest)
+  const manifestTiming = new Map()
+  if (manifestItem) {
+    for (const session of manifestItem.manifest.sessions || []) {
+      const sessionStart = parseSessionId(session.session_id)
+      if (!sessionStart) continue
+      for (const asset of session.assets || []) {
+        if (asset.type === 'video' || asset.type === 'photo') {
+          manifestTiming.set(asset.file.split('/').pop(), new Date(sessionStart.getTime() + (asset.start_ms || 0)))
+        }
+      }
+    }
+  }
+
+  // Priority 3: sensor first timestamp (fallback for videos with no timestamp in name)
   const sensorTs = items.find(i => i.type === 'sensor' && i.preview?.firstTimestamp)?.preview?.firstTimestamp
-  if (!sensorTs) return items
+
   return items.map(item => {
     if (item.type !== 'video') return item
-    if (filenameHasTimestamp(item.name || item.file?.name || '')) return item
-    return { ...item, recordedAt: sensorTs, recordedAtAutoSync: true }
+    // 1. Manifest
+    if (manifestTiming.has(item.filename)) {
+      return { ...item, recordedAt: manifestTiming.get(item.filename), recordedAtSource: 'manifest' }
+    }
+    // 2. Filename pattern (_YYYYMMDD_HHMMSS) — parse explicitly so backend confirmUpload sees it already set
+    const filenameTs = parseTimestampFromFilename(item.filename || item.file?.name || '')
+    if (filenameTs) return { ...item, recordedAt: filenameTs, recordedAtSource: 'filename' }
+    // 3. Sensor first timestamp
+    if (sensorTs) return { ...item, recordedAt: sensorTs, recordedAtAutoSync: true }
+    return item
   })
 }
 
@@ -265,6 +299,14 @@ async function analyzeFile(file) {
       const preview = await parseSonarPreview(file)
       return { ...base, preview, ok: true, error: null }
     }
+    if (type === 'manifest') {
+      const text = await file.text()
+      const manifest = JSON.parse(text)
+      const sessions = manifest.sessions?.length ?? 0
+      const videoCount = manifest.sessions?.reduce((n, s) =>
+        n + (s.assets?.filter(a => a.type === 'video' || a.type === 'photo').length ?? 0), 0) ?? 0
+      return { ...base, manifest, preview: { sessions, videoCount }, ok: true, error: null }
+    }
     return { ...base, preview: null, ok: type !== 'unknown', error: null }
   } catch (e) {
     return { ...base, preview: null, ok: false, error: e.message }
@@ -316,9 +358,11 @@ function ItemRow({ item, onRemove }) {
               `${item.preview.valid.toLocaleString()} valid pts (${item.preview.total} total)`}
             {item.type === 'sonar' && item.preview &&
               `${item.preview.frames} frames · ${fmtMs(item.preview.durationMs)} · ${fmtSize(item.size)}`}
+            {item.type === 'manifest' && item.preview &&
+              `${item.preview.sessions} session(s) · ${item.preview.videoCount} video/photo`}
             {item.type === 'video' && (
               item.recordedAt
-                ? <>{fmtSize(item.size)} · <span className="text-primary">⏱ {new Date(item.recordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}{item.recordedAtAutoSync ? ' (synced)' : ''}</span></>
+                ? <>{fmtSize(item.size)} · <span className="text-primary">⏱ {new Date(item.recordedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}{item.recordedAtSource === 'manifest' ? ' (manifest)' : item.recordedAtSource === 'filename' ? ' (filename)' : item.recordedAtAutoSync ? ' (synced)' : ''}</span></>
                 : fmtSize(item.size)
             )}
             {item.type === 'image' && fmtSize(item.size)}
@@ -362,13 +406,25 @@ function ItemRow({ item, onRemove }) {
 // ── Result summary ────────────────────────────────────────────────────────────
 
 function ResultSummary({ result }) {
-  const { sensor, dvl, sonar, uploadedMediaCount, mediaErrors, tripCreated, errors } = result
+  const { sensor, dvl, sonar, manifest, uploadedMediaCount, mediaErrors, tripCreated, errors } = result
   return (
     <div className="space-y-1.5">
       {tripCreated && (
         <div className="flex items-center gap-2 text-xs text-primary bg-primary/10 rounded-lg px-3 py-2">
           <CheckCircle2 size={13} />
           Created: <span className="font-medium">{tripCreated}</span>
+        </div>
+      )}
+      {manifest?.detected && manifest.videoSuggestions?.length > 0 && (
+        <div className="flex items-center gap-2 text-xs text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg px-3 py-2">
+          <CheckCircle2 size={13} className="shrink-0" />
+          Manifest: {manifest.videoSuggestions.length} video/photo timestamp(s) detected
+        </div>
+      )}
+      {manifest?.error && (
+        <div className="flex items-center gap-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2">
+          <AlertCircle size={13} className="shrink-0" />
+          Manifest: {manifest.error}
         </div>
       )}
       {sensor?.ok && (
@@ -488,7 +544,7 @@ export default function ROVDataUpload({ projectId, trip, onClose, onTripCreated 
     if (files.length) addFiles(files)
   }
 
-  const batchItems = items.filter(i => ['sensor', 'dvl', 'sonar', 'zip'].includes(i.type) && i.ok)
+  const batchItems = items.filter(i => ['sensor', 'dvl', 'sonar', 'zip', 'manifest'].includes(i.type) && i.ok)
   const mediaItems = items.filter(i => ['video', 'image'].includes(i.type) && i.ok)
   const uploadableCount = batchItems.length + mediaItems.length
   const sensorCount = items.filter(i => i.type === 'sensor' && i.ok).length
@@ -601,7 +657,7 @@ export default function ROVDataUpload({ projectId, trip, onClose, onTripCreated 
   }[uploadStep] ?? `Uploading… ${uploadProgress}%`
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10000] p-4">
       <div className="bg-card rounded-xl shadow-xl w-full max-w-lg border border-border flex flex-col max-h-[90vh]">
 
         {/* Header */}

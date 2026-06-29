@@ -1599,7 +1599,7 @@ Seed: `cd backend && node src/scripts/seed.js`
 
 ---
 
-## TASK 8 — trip_master.json Manifest Support
+## TASK 9 — trip_master.json Manifest Support
 
 ROV xuất file `trip_master.json` đặt ở root thư mục trip khi kết thúc lặn. File này chứa metadata chính xác về từng recording session — timestamp tuyệt đối, loại file, trạng thái kết nối.
 

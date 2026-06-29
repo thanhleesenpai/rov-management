@@ -241,6 +241,7 @@ export default function TripDetailPage() {
   const toolbarTimeoutRef = useRef(null)
   const evidenceToolbarTimeoutRef = useRef(null)
   const mobileToolbarTimeoutRef = useRef(null)
+  const autoPlayNextRef = useRef(false)
   const [mobileToolbarVisible, setMobileToolbarVisible] = useState(false)
   const [canShowHorizontalPlaylist, setCanShowHorizontalPlaylist] = useState(false)
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 1024)
@@ -579,7 +580,18 @@ export default function TripDetailPage() {
     return Object.values(map).sort((a, b) => b.maxConf - a.maxConf)
   }, [activeEvidence?.aiLabels])
 
-  const handleVideoEnded = useCallback(() => { }, [])
+  const handleVideoEnded = useCallback(() => {
+    if (!media?.recordedAt) return
+    const currentStartMs = new Date(media.recordedAt).getTime()
+    const next = mediaList
+      .map((m, i) => ({ m, i }))
+      .filter(({ m, i }) => i !== selIdx && m.recordedAt && new Date(m.recordedAt).getTime() > currentStartMs)
+      .sort((a, b) => new Date(a.m.recordedAt) - new Date(b.m.recordedAt))[0]
+    if (next) {
+      autoPlayNextRef.current = true
+      setSelIdx(next.i)
+    }
+  }, [media, selIdx, mediaList])
 
   const handleEvidenceVideoMouseMove = useCallback(() => {
     setEvidenceShowToolbar(true)
@@ -599,7 +611,13 @@ export default function TripDetailPage() {
     setVideoDuration(e.target.duration || 0)
     setCurrentVideoTime(0)
     setVideoMetadataVersion(v => v + 1)
-    showCenterPauseBriefly()
+    if (autoPlayNextRef.current) {
+      autoPlayNextRef.current = false
+      e.target.play().catch(() => {})
+    } else {
+      setIsVideoPlaying(false)
+      showCenterPauseBriefly()
+    }
   }, [showCenterPauseBriefly])
 
   // Update sync timestamp and current time on video timeupdate
