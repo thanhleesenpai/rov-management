@@ -1,0 +1,52 @@
+@startuml seq_sensor_upload
+skinparam backgroundColor White
+skinparam sequenceArrowThickness 1.5
+skinparam sequenceParticipant {
+  BackgroundColor White
+  BorderColor #555
+  FontSize 11
+}
+skinparam sequenceLifeLineBorderColor #888
+skinparam sequenceGroupBorderColor #888
+skinparam note {
+  BackgroundColor #FFFDE7
+  BorderColor #BBB
+}
+
+actor "Operator" as OP
+participant "Frontend\n(React)" as FE
+participant "Backend\n(Express)" as BE
+participant "MongoDB" as DB
+participant "Nominatim OSM" as NOM
+
+OP -> FE : Chọn file CSV\n(kéo thả / browse)
+FE -> FE : Parse CSV phía client\nValidate các cột bắt buộc\n(timestamp, depth, temp, pressure)
+
+alt Định dạng hợp lệ
+  FE -> BE : POST /trips/:id/sensor-data/upload\n{readings[], sourceFile: "log_xxx.csv"}
+
+  BE -> BE : Kiểm tra sourceFile đã tồn tại?\n→ Xoá data cũ cùng tên nếu có
+
+  alt sourceFile mới hoàn toàn
+    BE -> DB : aggregate: lấy maxTimestamp\ntrong trip hiện tại
+    BE -> BE : Lọc readings > maxTimestamp\n(first-in-first-keep logic)
+  end
+
+  BE -> DB : SensorData.insertMany(readings)\nvới field sourceFile = "log_xxx.csv"
+  BE -> BE : Z-Score anomaly detection\n(tính |z| > 2.5 cho depth/temp/pressure)
+  BE -> DB : Update trip.sensorCount
+
+  alt Dòng đầu có GPS (lat, lng)
+    BE -> NOM : GET /reverse?lat=16.05&lon=108.20\nAccept: application/json
+    NOM --> BE : {"display_name": "Đà Nẵng,\nthành phố Đà Nẵng, Việt Nam"}
+    BE -> DB : Update trip.gpsLocation = {lat, lng}\ntrip.locationName = "Đà Nẵng..."
+  end
+
+  BE --> FE : 200 {count, anomalies[], warning?, droppedCount?}
+  FE --> OP : Toast xanh: "850 readings uploaded"\nChart tự render với data mới
+
+else Định dạng không hợp lệ
+  FE --> OP : Toast đỏ:\n"Thiếu cột: [depth, pressure]"
+end
+
+@enduml

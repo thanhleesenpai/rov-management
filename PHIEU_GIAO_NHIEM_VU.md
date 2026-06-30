@@ -64,7 +64,7 @@
 
 ### 3.4. Sản phẩm kỳ vọng:
 - Hệ thống web quản lý vận hành ROV hoàn chỉnh, có thể triển khai thực tế;
-- Hỗ trợ operator theo dõi, ghi nhận và phân tích dữ liệu từng chuyến lặn (trip);
+- Hỗ trợ operator theo dõi, ghi nhận và phân tích dữ liệu từng chuyến lặn (project);
 - Tích hợp AI tự động tóm tắt chuyến lặn và phát hiện dữ liệu cảm biến bất thường;
 - Dashboard trực quan với biểu đồ thống kê hoạt động ROV theo thời gian.
 
@@ -117,7 +117,7 @@ Chi tiết:
 Chi tiết:
 - Xây dựng các API services;
 - Xây dựng module xác thực, phân quyền người dùng;
-- Xây dựng module quản lý ROV, chuyến lặn (Trip), công việc (Job);
+- Xây dựng module quản lý ROV, chuyến lặn (Project), công việc (Job);
 - Xây dựng module lưu trữ và quản lý media trên AWS S3;
 - Xây dựng module tích hợp AI phân tích và tóm tắt dữ liệu chuyến lặn;
 - Xây dựng Dashboard thống kê và báo cáo.

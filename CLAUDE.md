@@ -14,7 +14,7 @@ Backend API (Node.js)
 
 Web App (React)
     └── Người dùng đăng nhập xem dữ liệu đã lưu:
-        ROV info, trip history, sensor charts, media gallery
+        ROV info, project history, sensor charts, media gallery
 ```
 **Không có GCS tự động** — ngoài thực địa không có wifi. Operator upload thủ công sau khi về bờ.
 
@@ -35,10 +35,10 @@ Web App (React)
 | Queue | Bull (Redis-backed) | Async jobs: AI summary generation, email |
 | Storage | AWS S3 (presigned URL) | |
 | Auth | JWT — access 15 phút + refresh 7 ngày | Google OAuth2 via Passport.js |
-| AI | Gemini 2.5 Flash (Google) | Trip summary sau khi hoàn tất |
+| AI | Gemini 2.5 Flash (Google) | Project summary sau khi hoàn tất |
 | Computer Vision | YOLOv8 (Python FastAPI microservice) | Nhận diện vật thể trong ảnh/video ROV |
 | Anomaly Detection | Z-Score (tự implement) | Phát hiện bất thường sensor data |
-| Email | Nodemailer + Gmail SMTP | Notify dive failed / trip completed |
+| Email | Nodemailer + Gmail SMTP | Notify trip failed / project completed |
 
 ---
 
@@ -63,8 +63,8 @@ rov-management/
 │       ├── auth/                   # register, login, logout, refresh, me, updateMe, changePassword
 │       ├── users/                  # getAllUsers, updateUser, toggleStatus, bulkStatus, bulkRole
 │       ├── rovs/                   # CRUD ROV
-│       ├── trips/                  # CRUD Trip + filter nâng cao
-│       ├── dives/                  # CRUD Dive
+│       ├── projects/                  # CRUD Project + filter nâng cao
+│       ├── trips/                  # CRUD Trip
 │       ├── media/                  # presigned upload, gallery, reorder, bulkDelete
 │       ├── stats/                  # overview aggregation
 │       ├── notifications/          # SSE stream, CRUD notifications
@@ -87,8 +87,8 @@ rov-management/
         ├── auth/                    # LoginPage, RegisterPage
         ├── dashboard/               # charts + stat cards
         ├── rovs/                    # RovsPage, RovDetailPage, RovForm
-        ├── trips/                   # TripsPage, TripDetailPage, TripForm
-        ├── dives/                   # DivesPage, DiveList, DiveForm
+        ├── projects/                   # ProjectsPage, ProjectDetailPage, ProjectForm
+        ├── trips/                   # TripsPage, TripList, TripForm
         ├── media/                   # MediaGallery, MediaUpload
         ├── users/                   # UsersPage (admin only)
         └── profile/                 # ProfilePage — tabs: profile, password, settings
@@ -100,7 +100,7 @@ rov-management/
 | Role | Quyền |
 |------|-------|
 | `viewer` | Chỉ đọc |
-| `operator` | Tạo/sửa trip, dive; upload media |
+| `operator` | Tạo/sửa project, trip; upload media |
 | `admin` | Toàn quyền + quản lí user + xóa resource |
 
 ---
@@ -115,9 +115,9 @@ Axios interceptor trả về `response.data` → query result = `{ success, mess
 **Cấu trúc `data` theo endpoint:**
 | Endpoint | Cấu trúc data |
 |----------|--------------|
-| Paginated (trips, dives, rovs, media) | `{ data: [...], total, page, totalPages }` |
+| Paginated (projects, trips, rovs, media) | `{ data: [...], total, page, totalPages }` |
 | Users | `{ users: [...], total, page, totalPages }` |
-| Stats | `{ tripByStatus, diveByStatus, rovUtilization, activityTimeline, ... }` |
+| Stats | `{ projectByStatus, tripByStatus, rovUtilization, activityTimeline, ... }` |
 | Single object | `{ _id, ... }` |
 
 **Export functions:** nhận kết quả `await api.get(...)` trực tiếp → `res.data.data` = array (hoặc `res.data.users` cho users).
@@ -156,30 +156,30 @@ Axios interceptor trả về `response.data` → query result = `{ success, mess
 
 ### ROV Registry (đầy đủ)
 - CRUD: `GET/POST /rovs`, `GET/PATCH/DELETE /rovs/:id`
-- RovDetailPage: 4 stat cards + trip history
+- RovDetailPage: 4 stat cards + project history
 - Export CSV + PDF
 
-### Trip Management (đầy đủ)
-- CRUD: `GET/POST /trips`, `GET/PATCH/DELETE /trips/:id`
+### Project Management (đầy đủ)
+- CRUD: `GET/POST /projects`, `GET/PATCH/DELETE /projects/:id`
 - Filter: status, rovId, fromDate, toDate, search
 - Export CSV + PDF
 
-### Dive Management (đầy đủ)
-- Tạo: `POST /trips/:tripId/dives` | Actions: `PATCH/DELETE /dives/:id`
-- DivesPage: danh sách, filter by status + date range
-- Hiển thị chính trong TripDetailPage
+### Trip Management (đầy đủ)
+- Tạo: `POST /projects/:projectId/trips` | Actions: `PATCH/DELETE /trips/:id`
+- TripsPage: danh sách, filter by status + date range
+- Hiển thị chính trong ProjectDetailPage
 - Export CSV + PDF
 
 ### Media / AWS S3 (đầy đủ)
 - Upload qua presigned URL, confirm sau khi upload xong
-- Gallery: xem theo trip, drag-to-reorder, lightbox
+- Gallery: xem theo project, drag-to-reorder, lightbox
 - Bulk select + delete (admin)
 - Media model: s3Key, url, type, size, status (pending/ready/failed), order
 
 ### Dashboard (đầy đủ)
-- Stat cards: Total Trips, Running Dives, Active ROVs, Total Users
-- Biểu đồ: Trip Status donut, Dives by Status bar, ROV Utilization horizontal bar
-- Activity timeline 6 tháng (trips / dives / media)
+- Stat cards: Total Projects, Running Trips, Active ROVs, Total Users
+- Biểu đồ: Project Status donut, Trips by Status bar, ROV Utilization horizontal bar
+- Activity timeline 6 tháng (projects / trips / media)
 - Backend: 7 MongoDB aggregations song song
 
 ### Tiện ích (đầy đủ)
@@ -242,8 +242,8 @@ GOOGLE_CALLBACK_URL=http://localhost:5000/api/v1/auth/google/callback
    Index: `{ userId: 1, isRead: 1, createdAt: -1 }`
 2. `notification.service.js`: hàm `create(userId, type, title, body, link)` — lưu DB + push SSE
 3. Trigger tại các sự kiện:
-   - Dive status → `done` / `failed` → notify user tạo dive
-   - Trip status → `completed` → notify operator liên quan
+   - Trip status → `done` / `failed` → notify user tạo trip
+   - Project status → `completed` → notify operator liên quan
    - Admin bulk-disable user → notify user bị disable
 4. REST routes: `GET /notifications`, `PATCH /notifications/:id/read`, `PATCH /notifications/read-all`
 
@@ -262,7 +262,7 @@ GOOGLE_CALLBACK_URL=http://localhost:5000/api/v1/auth/google/callback
 
 **Checklist sau TASK 2:**
 - [x] Logout → access token vào Redis blacklist, dùng lại token cũ → 401 (refresh token xóa khỏi DB)
-- [x] Đổi dive sang `done` → bell badge đỏ xuất hiện ngay (SSE push, không cần reload)
+- [x] Đổi trip sang `done` → bell badge đỏ xuất hiện ngay (SSE push, không cần reload)
 - [x] Click bell → dropdown đúng thông báo
 - [x] Click thông báo → navigate đúng trang, badge giảm
 - [x] "Mark all as read" → badge biến mất
@@ -270,7 +270,7 @@ GOOGLE_CALLBACK_URL=http://localhost:5000/api/v1/auth/google/callback
 
 ---
 
-### TASK 3 — AI Trip Summary + Bull Queue ⭐
+### TASK 3 — AI Project Summary + Bull Queue ⭐
 **Tại sao cần:** Tính năng AI bắt buộc cho đồ án. Bull Queue xử lý async — AI call có thể mất 5-15s, không nên block HTTP request.
 
 **3a — Bull Queue setup:**
@@ -281,25 +281,25 @@ GOOGLE_CALLBACK_URL=http://localhost:5000/api/v1/auth/google/callback
 
 **3b — AI Summary backend:**
 1. Cài: `npm i openai` (hoặc `@anthropic-ai/sdk`)
-2. `modules/ai/ai.service.js`: hàm `generateTripSummary(trip, dives, mediaCount)` → gọi API
-   - Prompt: tên trip, location, thời gian, danh sách dives + status, số media
-3. Thêm field vào `trip.model.js`:
+2. `modules/ai/ai.service.js`: hàm `generateProjectSummary(project, trips, mediaCount)` → gọi API
+   - Prompt: tên project, location, thời gian, danh sách trips + status, số media
+3. Thêm field vào `project.model.js`:
    - `aiSummary: { content: String, generatedAt: Date, status: 'idle'|'pending'|'done'|'failed' }`
-4. `POST /trips/:id/ai-summary` — enqueue Bull job, set `aiSummary.status = 'pending'`, trả 202
+4. `POST /projects/:id/ai-summary` — enqueue Bull job, set `aiSummary.status = 'pending'`, trả 202
 5. Bull worker xử lý → lưu `aiSummary.content` + `status = 'done'` → push SSE đến user
 
 **Frontend — subtasks:**
-1. Trong `TripDetailPage.jsx`, thêm section "AI Summary" phía dưới Dives
+1. Trong `ProjectDetailPage.jsx`, thêm section "AI Summary" phía dưới Trips
 2. Hiển thị content nếu `aiSummary.status === 'done'` + "Generated at ..."
-3. Button "Generate Summary" (trip completed + operator/admin) → POST → spinner
-4. Poll `GET /trips/:id` mỗi 3s khi `status === 'pending'` để biết khi nào xong
+3. Button "Generate Summary" (project completed + operator/admin) → POST → spinner
+4. Poll `GET /projects/:id` mỗi 3s khi `status === 'pending'` để biết khi nào xong
 5. Button "Regenerate" nếu đã có summary
 
 **Checklist sau TASK 3:**
-- [x] Trip completed → bấm "Generate Summary" → trả 202, spinner xuất hiện
+- [x] Project completed → bấm "Generate Summary" → trả 202, spinner xuất hiện
 - [x] Sau vài giây → summary tự cập nhật (poll 3s khi pending)
 - [x] Reload → summary vẫn còn (lưu DB)
-- [x] Trip chưa completed → không thấy button
+- [x] Project chưa completed → không thấy button
 - [x] Viewer thấy summary nhưng không thấy button Generate
 
 ---
@@ -310,7 +310,7 @@ GOOGLE_CALLBACK_URL=http://localhost:5000/api/v1/auth/google/callback
 **Backend — subtasks:**
 1. `AuditLog` model: `action, entity, entityId, userId (ref), details (Mixed), createdAt`
 2. `audit.service.js`: hàm `log(userId, action, entity, entityId, details)`
-3. Gọi trong các controller: tạo/xóa trip, xóa ROV, đổi role, bulk operations
+3. Gọi trong các controller: tạo/xóa project, xóa ROV, đổi role, bulk operations
 4. `GET /audit?page&limit&entity&userId` — admin only
 
 **Frontend — subtasks:**
@@ -319,7 +319,7 @@ GOOGLE_CALLBACK_URL=http://localhost:5000/api/v1/auth/google/callback
 3. Filter theo entity type
 
 **Checklist sau TASK 4:**
-- [x] Tạo trip → log xuất hiện trong audit
+- [x] Tạo project → log xuất hiện trong audit
 - [x] Xóa ROV → log "Deleted ROV X"
 - [x] Đổi role user → log ghi đúng, hiện email user bị đổi
 - [x] Toggle status user → log activate/disable + email
@@ -331,20 +331,20 @@ GOOGLE_CALLBACK_URL=http://localhost:5000/api/v1/auth/google/callback
 ### TASK 5 — Sensor Data Upload (manual via web)
 **Mô tả:** Operator upload file CSV/JSON chứa sensor data sau khi ROV về bờ. Không có GCS tự động vì ngoài thực địa không có wifi.
 
-**Lưu ý thiết kế:** Dive = 1 lần lặn → sensor data gắn với Dive, không phải Trip.
+**Lưu ý thiết kế:** Trip = 1 lần lặn → sensor data gắn với Trip, không phải Project.
 
 **Backend — subtasks:**
-1. `SensorData` model: `{ dive, timestamp, depth, temp, pressure, yaw, pitch, roll, voltage, battery_percent, humidity }` — dive là 1 lần lặn
-   Index: `{ dive: 1, timestamp: -1 }`; `dive.sensorCount` lưu số readings
-2. `POST /dives/:id/sensor-data/upload` — nhận array readings, lưu bulk vào DB
-3. Khi upload, đọc `lat`/`lng` từ dòng đầu tiên (nếu có) → lưu vào **Dive** `gpsLocation: { lat, lng }` + gọi **OpenStreetMap Nominatim reverse geocoding** → lưu `dive.locationName` (GPS là vị trí của lần lặn cụ thể đó, không phải toàn trip)
-4. `DELETE /dives/:id/sensor-data` — xóa sensor data của dive đó
+1. `SensorData` model: `{ trip, timestamp, depth, temp, pressure, yaw, pitch, roll, voltage, battery_percent, humidity }` — trip là 1 lần lặn
+   Index: `{ trip: 1, timestamp: -1 }`; `trip.sensorCount` lưu số readings
+2. `POST /trips/:id/sensor-data/upload` — nhận array readings, lưu bulk vào DB
+3. Khi upload, đọc `lat`/`lng` từ dòng đầu tiên (nếu có) → lưu vào **Trip** `gpsLocation: { lat, lng }` + gọi **OpenStreetMap Nominatim reverse geocoding** → lưu `trip.locationName` (GPS là vị trí của lần lặn cụ thể đó, không phải toàn project)
+4. `DELETE /trips/:id/sensor-data` — xóa sensor data của trip đó
 
 **Frontend — subtasks:**
-1. `SensorUpload` component trong DiveCard expanded section (operator/admin)
+1. `SensorUpload` component trong TripCard expanded section (operator/admin)
 2. Parse file phía client → validate → gửi array lên backend
 3. Hiển thị số readings, nút "Clear" với confirm dialog
-4. Badge sensor count trong dive card header
+4. Badge sensor count trong trip card header
 
 **Format file được hỗ trợ:**
 ```csv
@@ -352,58 +352,58 @@ timestamp,depth,temp,pressure[,lat,lng,yaw,pitch,roll,voltage,battery_percent,hu
 2026-05-07T08:00:00Z,10.5,24.3,1.23,16.0544,108.2022,183.2,-1.2,0.8,16.80,100,28.1
 ```
 - `depth`(m), `temp`(°C), `pressure`(bar), `timestamp` — bắt buộc
-- `lat`/`lng` — optional, chỉ đọc dòng đầu làm GPS cố định của dive
+- `lat`/`lng` — optional, chỉ đọc dòng đầu làm GPS cố định của trip
 - `yaw`/`pitch`/`roll`(°) — optional, hiển thị tab Navigation + live gauge
 - `voltage`(V), `battery_percent`(%), `humidity`(%) — optional, hiển thị tab System
 - File mẫu: `test-data/sensor-sample-full.csv` (60 readings, GPS Đà Nẵng, 2 anomaly spikes)
 
 **Checklist sau TASK 5:**
-- [x] Upload file CSV hợp lệ → data lưu DB (gắn với dive, không phải trip)
+- [x] Upload file CSV hợp lệ → data lưu DB (gắn với trip, không phải project)
 - [x] Upload file sai format → báo lỗi rõ ràng
-- [x] Upload lại → xóa data cũ của dive đó, lưu data mới
-- [x] File có lat/lng → dive.gpsLocation và dive.locationName được cập nhật (Nominatim reverse geocoding)
+- [x] Upload lại → xóa data cũ của trip đó, lưu data mới
+- [x] File có lat/lng → trip.gpsLocation và trip.locationName được cập nhật (Nominatim reverse geocoding)
 - [x] Viewer không thấy upload section
 - [x] AI summary dùng locationName khi có GPS data
-- [x] Badge sensor count hiện trong dive card header
+- [x] Badge sensor count hiện trong trip card header
 
 ---
 
 ### TASK 6 — Sensor Data Display + Anomaly Detection + Map ✅
-**Mô tả:** API backend trả sensor data + stats + anomalies. Component `SensorChart.jsx` dùng trong TripDetailPage (DiveCard expanded). Raw Leaflet map ghim GPS.
+**Mô tả:** API backend trả sensor data + stats + anomalies. Component `SensorChart.jsx` dùng trong ProjectDetailPage (TripCard expanded). Raw Leaflet map ghim GPS.
 
 **Backend — subtasks:**
-1. `GET /dives/:id/sensor-data` → query SensorData theo dive, trả array readings + stats
+1. `GET /trips/:id/sensor-data` → query SensorData theo trip, trả array readings + stats
 2. Aggregate: min/max/avg cho mỗi metric (depth, temp, pressure)
 3. Anomaly Detection: Z-Score (|z| > 2.5) cho từng metric
 4. Trả về `{ data, stats, anomalies: [{ index, metric, value, zScore, timestamp }] }`
-5. `dive.locationName` được dùng trong AI summary prompt (Gemini nhận tên địa danh thay vì tọa độ số)
+5. `trip.locationName` được dùng trong AI summary prompt (Gemini nhận tên địa danh thay vì tọa độ số)
 
 **Frontend — subtasks:**
-1. Component `SensorChart.jsx` — AreaChart Recharts với depth, temp, pressure (dùng trong DiveCard)
+1. Component `SensorChart.jsx` — AreaChart Recharts với depth, temp, pressure (dùng trong TripCard)
 2. Highlight điểm bất thường màu đỏ trên biểu đồ (custom dot)
 3. Toggle hiện/ẩn từng đường (Legend clickable)
 4. Panel "Anomalies Detected" liệt kê các điểm bất thường
-5. Map nhỏ (raw Leaflet) ghim 1 Marker tại `dive.gpsLocation` — chỉ hiện nếu có GPS
-6. Link từ DiveCard trong TripDetailPage → `/dives/:id`
+5. Map nhỏ (raw Leaflet) ghim 1 Marker tại `trip.gpsLocation` — chỉ hiện nếu có GPS
+6. Link từ TripCard trong ProjectDetailPage → `/trips/:id`
 
 **Checklist sau TASK 6:**
-- [x] Dive có sensor data → chart hiển thị đúng 3 metrics
+- [x] Trip có sensor data → chart hiển thị đúng 3 metrics
 - [x] Điểm bất thường tự động highlight đỏ trên biểu đồ
 - [x] Panel anomalies liệt kê đúng các điểm bất thường
 - [x] Toggle từng metric trên Legend hoạt động
-- [x] Dive có GPS → map hiện Marker + tên địa danh (raw Leaflet, không dùng react-leaflet vì incompatible với React 18.3)
-- [x] Dive không có GPS → map ẩn, không crash
-- [x] Dive không có data → empty state thân thiện (SensorChart)
-- [x] Link từ DiveCard (TripDetailPage) → `/dives/:id`
+- [x] Trip có GPS → map hiện Marker + tên địa danh (raw Leaflet, không dùng react-leaflet vì incompatible với React 18.3)
+- [x] Trip không có GPS → map ẩn, không crash
+- [x] Trip không có data → empty state thân thiện (SensorChart)
+- [x] Link từ TripCard (ProjectDetailPage) → `/trips/:id`
 
 ---
 
-### TASK 6a — DiveDetailPage Cockpit Layout ✅
-**Mô tả:** Trang `/dives/:id` với layout 3 cột kiểu "cockpit" — không cuộn trang, tối ưu cho màn hình 1080p. Hỗ trợ cả light mode và dark mode.
+### TASK 6a — TripDetailPage Cockpit Layout ✅
+**Mô tả:** Trang `/trips/:id` với layout 3 cột kiểu "cockpit" — không cuộn trang, tối ưu cho màn hình 1080p. Hỗ trợ cả light mode và dark mode.
 
 **Layout đã thực hiện:**
 ```
-Header (h-14): status badge · title · trip/location meta · DATA SYNCED · action buttons · Export
+Header (h-14): status badge · title · project/location meta · DATA SYNCED · action buttons · Export
 ─────────────────────────────────────────────────────────────────────
 Left col (w-56)          │ Center col (flex-1)       │ Right col (w-56)
   LOCATION                │  bg-black rounded-xl      │  NAVIGATION
@@ -487,7 +487,7 @@ Luồng 2 — Phân tích snapshot/clip (Evidence System):
 **Frontend — subtasks:**
 1. Hiển thị labels dưới ảnh/video trong MediaGallery/lightbox dạng badge
 2. Badge xanh nếu confidence > 80%, vàng nếu 50-80%
-3. Trong DiveDetailPage: hiển thị labels khi media đang active trong center column
+3. Trong TripDetailPage: hiển thị labels khi media đang active trong center column
 4. SVG bbox overlay toggle (Eye/EyeOff) — ảnh + video, align với object-fit:contain
 5. Click label badge video → seek đến frameTime tương ứng
 6. SSE auto-refresh sau khi analysis xong (queryClient.invalidateQueries)
@@ -495,9 +495,9 @@ Luồng 2 — Phân tích snapshot/clip (Evidence System):
 **Checklist sau TASK 6b:**
 - [x] Upload ảnh → sau vài giây labels tự hiện (SSE push)
 - [x] Upload video → sau 10-60s (tùy độ dài) labels tự hiện
-- [x] Labels hiển thị đúng trong gallery và DiveDetailPage
-- [x] SVG bbox overlay + Eye/EyeOff toggle trong DiveDetailPage và lightbox
-- [x] Click label badge → seek video đến frameTime (DiveDetailPage)
+- [x] Labels hiển thị đúng trong gallery và TripDetailPage
+- [x] SVG bbox overlay + Eye/EyeOff toggle trong TripDetailPage và lightbox
+- [x] Click label badge → seek video đến frameTime (TripDetailPage)
 - [x] Pending spinner trên card khi analysisStatus === 'pending'
 - [x] Video dài → frame sampling đúng mỗi 2s, không OOM
 - [x] Ảnh tối/mờ → labels ít nhưng không crash
@@ -525,7 +525,7 @@ Mới:      labels: [{ name, confidence, frameTime, bbox }, ...]  ← nhiều en
 - Chú ý: labels array có thể lên 200-500 entries cho video dài → MongoDB document vẫn ổn (<16MB)
 
 **Frontend — subtasks:**
-1. Trong `DiveDetailPage`, `DetectionSVG`: filter `labels` theo `currentTime` trong khoảng `±1s`:
+1. Trong `TripDetailPage`, `DetectionSVG`: filter `labels` theo `currentTime` trong khoảng `±1s`:
    ```js
    const activeLabs = labels.filter(l => l.frameTime != null
      && Math.abs(l.frameTime - currentTime) < 1.0)
@@ -555,7 +555,7 @@ Mới:      labels: [{ name, confidence, frameTime, bbox }, ...]  ← nhiều en
 - Kết quả **deterministic** với cùng model + confidence → re-analyze chỉ có ý nghĩa khi đổi model hoặc confidence
 
 **UI/UX:**
-- Nút nhỏ (icon ⚙ hoặc Sparkles) trong top overlay của DiveDetailPage, cạnh nút "Detect"
+- Nút nhỏ (icon ⚙ hoặc Sparkles) trong top overlay của TripDetailPage, cạnh nút "Detect"
 - Click → Popover nhỏ (không phải full modal) xuất hiện ngay dưới nút:
   ```
   ┌─────────────────────────────┐
@@ -607,7 +607,7 @@ Mới:      labels: [{ name, confidence, frameTime, bbox }, ...]  ← nhiều en
 4. Tăng timeout Bull job: `{ attempts: 2, timeout: 300000 }` (5 phút) để xử lý video dài trên VPS
 
 **Frontend — subtasks:**
-1. Component `AIAnalyzePopover` trong DiveDetailPage (inline, không tách file riêng)
+1. Component `AIAnalyzePopover` trong TripDetailPage (inline, không tách file riêng)
 2. State: `conf` (0.3), `model` ('yolov8n'), `isOpen`, `isRunning`
 3. Fetch `GET /media/models` để biết models nào available (disabled nếu chỉ có 1)
 4. Hiển thị `warning` badge màu vàng bên dưới tên model nếu `model.speed === 'slow'`
@@ -660,8 +660,8 @@ MODEL_META = {
 **Schema `Snapshot` collection (thực tế):**
 ```
 type: 'photo' | 'clip'
-dive: ObjectId ref Dive
 trip: ObjectId ref Trip
+project: ObjectId ref Project
 createdBy: ObjectId ref User
 parentMediaId: ObjectId ref Media   ← video đang xem lúc tạo (KHÔNG phải parentVideoId)
 imageS3Key: String                   ← photo: full-size PNG; null cho clip
@@ -674,7 +674,7 @@ analysisStatus: 'idle' | 'pending' | 'done' | 'failed'
 analysisMeta: { model, confidence, analyzedAt }
 note: String
 ```
-Index: `{ dive: 1, createdAt: -1 }`
+Index: `{ trip: 1, createdAt: -1 }`
 
 **UI thực tế — Top overlay video:**
 ```
@@ -733,7 +733,7 @@ Index: `{ dive: 1, createdAt: -1 }`
 
 | Mode | Điều kiện | Trải nghiệm |
 |------|-----------|-------------|
-| **Video có Metadata** | Upload video + upload sensor CSV cùng dive, video có `recordedAt` được set | Chart scrubs real-time theo `currentTime` video — đường dọc di chuyển trên biểu đồ |
+| **Video có Metadata** | Upload video + upload sensor CSV cùng trip, video có `recordedAt` được set | Chart scrubs real-time theo `currentTime` video — đường dọc di chuyển trên biểu đồ |
 | **Video thường** | Chỉ upload video (không có sensor), hoặc video không có `recordedAt` | Playlist video hiển thị đơn/nhiều file, không sync chart, chart hiển thị độc lập |
 
 **Cơ chế sync (Video có Metadata):**
@@ -747,8 +747,8 @@ Index: `{ dive: 1, createdAt: -1 }`
 - Media đã sort theo `order` field (backend trả đúng thứ tự)
 - Vertical playlist (w-44, đã có) — click để chọn video
 - Phát nối tiếp: `<video onEnded={() => setSelIdx(i+1)}>` khi hết video hiện tại
-- Thumbnail strip: hiện ảnh preview frame 1s, video/ảnh phân biệt bằng label
-- Reorder: đã có drag-to-reorder trong DiveList (TripDetailPage) — DiveDetailPage không cần thêm
+- Thumbnail sproject: hiện ảnh preview frame 1s, video/ảnh phân biệt bằng label
+- Reorder: đã có drag-to-reorder trong TripList (ProjectDetailPage) — TripDetailPage không cần thêm
 
 **Media model — thêm field (backend):**
 ```js
@@ -760,19 +760,19 @@ recordedAt: { type: Date, default: null }
 **Backend — subtasks:**
 1. Thêm field `recordedAt` vào `media.model.js`
 2. `PATCH /media/:id` — cho phép update `recordedAt` (operator/admin)
-3. `GET /media/dive/:diveId` đã có — đảm bảo sort theo `order` ASC
+3. `GET /media/trip/:tripId` đã có — đảm bảo sort theo `order` ASC
 
 **Frontend — subtasks:**
 1. **MediaUpload modal**: thêm input datetime-local để nhập `recordedAt` khi upload video (optional)
-2. **DiveDetailPage — Video có Metadata mode:**
+2. **TripDetailPage — Video có Metadata mode:**
    - `useRef` cho `<video>` element, listen `ontimeupdate`
    - Tính `chartTimestamp` từ `selectedMedia.recordedAt + currentTime`
    - Truyền `chartTimestamp` vào chart component → vẽ `<ReferenceLine x={chartTimestamp}>`
    - Dùng `referenceLineX` state, update mỗi `timeupdate` event
-3. **DiveDetailPage — Video thường mode:**
+3. **TripDetailPage — Video thường mode:**
    - `<video onEnded>` → tự chuyển sang file tiếp theo trong playlist
    - Nếu không có video (chỉ ảnh): hiển thị ảnh full trong center column
-4. **Edit recordedAt**: thêm input nhỏ trong DiveDetailPage header hoặc trong playlist panel khi click thumbnail → có thể nhập/sửa `recordedAt` inline
+4. **Edit recordedAt**: thêm input nhỏ trong TripDetailPage header hoặc trong playlist panel khi click thumbnail → có thể nhập/sửa `recordedAt` inline
 
 **Checklist sau TASK 6c:**
 - [x] Media model có field `recordedAt`, API `PATCH /media/:id` update được
@@ -781,8 +781,8 @@ recordedAt: { type: Date, default: null }
 - [x] **Video thường**: 1 video → phát bình thường, chart hiển thị độc lập bên dưới
 - [x] **Video có Metadata**: video phát → đường dọc đỏ trên chart di chuyển theo timestamp (`ReferenceLine`)
 - [x] **Video có Metadata**: LIVE SYNC badge xuất hiện góc dưới trái video
-- [x] Dive chỉ có sensor (không có media) → center column hiển thị empty state
-- [x] Dive không có gì → toàn bộ empty state thân thiện
+- [x] Trip chỉ có sensor (không có media) → center column hiển thị empty state
+- [x] Trip không có gì → toàn bộ empty state thân thiện
 - [x] Playlist redesign: overlay từ phải thay vì pull-tab, toggle bằng pill button `🎞 N` trên top gradient
 - [x] RecordedAtEditor inline trong playlist panel (dưới active video thumbnail)
 - [x] Timezone bug fix: input nhập theo local time, display cũng hiển thị local time đúng
@@ -794,6 +794,558 @@ recordedAt: { type: Date, default: null }
 - Playlist là absolute overlay (không làm hẹp video), `translate-x-full` → `translate-x-0` animation
 - Thumbnail có `recordedAt` hiện chấm đỏ nhỏ ở góc trên phải
 - PNG export: SVG serialize + canvas (2x resolution), CSS var grid lines không render nhưng data lines OK
+
+---
+
+### TASK 6d — Multi-file Data Support + File List UI (Refactor)
+
+**Mô tả:** Hiện tại sensor, DVL, sonar đều **overwrite** khi upload lần thứ 2 — chỉ giữ bản cuối. Cần đổi sang **append theo tên file**. Đồng thời ProjectDetailPage và TripDetailPage hiện chỉ hiển thị icon (Activity, Waves) để báo "có data" — cần chuyển sang **hiển thị danh sách file cụ thể** với tên file, số readings, timestamp, nút xóa từng file.
+
+**Bối cảnh thực tế:** ROV tạo nhiều file trong 1 lần lặn:
+```
+sonar_20260601_164831.xxx      ← 1 file sonar
+sonar_20260601_165204.xxx      ← file sonar thứ 2 (cùng trip)
+log_20260609_144350.csv        ← sensor log đầu
+log_20260609_144536.csv        ← sensor log thứ 2
+dvl_20260609_144350.json       ← DVL data
+record_20260609_144350.mp4     ← video (media, đã hỗ trợ nhiều ✓)
+capture_20260609_144358.png    ← ảnh chụp (media ✓)
+```
+Timestamp trong tên file: `_YYYYMMDD_HHMMSS` → parse trực tiếp, không cần JSON manifest.
+
+---
+
+**⚠️ TRƯỚC KHI IMPLEMENT — ĐỌC BẮT BUỘC (theo thứ tự):**
+
+Phải đọc kỹ các file sau trước khi viết bất kỳ dòng code nào:
+
+**Backend:**
+1. `backend/src/modules/sensor/sensor.model.js` — hiểu schema hiện tại (không có `sourceFile`)
+2. `backend/src/modules/sensor/sensor.controller.js` — xác nhận dòng `SensorData.deleteMany({trip})` và logic `getSensorData` trả về gì
+3. `backend/src/modules/dvl/dvl.model.js` — schema DVL (không có `sourceFile`)
+4. `backend/src/modules/dvl/dvl.controller.js` — xem hàm upload và `getPath` hiện tại
+5. `backend/src/modules/sonar/sonar.model.js` — schema SonarFile (đã có `filename`, `recordedAt`)
+6. `backend/src/modules/sonar/sonar.controller.js` — xem logic upload và endpoint xóa
+7. `backend/src/modules/trips/batch.controller.js` — tìm chỗ skip sonar file thứ 2
+8. `backend/src/modules/trips/trip.service.js` — xác nhận hàm `remove` chỉ gọi `Trip.findByIdAndDelete` (KHÔNG cascade)
+9. `backend/src/modules/projects/project.service.js` — xác nhận hàm `remove` chỉ xóa Trip docs, KHÔNG xóa SensorData/DVL/Sonar/Media
+
+---
+
+**⚠️ VẤN ĐỀ HIỆN TẠI — CẦN XỬ LÝ TRƯỚC KHI LÀM 6d-1:**
+
+### A. Data cũ orphaned trong MongoDB (legacy schema)
+
+MongoDB Atlas đang có documents trong collection `sensordatas` với field **`project`** thay vì `trip`. Đây là data từ phiên bản schema cũ (khi sensor link tới Project, không phải Trip). Các record này không bao giờ được tìm thấy bởi queries hiện tại (`{trip: tripId}`) — tức là **dead data**.
+
+**Cách xóa** (chạy một lần trên MongoDB Atlas hoặc mongo shell):
+```js
+// Xóa toàn bộ SensorData cũ có field "project" (không có field "trip")
+db.sensordatas.deleteMany({ project: { $exists: true }, trip: { $exists: false } })
+```
+
+**Kiểm tra trước khi xóa:**
+```js
+// Đếm số record orphaned
+db.sensordatas.countDocuments({ project: { $exists: true }, trip: { $exists: false } })
+// Xem thử 1 record
+db.sensordatas.findOne({ project: { $exists: true }, trip: { $exists: false } })
+```
+
+### B. Cascade delete THIẾU — BUG LỚN (phải fix trong Phần 6d-0)
+
+Hiện tại khi xóa Trip hoặc Project, dữ liệu liên quan KHÔNG được xóa theo:
+
+| Hành động | Code hiện tại | Hậu quả |
+|---|---|---|
+| `DELETE /trips/:id` | `Trip.findByIdAndDelete(id)` | SensorData, DVLData, SonarFile, Media, Snapshots → **orphaned** |
+| `DELETE /projects/:id` | `Trip.deleteMany({project})` + xóa Project | Trip docs xóa nhưng SensorData/DVL/Sonar/Media của chúng → **orphaned** |
+
+**Fix phải làm trong `trip.service.js` hàm `remove`:**
+```js
+const remove = async (id) => {
+  const SensorData = require('../sensor/sensor.model')
+  const DVLData    = require('../dvl/dvl.model')
+  const SonarFile  = require('../sonar/sonar.model')
+  const Media      = require('../media/media.model')
+  const Snapshot   = require('../snapshots/snapshot.model')
+  const { DeleteObjectCommand } = require('@aws-sdk/client-s3')
+  const s3 = require('../../config/s3')
+  const BUCKET = process.env.S3_BUCKET
+
+  // Xóa S3 objects trước (sonar + media + snapshot images)
+  const [sonarFiles, mediaFiles, snapshots] = await Promise.all([
+    SonarFile.find({ trip: id }).lean(),
+    Media.find({ trip: id }).lean(),
+    Snapshot.find({ trip: id }).lean(),
+  ])
+
+  const s3Keys = [
+    ...sonarFiles.map(f => f.s3Key),
+    ...mediaFiles.map(m => m.s3Key).filter(Boolean),
+    ...snapshots.map(s => s.imageS3Key).filter(Boolean),
+    ...snapshots.map(s => s.thumbnailS3Key).filter(Boolean),
+  ]
+  await Promise.allSettled(
+    s3Keys.map(Key => s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key })))
+  )
+
+  // Xóa tất cả data liên quan
+  await Promise.all([
+    SensorData.deleteMany({ trip: id }),
+    DVLData.deleteMany({ trip: id }),
+    SonarFile.deleteMany({ trip: id }),
+    Media.deleteMany({ trip: id }),
+    Snapshot.deleteMany({ trip: id }),
+  ])
+
+  return Trip.findByIdAndDelete(id)
+}
+```
+
+**Fix phải làm trong `project.service.js` hàm `remove`:**
+```js
+const remove = async (id) => {
+  const trips = await Trip.find({ project: id }).lean()
+  // Cascade delete từng trip (dùng lại hàm remove của trip.service để không duplicate logic)
+  const tripService = require('../trips/trip.service')
+  await Promise.all(trips.map(d => tripService.remove(d._id)))
+  // Xóa project
+  await Project.findByIdAndDelete(id)
+  return { projectDeleted: true, tripsDeleted: trips.length }
+}
+```
+
+**Lưu ý:** Đọc `snapshot.model.js` để biết đúng field name (`imageS3Key`, `thumbnailS3Key`) trước khi viết code xóa.
+
+**Frontend:**
+8. `frontend/src/features/trips/TripList.jsx` — đọc `TripCard` component, xác nhận dòng 122-131 chỉ hiện icon Activity/Waves, và phần expanded (dòng 209-216) chỉ có `<MediaGallery>`
+9. `frontend/src/features/trips/TripDetailPage.jsx` — hiểu cấu trúc left column (LocationPanel + CurrentStatus)
+10. `frontend/src/features/trips/components/ROVDataUpload.jsx` — xem warning "only the last one" dòng 663-677 và `ResultSummary`
+11. `frontend/src/features/trips/components/layout/LocationPanel.jsx` — cấu trúc left panel
+
+---
+
+**Hiện trạng (đã xác nhận từ code):**
+
+| Loại | Code overwrite | Hiển thị file list? |
+|------|---------------|---------------------|
+| Sensor CSV | `SensorData.deleteMany({trip})` dòng 62 sensor.controller.js | ❌ chỉ icon Activity + sensorCount |
+| DVL JSON | `DVLData.deleteMany({trip})` trong dvl.controller.js | ❌ không hiển thị gì |
+| Sonar | `SonarFile.deleteMany({trip})` trong sonar.controller.js | ❌ chỉ icon Waves + sonarCount |
+| Media (video/ảnh) | Không xóa cũ | ✅ đã hỗ trợ nhiều, có MediaGallery |
+| Batch controller | Chỉ lấy sonar file đầu tiên | ❌ cần bỏ hạn chế |
+
+---
+
+**Hướng UI — hiển thị danh sách file:**
+
+**A. ProjectDetailPage — TripCard expanded section (`TripList.jsx`):**
+
+Hiện tại phần expanded (dòng 209-216) chỉ có `<MediaGallery>`. Thêm section "DATA FILES" phía trên MediaGallery:
+
+```
+┌─────────────────────────────────────────────────────┐
+│ DATA FILES                              [Upload ↑]  │
+│ ─────────────────────────────────────────────────── │
+│ [Activity] log_20260609_144350.csv  850r · 14:43   [×] │
+│ [Activity] log_20260609_144536.csv  320r · 14:45   [×] │
+│ [Radio]    dvl_20260609_144350.json   1.2k pts      [×] │
+│ [Waves]    sonar_20260601_164831.sonar  234f · 6m22s [×] │
+│ ─────────────────────────────────────────────────── │
+│ (phần MediaGallery bên dưới như cũ)                 │
+└─────────────────────────────────────────────────────┘
+```
+
+- Label loại: màu badge giống `TYPE` config trong `ROVDataUpload.jsx` (xanh dương=sensor, tím=DVL, cyan=sonar)
+- Nút `[×]` chỉ hiện với `operator`/`admin`; gọi `DELETE /trips/:id/sensor-data?file=xxx`, `DELETE /trips/:id/dvl?file=xxx`, `DELETE /trips/:id/sonar/:sonarId`
+- Upload button mở `ROVDataUpload` modal (đã có)
+- Nếu không có data files → ẩn section (không hiện header "DATA FILES" trống)
+
+**B. TripDetailPage — left column, dưới LocationPanel và CurrentStatus:**
+
+Left column hiện tại: `LocationPanel` (map) + `CurrentStatus` (KPI cards). Thêm section "DATA FILES" ở dưới cùng:
+
+```
+┌──────────────────────────────┐
+│ Location (map)               │
+├──────────────────────────────┤
+│ Current Status (KPI cards)   │
+├──────────────────────────────┤
+│ DATA FILES               [▼] │  ← collapsible, mặc định collapsed
+│ ──────────────────────────── │
+│ [A] log_xxx.csv  850r 14:43 [×] │
+│ [R] dvl_xxx.json  1.2k  [×]  │
+│ [W] sonar_xxx  234f 6m  [×]  │
+└──────────────────────────────┘
+```
+
+- Width phải vừa w-56 (224px): icon nhỏ (10px), tên file truncate, số gọn
+- Collapsible: click header → toggle, mặc định expanded nếu có file
+- Scroll nội bộ nếu nhiều file (max-h-40 overflow-y-auto)
+- Nút `[×]` xóa file, invalidate queries liên quan
+- Khi xóa sensor file: chart tự refresh → gap visualization cập nhật đúng
+
+**API mới cần thêm — `GET /trips/:id/data-files`:**
+
+Trả về danh sách file metadata của 1 trip trong 1 request:
+```json
+{
+  "sensor": [
+    { "sourceFile": "log_20260609_144350.csv", "count": 850, "recordedAt": "2026-06-09T14:43:50Z" },
+    { "sourceFile": "log_20260609_144536.csv", "count": 320, "recordedAt": "2026-06-09T14:45:36Z" }
+  ],
+  "dvl": [
+    { "sourceFile": "dvl_20260609_144350.json", "count": 1203, "recordedAt": "2026-06-09T14:43:50Z" }
+  ],
+  "sonar": [
+    { "_id": "...", "filename": "sonar_20260601_164831.sonar", "frameCount": 234, "durationMs": 382000, "recordedAt": "2026-06-01T16:48:31Z" }
+  ]
+}
+```
+- `sensor`: `SensorData.aggregate([{$match:{trip}},{$group:{_id:'$sourceFile',count:{$sum:1},recordedAt:{$min:'$timestamp'}}}])`
+- `dvl`: tương tự aggregate trên `DVLData`
+- `sonar`: `SonarFile.find({trip}).lean()`
+
+---
+
+**Shared utility (tạo mới):**
+
+`backend/src/utils/parseTimestamp.util.js`:
+```js
+// Parse "_YYYYMMDD_HHMMSS" từ tên file → UTC Date, null nếu không match
+function parseTimestampFromFilename(filename) {
+  const m = filename.match(/_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+  if (!m) return null;
+  return new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}Z`);
+}
+module.exports = { parseTimestampFromFilename };
+```
+
+---
+
+## Phân chia subtask
+
+### Phần 6d-0 — Cascade delete + Cleanup orphaned data (làm TRƯỚC tất cả)
+
+**Đọc trước:** `trip.service.js`, `project.service.js`, `snapshot.model.js`, `media.model.js`
+
+**Làm:**
+1. **Xóa orphaned data cũ trên MongoDB Atlas** — chạy 1 lần trong shell hoặc Atlas UI:
+   ```js
+   // Kiểm tra số lượng trước
+   db.sensordatas.countDocuments({ project: { $exists: true }, trip: { $exists: false } })
+   // Xóa nếu count > 0
+   db.sensordatas.deleteMany({ project: { $exists: true }, trip: { $exists: false } })
+   ```
+2. **`trip.service.js` hàm `remove`**: thêm cascade xóa SensorData, DVLData, SonarFile, Media (S3 + DB), Snapshots (S3 + DB) trước khi xóa Trip doc — đọc code mẫu ở mục "B" phía trên
+3. **`project.service.js` hàm `remove`**: thay `Trip.deleteMany({project:id})` bằng loop gọi `tripService.remove()` để tận dụng cascade — đọc code mẫu ở mục "B" phía trên
+
+**Kiểm tra sau phần này:**
+- [ ] `db.sensordatas.countDocuments({ project: { $exists: true }, trip: { $exists: false } })` trả về 0
+- [ ] Xóa 1 trip có sensor data → `sensordatas`, `dvldatas`, `sonarfiles` của trip đó đều biến mất khỏi DB
+- [ ] Xóa 1 trip có media → file trên S3 bị xóa, `media` docs biến mất khỏi DB
+- [ ] Xóa 1 trip có snapshot → `imageS3Key`/`thumbnailS3Key` trên S3 bị xóa, snapshot docs biến mất
+- [ ] Xóa 1 project có 3 trips → tất cả 3 trips và toàn bộ data của chúng bị xóa sạch
+- [ ] Xóa project/trip không có data → không crash
+
+---
+
+### Phần 6d-1 — Backend: SensorData multi-file + API data-files
+
+**Đọc trước:** `sensor.model.js`, `sensor.controller.js`
+
+**Làm:**
+1. Tạo `backend/src/utils/parseTimestamp.util.js`
+2. `sensor.model.js`: thêm `sourceFile: { type: String, default: null }`, index `{ trip:1, sourceFile:1, timestamp:1 }`
+3. `sensor.controller.js` — hàm `upload`:
+   - Nhận `sourceFile` từ `req.body.sourceFile` (tên file gốc, truyền từ frontend)
+   - Nếu `sourceFile` đã có trong trip → xóa data cũ của file đó, insert mới (re-upload)
+   - Nếu `sourceFile` mới → kiểm tra overlap (logic first-in-first-keep bên dưới) trước khi insert
+   - Gán `sourceFile` vào mỗi doc khi insert
+   - Bỏ `SensorData.deleteMany({trip})` — KHÔNG xóa toàn bộ nữa
+4. `sensor.controller.js` — thêm hàm `clearFile`: xóa `SensorData` theo `{trip, sourceFile}`, cập nhật `sensorCount`
+5. `sensor.controller.js` — hàm `clear` (xóa hết): giữ nguyên
+6. `sensor.routes.js`: thêm `DELETE /trips/:id/sensor-data?file=...` → `clearFile`
+7. `sensor.controller.js` — hàm `getSensorData`: trả thêm field `sourceFile` trong mỗi reading
+8. Tạo `GET /trips/:id/data-files` endpoint (trong trips.routes.js hoặc module mới) trả aggregate sensor + DVL + sonar
+
+**Logic overlap (first-in-first-keep):**
+```js
+// Lấy max timestamp đang có trong DB (tất cả sourceFiles của trip này)
+const agg = await SensorData.aggregate([
+  { $match: { trip: new mongoose.Types.ObjectId(tripId) } },
+  { $group: { _id: null, maxTs: { $max: '$timestamp' } } }
+])
+const maxTs = agg[0]?.maxTs ?? null
+
+const trimmed = maxTs
+  ? docs.filter(d => d.timestamp > maxTs)
+  : docs
+const droppedCount = docs.length - trimmed.length
+
+// warning phân loại:
+// droppedCount > 0 && trimmed.length > 0 → { warning: 'overlap_trimmed', droppedCount }
+// droppedCount > 0 && trimmed.length === 0 → { warning: 'file_skipped', droppedCount }
+// droppedCount === 0 → không có warning field
+```
+
+**Kiểm tra sau phần này:**
+- [ ] `SensorData` document có field `sourceFile` trong MongoDB (kiểm tra Atlas)
+- [ ] Upload CSV với `sourceFile: "log_A.csv"` → DB có readings với sourceFile="log_A.csv"
+- [ ] Upload CSV với `sourceFile: "log_B.csv"` → DB có thêm readings, file A không bị xóa
+- [ ] Upload lại "log_A.csv" → DB thay thế đúng data của log_A, log_B không đổi
+- [ ] Upload file trùng timestamp với A → response có `warning: 'overlap_trimmed'` và `droppedCount`
+- [ ] Upload file nằm hoàn toàn trong range cũ → response có `warning: 'file_skipped'`
+- [ ] `DELETE /trips/:id/sensor-data?file=log_A.csv` → xóa đúng data của log_A, log_B còn nguyên
+- [ ] `GET /trips/:id/data-files` trả đúng array sensor files với count và recordedAt
+- [ ] `GET /trips/:id/sensor-data` response mỗi reading có field `sourceFile`
+
+---
+
+### Phần 6d-2 — Backend: DVL + Sonar + Batch multi-file
+
+**Đọc trước:** `dvl.model.js`, `dvl.controller.js`, `sonar.model.js`, `sonar.controller.js`, `batch.controller.js`
+
+**Làm:**
+1. `dvl.model.js`: thêm `sourceFile: { type: String, default: null }`, index `{ trip:1, sourceFile:1, ts:1 }`
+2. `dvl.controller.js` — hàm upload:
+   - Nhận `sourceFile` từ request
+   - Nếu sourceFile đã tồn tại → `DVLData.deleteMany({trip, sourceFile})` trước, rồi insert mới
+   - Nếu sourceFile mới → insert thẳng (DVL không cần overlap check — GPS track không có khái niệm overwrite theo time)
+   - Gán `sourceFile` cho mỗi point
+3. `dvl.controller.js` — hàm `getPath`: query `DVLData.find({trip}).sort({ts:1})` — không đổi nhiều vì đã sort, nhưng cần xác nhận merge đúng khi nhiều file
+4. `dvl.controller.js` — thêm `clearFile`: xóa theo `{trip, sourceFile}`; route `DELETE /trips/:id/dvl?file=...`
+5. `sonar.controller.js` — hàm upload:
+   - Bỏ `SonarFile.deleteMany({trip})` và bỏ xóa S3 cũ trước khi tạo
+   - Parse `recordedAt` từ tên file bằng `parseTimestampFromFilename` nếu chưa có
+   - `sonarCount` không hardcode = 1 nữa; sau upload: `trip.sonarCount = await SonarFile.countDocuments({trip})`
+6. `batch.controller.js`: bỏ logic skip sonar file thứ 2 trở đi; với sensor/DVL: truyền `sourceFile` (tên file gốc) khi gọi controller
+
+**Kiểm tra sau phần này:**
+- [ ] Upload 2 DVL file → DB có 2 `sourceFile` khác nhau, `getPath` trả trajectory merge sort theo `ts`
+- [ ] Upload lại DVL file cũ cùng tên → thay thế đúng, file kia không đổi
+- [ ] Upload 2 sonar file → cả 2 trong DB, `sonarCount = 2`
+- [ ] Upload lại sonar file → không tạo duplicate (check theo filename)
+- [ ] Batch upload folder có 2 sonar file → cả 2 được xử lý (không bỏ file thứ 2)
+- [ ] `GET /trips/:id/data-files` trả đúng cả DVL files và sonar files
+- [ ] `sonar.recordedAt` được auto-parse từ tên file khi upload
+
+---
+
+### Phần 6d-3 — Backend: Media auto-parse `recordedAt`
+
+**Đọc trước:** controller confirm upload media trong `backend/src/modules/media/media.controller.js`
+
+**Làm:**
+1. Trong hàm `confirmUpload` (hoặc tương đương): sau khi set `media.status = 'ready'`, gọi `parseTimestampFromFilename(media.originalName)` → nếu có result → set `media.recordedAt = result`
+2. Nếu không match → `recordedAt` giữ null (không ghi đè giá trị đã nhập tay)
+
+**Kiểm tra sau phần này:**
+- [ ] Upload `record_20260609_144350.mp4` → kiểm tra DB: `media.recordedAt = 2026-06-09T14:43:50.000Z`
+- [ ] Upload `capture_20260609_144358.png` → `media.recordedAt = 2026-06-09T14:43:58.000Z`
+- [ ] Upload `myvideo.mp4` (không có pattern) → `media.recordedAt = null`, không crash
+- [ ] Upload `log_20260609_144350.csv` (sensor, không phải media) → không ảnh hưởng
+
+---
+
+### Phần 6d-4 — Frontend: File list trong ProjectDetailPage và TripDetailPage
+
+**Đọc trước:** `TripList.jsx` (dòng 56-220), `TripDetailPage.jsx` (cấu trúc left column), `LocationPanel.jsx`
+
+**Làm:**
+
+**A. TripList.jsx — TripCard expanded section:**
+- Thêm query `GET /trips/:id/data-files` trong `TripCard` component (chỉ fetch khi `expanded = true`)
+- Thêm `DataFilesSection` component (inline trong file, không tách):
+  - Hiển thị danh sách file theo loại (sensor, DVL, sonar) với icon + badge màu
+  - Mỗi file: icon type, tên file truncate, count/stats, timestamp HH:MM (từ `recordedAt`), nút `×` (operator/admin)
+  - Nút `×` gọi đúng endpoint xóa → invalidate `['data-files', trip._id]` và `['sensor', trip._id]`
+  - Nếu không có file nào → ẩn section, không render
+  - Đặt section này TRƯỚC `<MediaGallery>` trong expanded, có separator `<hr>`
+- Xóa warning cũ "only the last one will be saved" (dòng 663-677 trong `ROVDataUpload.jsx`)
+
+**B. TripDetailPage.jsx — left column:**
+- Thêm `DataFilesPanel` component (inline hoặc trong `components/layout/`):
+  - Đặt sau `<CurrentStatus>` trong left column
+  - Header "DATA FILES" với chevron toggle (mặc định expanded nếu có ít nhất 1 file)
+  - Compact: icon 10px, tên file truncate (`max-w-[120px]`), số readings/frames gọn (`850r`, `234f`, `1.2k`)
+  - Scroll nội bộ: `max-h-32 overflow-y-auto` nếu nhiều file
+  - Nút `×` per-file, xóa và invalidate `['sensor', id]`, `['dvl-path', id]`, `['sonar', id]`, `['data-files', id]`
+  - Không hiển thị section nếu không có file nào
+
+**Query key mới:** `['data-files', tripId]` → `GET /trips/:tripId/data-files`, staleTime: 30000
+
+**Kiểm tra sau phần này:**
+- [ ] ProjectDetailPage → expand TripCard có sensor data → thấy danh sách file tên cụ thể (không chỉ icon)
+- [ ] Xóa file từ TripCard → file biến khỏi list, chart/data cập nhật
+- [ ] TripDetailPage → left column dưới Current Status → thấy DATA FILES section với file list
+- [ ] TripDetailPage → click `×` xóa sensor file → chart bên dưới tự refresh
+- [ ] Không có data files → cả 2 section đều ẩn (không render header trống)
+- [ ] Viewer (role viewer) không thấy nút `×` (operator/admin only)
+- [ ] Warning cũ "only the last one will be saved" đã xóa khỏi `ROVDataUpload.jsx`
+
+---
+
+### Phần 6d-5 — Frontend: Chart gap visualization + Sonar playlist
+
+**Đọc trước:** `TripDetailPage.jsx` phần chart (BottomChart), `SonarViewer.jsx`
+
+**Làm:**
+
+**A. Sensor chart gap (TripDetailPage.jsx):**
+- `useMemo`: `insertGapSentinels(readings)` chèn null sentinel tại ranh giới `sourceFile` thay đổi
+- Truyền mảng đã xử lý vào `<BottomChart chartData={...}>` thay vì mảng raw
+- `BottomChart` cần `connectNulls={false}` (default AreaChart — xác nhận không có override)
+- Tooltip: thêm `sourceFile` vào label nếu có
+
+```js
+// useMemo trong TripDetailPage
+const chartDataWithGaps = useMemo(() => {
+  if (!sensorData?.data?.length) return []
+  const readings = sensorData.data
+  if (readings.length < 2) return readings
+  const result = [readings[0]]
+  for (let i = 1; i < readings.length; i++) {
+    if (readings[i].sourceFile !== readings[i-1].sourceFile) {
+      result.push({ timestamp: readings[i-1].timestamp + 1 })
+      result.push({ timestamp: readings[i].timestamp - 1 })
+    }
+    result.push(readings[i])
+  }
+  return result
+}, [sensorData?.data])
+```
+
+**B. Sonar playlist (SonarViewer.jsx):**
+- Nhận prop `sonarFiles: []` (array từ `GET /trips/:id/data-files` → `sonar` field)
+- Nếu `sonarFiles.length <= 1` → behavior như cũ (load file duy nhất)
+- Nếu `sonarFiles.length > 1` → hiện thanh danh sách bên trên viewer: filename + duration, click để chọn
+- State `selectedSonarId` = id của file đang active
+- Active file có border highlight
+
+**Kiểm tra sau phần này:**
+- [ ] Upload 2 CSV → chart hiện 2 đoạn rời, gap giữa 2 file trống (line break, không nối)
+- [ ] Readings cùng 1 file dù cách nhau về thời gian → vẫn nối liền (không gap sai)
+- [ ] Gap dựa trên `sourceFile` thay đổi, không phải time gap
+- [ ] Upload 1 CSV → chart bình thường, không có gap thừa
+- [ ] Sonar: 1 file → SonarViewer như cũ
+- [ ] Sonar: 2 file → có danh sách trên cùng, click file nào load file đó
+
+---
+
+**Checklist tổng sau TASK 6d:**
+- [ ] Upload 2 CSV cùng 1 trip → chart hiển thị 2 đoạn rời, gap đúng chỗ
+- [ ] Gap dựa theo sourceFile (không phải time heuristic)
+- [ ] Readings cùng 1 file dù cách xa thời gian → nối liền
+- [ ] Upload file trùng 1 phần → toast vàng + droppedCount
+- [ ] Upload file nằm hoàn toàn trong range cũ → toast vàng "file bị bỏ qua"
+- [ ] Không có overlap → toast xanh
+- [ ] Upload lại file cùng tên → thay thế đúng file đó
+- [ ] Xóa từng file sensor → data biến mất, file còn lại không đổi
+- [ ] Upload 2 sonar → playlist sonar hiện 2 file, click chọn được
+- [ ] Upload 2 DVL → trajectory merge liên tục
+- [ ] Upload `record_20260609_144350.mp4` → `media.recordedAt` auto-set
+- [ ] Upload `log_20260609_144350.csv` → chart sync với video cùng timestamp (không cần nhập tay)
+- [ ] File không có pattern timestamp → `recordedAt = null`, không crash
+- [ ] Batch upload nhiều sonar → tất cả được lưu
+- [ ] ProjectDetailPage TripCard expanded: thấy tên file cụ thể (không chỉ icon)
+- [ ] TripDetailPage left column: DATA FILES section với per-file delete
+- [ ] Xóa file từ TripDetailPage → chart refresh ngay
+
+---
+
+### TASK 6e — Auto-frame Brush theo Video đang chọn
+
+**Mô tả:** Khi user chọn video trong playlist, thanh brush (range selector) ở dưới chart tự động nhảy đến khoảng thời gian của video đó. Kết hợp với TASK 6d (auto-parse `recordedAt` từ tên file) và TASK 6c (chart sync) tạo thành trải nghiệm hoàn chỉnh: chọn video → brush frame đúng khoảng → ReferenceLine chạy trong đó.
+
+**Điều kiện tiên quyết:** TASK 6d phải xong (media có `recordedAt` auto-parse từ tên file).
+
+**Dữ liệu cần:**
+- `media.recordedAt` — thời điểm bắt đầu quay (ms UTC)
+- `media.duration` — độ dài video (giây, đã có trong Media model)
+- `chartData[]` — mảng readings có `.timestamp` (ms), đã sort tăng dần
+- Recharts `<Brush startIndex endIndex>` — controlled mode
+
+**Thuật toán:**
+```js
+function computeBrushRange(selectedMedia, chartData) {
+  if (!selectedMedia?.recordedAt || chartData.length === 0) return null
+
+  const videoStart = new Date(selectedMedia.recordedAt).getTime()
+  const videoEnd   = videoStart + (selectedMedia.duration ?? 120) * 1000
+
+  const startIdx = chartData.findIndex(d => d.timestamp >= videoStart)
+  const endIdx   = chartData.findLastIndex(d => d.timestamp <= videoEnd)
+
+  // Video nằm hoàn toàn ngoài sensor data → show full range
+  if (startIdx === -1 || endIdx === -1 || startIdx > endIdx) return null
+
+  // Thêm 10% buffer 2 bên để có context, tối thiểu 3 readings
+  const buf = Math.max(Math.floor((endIdx - startIdx) * 0.1), 3)
+  return {
+    startIndex: Math.max(0, startIdx - buf),
+    endIndex:   Math.min(chartData.length - 1, endIdx + buf),
+  }
+}
+```
+
+**Hành vi:**
+- Chọn video → brush auto-frame ngay lập tức (không animate chậm)
+- User kéo brush tay → state `userOverride = true` → auto-frame không còn chạy cho video đó
+- Chọn video khác → reset `userOverride`, auto-frame lại cho video mới
+- Video không có `recordedAt` → brush không đổi (giữ nguyên vị trí hiện tại)
+- Video nằm ngoài sensor data → brush về full range
+
+**Implementation — 3 chỗ thay đổi:**
+
+**1. `TripDetailPage.jsx`:**
+```js
+const [brushRange, setBrushRange] = useState(null)          // null = full range
+const [brushUserOverride, setBrushUserOverride] = useState(false)
+
+// Recompute khi đổi video
+useEffect(() => {
+  setBrushUserOverride(false)
+  setBrushRange(computeBrushRange(selectedMedia, chartData))
+}, [selectedMedia?._id])
+
+// Spread vào BottomChart
+<BottomChart
+  brushRange={brushRange}
+  onBrushChange={(range) => {
+    setBrushUserOverride(true)
+    setBrushRange(range)
+  }}
+  ...
+/>
+```
+
+**2. `BottomChart.jsx`:**
+```js
+// Nhận props
+const { brushRange, onBrushChange } = props
+
+// Spread vào mỗi <Brush>:
+<Brush
+  {...brushProps}
+  startIndex={brushRange?.startIndex}   // undefined = full range
+  endIndex={brushRange?.endIndex}
+  onChange={onBrushChange}
+/>
+```
+
+**3. Không cần đổi backend gì.**
+
+**Checklist sau TASK 6e:**
+- [ ] Chọn `record_144350.mp4` → brush nhảy đến ~14:43-14:47 ngay lập tức
+- [ ] Chọn `record_144536.mp4` → brush nhảy sang ~14:45-14:49
+- [ ] Video không có `recordedAt` → brush không thay đổi
+- [ ] User kéo brush tay → brush không bị reset khi video vẫn đang phát
+- [ ] Chọn video khác sau khi đã kéo tay → auto-frame lại đúng video mới
+- [ ] Video nằm ngoài range sensor data → brush về full range, không crash
+- [ ] ReferenceLine vẫn scrub đúng trong khoảng brush đã frame
+- [ ] Khi không có `recordedAt` trên bất kỳ video nào → brush hoạt động như cũ (full range, kéo tay)
 
 ---
 
@@ -809,13 +1361,13 @@ recordedAt: { type: Date, default: null }
 ---
 
 ### TASK 8 — Email Notifications (nâng cao)
-**Mô tả:** Gửi email khi trip hoàn tất, dive failed. Chạy qua Bull Queue (đã có từ TASK 3) — không block request.
+**Mô tả:** Gửi email khi project hoàn tất, trip failed. Chạy qua Bull Queue (đã có từ TASK 3) — không block request.
 
 **Subtasks:**
 1. Cài `npm i nodemailer`
 2. Config Gmail SMTP trong `.env`: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`
-3. `email.service.js`: template HTML đơn giản, hàm `sendDiveFailed(user, dive)` + `sendTripCompleted(user, trip)`
-4. Enqueue email job vào Bull queue `email` tại: dive `failed`, trip `completed`
+3. `email.service.js`: template HTML đơn giản, hàm `sendTripFailed(user, trip)` + `sendProjectCompleted(user, project)`
+4. Enqueue email job vào Bull queue `email` tại: trip `failed`, project `completed`
 5. Bull worker xử lý gửi — retry 3 lần nếu thất bại
 
 ---
@@ -836,7 +1388,7 @@ recordedAt: { type: Date, default: null }
 |-----------|-------|----------|--------|
 | Quản lý user | ✅ | ❌ | ❌ |
 | CRUD ROV | ✅ | Tạo/Sửa | Chỉ xem |
-| CRUD Trip/Dive | ✅ | Tạo/Sửa | Chỉ xem |
+| CRUD Project/Trip | ✅ | Tạo/Sửa | Chỉ xem |
 | Upload media | ✅ | ✅ | ❌ |
 | Xóa media (bulk) | ✅ | ❌ | ❌ |
 | Xem media | ✅ | ✅ | ✅ |
@@ -852,12 +1404,12 @@ recordedAt: { type: Date, default: null }
 ```js
 // Đã cần ngay
 ROV:  { status: 1 }, { createdAt: -1 }
-Trip: { status: 1 }, { createdAt: -1 }, { rov: 1 }, { startTime: -1 }
-Dive: { status: 1 }, { trip: 1 }, { createdAt: -1 }
+Project: { status: 1 }, { createdAt: -1 }, { rov: 1 }, { startTime: -1 }
+Trip: { status: 1 }, { project: 1 }, { createdAt: -1 }
 User: { email: 1 } (unique, đã có), { role: 1 }
 
 // Cần khi làm sensor data
-SensorData: { dive: 1, timestamp: -1 }
+SensorData: { trip: 1, timestamp: -1 }
 
 // Cần khi làm notifications
 Notification: { userId: 1, isRead: 1, createdAt: -1 }
@@ -874,7 +1426,7 @@ Notification: { userId: 1, isRead: 1, createdAt: -1 }
 | Bull queue: ai-summary | tự quản lý bởi Bull | — | TASK 3 |
 | Bull queue: email | tự quản lý bởi Bull | — | TASK 8 |
 
-> Cache GET /rovs, /trips có thể thêm sau nếu cần tối ưu perf — chưa ưu tiên.
+> Cache GET /rovs, /projects có thể thêm sau nếu cần tối ưu perf — chưa ưu tiên.
 
 ---
 
@@ -1022,3 +1574,529 @@ Seed: `cd backend && node src/scripts/seed.js`
 - `password` optional (Google user không có password)
 - `googleId`, `authProvider` đã thêm
 - `comparePassword()` kiểm tra authProvider trước khi so sánh
+
+---
+
+## Đặt tên khái niệm (Nomenclature)
+
+| Tên mới (code) | Tên cũ (code) | Ý nghĩa thực tế |
+|---|---|---|
+| **Project** | Trip | Chuyến khảo sát lớn — container ngoài cùng, gom nhiều Trip |
+| **Trip** | Dive | Một lần lặn/recording session cụ thể |
+
+**Lý do đổi tên:** Thầy hướng dẫn yêu cầu dùng Project/Trip thay vì Trip/Dive để phù hợp với terminology chuẩn của ROV operation.
+
+**Mapping API:**
+- `GET /api/v1/projects` (cũ: `/trips`) — danh sách project
+- `GET /api/v1/trips` (cũ: `/dives`) — danh sách trip (recording sessions)
+- `POST /api/v1/projects/:id/trips` (cũ: `/trips/:id/dives`) — tạo trip trong project
+
+**MongoDB collections:**
+- `projects` (cũ: `trips`)
+- `trips` (cũ: `dives`)
+
+**Lưu ý migration:** Khi đổi tên, data cũ trên MongoDB Atlas vẫn nằm trong collections `trips` (cũ) và `dives` (cũ). Cần chạy migration hoặc re-seed.
+
+---
+
+## TASK 9 — trip_master.json Manifest Support
+
+ROV xuất file `trip_master.json` đặt ở root thư mục trip khi kết thúc lặn. File này chứa metadata chính xác về từng recording session — timestamp tuyệt đối, loại file, trạng thái kết nối.
+
+---
+
+### Schema thực tế (`trip_master.json`)
+
+**Cấu trúc thư mục ROV — file naming KHÔNG thay đổi so với trước:**
+```
+trip_20260623_112136/
+├── trip_master.json               ← manifest (MỚI)
+├── Camera/
+│   ├── record_20260623_112414.mp4
+│   └── record_20260623_113402.mp4
+├── Sensors/
+│   ├── log_20260623_112136.csv    ← naming giống cũ
+│   └── log_20260623_112414.csv
+├── DVL/
+│   └── DVL_20260623_112414.json   ← naming giống cũ (DVL_*.json)
+├── Sonar/
+│   └── sonar_20260623_112414.sonar ← naming giống cũ (sonar_*.sonar)
+└── Snapshots/
+    └── capture_20260623_113445.png ← MỚI: in-dive auto-snapshot
+```
+
+**Batch upload (ZIP) hiện tại đã xử lý đúng tất cả file trên** vì ZIP extraction strip subfolder trước khi classify — `DVL_*.json`, `sonar_*.sonar`, `log_*.csv` đều match classifier hiện tại. Chỉ `trip_master.json` rơi vào `unknown`.
+
+**Schema đầy đủ:**
+```json
+{
+  "schema_version": "1.0",
+  "trip": {
+    "trip_id": "trip_20260623_112136",
+    "vehicle": "ROV_01",
+    "created_at": "2026-06-23T04:21:36.0546184Z",
+    "status": "completed",
+    "integrity": "full",
+    "total_duration_ms": 61998
+  },
+  "recording_config": {
+    "video_enabled": true,
+    "sonar_enabled": true,
+    "dvl_enabled": true,
+    "log_enabled": true
+  },
+  "sessions": [
+    {
+      "session_id": "session_20260623_112136",
+      "start_ms": 0,
+      "end_ms": 5578,
+      "duration_ms": 5578,
+      "status": "completed",
+      "assets": [
+        {
+          "asset_id": "sns_001",
+          "type": "sensor_csv",
+          "device": "imu_depth_sensor",
+          "file": "Sensors/log_20260623_112136.csv",
+          "start_ms": 0,
+          "end_ms": 5578,
+          "status": "completed"
+        }
+      ],
+      "events": [
+        { "timestamp_ms": 8, "event": "session_start" },
+        { "timestamp_ms": 5581, "event": "session_stop" }
+      ]
+    },
+    {
+      "session_id": "session_20260623_112414",
+      "start_ms": 0,
+      "end_ms": 10755,
+      "duration_ms": 10755,
+      "status": "completed",
+      "assets": [
+        {
+          "asset_id": "vid_001",
+          "type": "video",
+          "device": "front_camera",
+          "file": "Camera/record_20260623_112414.mp4",
+          "start_ms": 9,
+          "end_ms": 10755,
+          "status": "completed"
+        },
+        {
+          "asset_id": "sns_002",
+          "type": "sensor_csv",
+          "device": "imu_depth_sensor",
+          "file": "Sensors/log_20260623_112414.csv",
+          "start_ms": 0,
+          "end_ms": 10755,
+          "status": "completed"
+        },
+        {
+          "asset_id": "dvl_001",
+          "type": "dvl_data",
+          "device": "dvl_teledyne",
+          "file": "DVL/DVL_20260623_112414.json",
+          "start_ms": 0,
+          "end_ms": 10755,
+          "status": "completed"
+        },
+        {
+          "asset_id": "snr_001",
+          "type": "sonar_data",
+          "device": "ping_sonar_360",
+          "file": "Sonar/sonar_20260623_112414.sonar",
+          "start_ms": 12,
+          "end_ms": 10755,
+          "status": "completed"
+        }
+      ],
+      "events": [
+        { "timestamp_ms": 5, "event": "session_start" },
+        { "timestamp_ms": 10755, "event": "session_stop" }
+      ]
+    },
+    {
+      "session_id": "session_20260623_113402",
+      "start_ms": 0,
+      "end_ms": 45665,
+      "duration_ms": 45665,
+      "status": "completed",
+      "assets": [
+        {
+          "asset_id": "vid_001",
+          "type": "video",
+          "device": "front_camera",
+          "file": "Camera/record_20260623_113402.mp4",
+          "start_ms": 33,
+          "end_ms": 11557,
+          "status": "disconnect"
+        },
+        {
+          "asset_id": "vid_002",
+          "type": "video",
+          "device": "front_camera",
+          "file": "Camera/record_20260623_113433.mp4",
+          "start_ms": 31077,
+          "end_ms": 45665,
+          "status": "completed"
+        },
+        {
+          "asset_id": "img_evidence_001",
+          "type": "photo",
+          "device": "front_camera_snapshot",
+          "file": "Snapshots/capture_20260623_113445.png",
+          "start_ms": 43000,
+          "end_ms": 43000,
+          "status": "completed"
+        }
+      ],
+      "events": [
+        { "timestamp_ms": 21, "event": "session_start" },
+        { "timestamp_ms": 11557, "event": "front_camera_disconnect" },
+        { "timestamp_ms": 31077, "event": "front_camera_reconnect" },
+        { "timestamp_ms": 45667, "event": "session_stop" }
+      ]
+    }
+  ]
+}
+```
+
+**Asset types trong manifest:**
+| `asset.type` | Ý nghĩa | File pattern | Classifier hiện tại |
+|---|---|---|---|
+| `sensor_csv` | Sensor log | `Sensors/log_*.csv` | ✓ `log_*.csv` → sensor |
+| `dvl_data` | DVL trajectory | `DVL/DVL_*.json` | ✓ `dvl_*.json` → dvl |
+| `sonar_data` | Sonar scan | `Sonar/sonar_*.sonar` | ✓ `*.sonar` → sonar |
+| `video` | Camera recording | `Camera/record_*.mp4` | ✓ `*.mp4` → video (skip, note "use media upload") |
+| `photo` | In-dive auto-snapshot | `Snapshots/capture_*.png` | `*.png` → image (skip, note "use media upload") |
+
+**Kết luận:** Classifier hiện tại đã đúng cho tất cả file types. Không cần thay đổi `classifyFile`.
+
+---
+
+### Cách tính `recordedAt` cho từng asset
+
+**Quan trọng:** `start_ms` trong asset là **relative to SESSION start** (mỗi session reset về 0), không phải trip start. Session start time lấy từ `session_id`.
+
+```js
+// session_id = "session_20260623_112414"
+// HHMMSS trong session_id là giờ địa phương UTC+7 (giờ Việt Nam)
+function parseSessionId(sessionId) {
+  const m = sessionId.match(/session_(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})/);
+  if (!m) return null;
+  return new Date(`${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6]}+07:00`);
+}
+
+// recordedAt của asset = sessionStart + asset.start_ms
+// Ví dụ: vid_001 trong session_20260623_112414:
+// sessionStart = 2026-06-23T04:24:14.000Z
+// recordedAt   = 2026-06-23T04:24:14.009Z  (start_ms: 9)
+const sessionStart = parseSessionId(session.session_id);
+const assetRecordedAt = new Date(sessionStart.getTime() + asset.start_ms);
+```
+
+**So sánh với method hiện tại (parse từ filename):**
+| Asset | Filename parse | Manifest parse | Độ chính xác |
+|---|---|---|---|
+| `log_20260623_112414.csv` | `2026-06-23T04:24:14Z` | `2026-06-23T04:24:14.000Z` | Như nhau |
+| `DVL_20260623_112414.json` | `2026-06-23T04:24:14Z` | `2026-06-23T04:24:14.000Z` | Như nhau |
+| `sonar_20260623_112414.sonar` | `2026-06-23T04:24:14Z` | `2026-06-23T04:24:14.012Z` | Manifest: +12ms |
+| `record_20260623_112414.mp4` | (user input) | `2026-06-23T04:24:14.009Z` | **Manifest: tự động, ms precision** |
+
+→ **Lợi ích thực tế của manifest chủ yếu là cho VIDEO** — tự động điền `recordedAt` thay vì user phải nhập tay.
+
+---
+
+### CSV format thực tế (từ ROV data)
+
+```csv
+Time;Roll;Pitch;Yaw;Depth;Voltage;HoldDepth;HoldHeading;Manual;Humidity;Temperature;CameraTilt;LightLevel;PowerLevel;WaterTemperature;lat;lng
+16:25:16;0,87;0,62;-124,2;-0,1;12;0;0;Manual;51;40;0;0;40;33;16,0544;108,2022
+16:25:17;0,87;0,62;-124,2;-0,1;12;0;0;Manual;51;40;0;0;40;33
+```
+
+Tất cả đã được xử lý đúng trong `batch.controller.js`:
+- Dấu phân cách `;` → `detectDelimiter` ✓
+- Số thập phân `,` (European) → `detectDecimalSep` ✓
+- `Time` = `HH:MM:SS` + date từ filename → `parseTimeToDate` ✓
+- `lat;lng` chỉ có dòng đầu → `reverseGeocode` ✓
+- `Temperature` (board) vs `WaterTemperature` (nước) → `COLUMN_MAP` ✓
+- `Manual`/`HoldDepth`/`HoldHeading` là string → convert logic ✓
+
+---
+
+### Subtasks thực hiện (minimal — không đổi upload flow)
+
+#### 8-1 — Backend: Detect manifest, return video `recordedAt` suggestions
+
+**File: `backend/src/modules/trips/batch.controller.js`**
+
+1. Thêm `'manifest'` vào `classifyFile` (chỉ 1 dòng):
+```js
+if (base === 'trip_master.json') return 'manifest';
+```
+
+2. Thêm hàm `parseSessionId(sessionId)` (như công thức trên)
+
+3. Trong `uploadBatch`, sau khi build `files[]`:
+```js
+const manifestEntry = files.find(f => f.filename === 'trip_master.json');
+let videoSuggestions = []; // [{ filename, recordedAt (ISO string) }]
+
+if (manifestEntry) {
+  try {
+    const manifest = JSON.parse(manifestEntry.buffer.toString('utf8'));
+    for (const session of manifest.sessions || []) {
+      const sessionStart = parseSessionId(session.session_id);
+      for (const asset of session.assets || []) {
+        if ((asset.type === 'video' || asset.type === 'photo') && sessionStart) {
+          const basename = asset.file.split('/').pop();
+          videoSuggestions.push({
+            filename: basename,
+            recordedAt: new Date(sessionStart.getTime() + asset.start_ms).toISOString(),
+            type: asset.type,
+            status: asset.status,
+          });
+        }
+      }
+    }
+    results.manifest = { detected: true, videoSuggestions };
+  } catch {
+    results.manifest = { detected: false, error: 'Failed to parse trip_master.json' };
+  }
+}
+```
+
+4. Trong vòng `for` xử lý files: skip file `trip_master.json` (type = 'manifest') thay vì push vào `results.unknown`.
+
+#### 8-2 — Frontend: Hiển thị video suggestions sau khi upload ZIP
+
+Trong `ROVDataUpload.jsx`, phần hiển thị kết quả upload:
+- Nếu `results.manifest?.detected && results.manifest.videoSuggestions.length > 0` → hiện section "📹 Video files found in manifest":
+  - Mỗi video: `filename` + `recordedAt` (formatted local time) + badge `DISCONNECT` nếu `status: 'disconnect'`
+  - Note: "Upload these files via Media tab with the suggested start time for chart sync"
+- Chip nhỏ "Manifest detected" màu xanh ở top result
+
+**Không cần thay đổi gì khác** — sensor/DVL/sonar đã được xử lý đúng, `recordedAt` đã parse đúng từ filename.
+
+---
+
+### Checklist sau TASK 8
+
+- [ ] Upload ZIP có `trip_master.json` → backend parse manifest, không crash
+- [ ] `trip_master.json` KHÔNG xuất hiện trong `results.unknown` (bị skip đúng)
+- [ ] `results.manifest.videoSuggestions` trả về đúng danh sách video + `recordedAt` ISO string
+- [ ] `vid_001` với `status: 'disconnect'` → xuất hiện trong suggestions với badge `DISCONNECT`
+- [ ] `photo` type (`capture_*.png`) → xuất hiện trong suggestions (type: 'photo')
+- [ ] Upload ZIP không có `trip_master.json` → `results.manifest` undefined, không crash
+- [ ] Sensor/DVL/Sonar files trong ZIP → xử lý đúng như cũ (không regression)
+- [ ] Frontend: hiện section "Video files found in manifest" với `recordedAt` gợi ý
+- [ ] Frontend: hiện chip "Manifest detected" khi `results.manifest.detected === true`
+- [ ] Upload `trip_master.json` lẻ (không ZIP) → không crash, rơi vào `unknown`
+
+---
+
+### Không cần implement
+
+- Thay đổi classifier cho DVL/Sonar — naming không đổi, classifier đã đúng
+- Lưu `recordedAt` từ manifest vào DVL/Sensor DB — filename đã đủ chính xác (second precision)
+- `Media.manifestAssetId`, `Trip.manifestSessionId` — không có giá trị UI/UX
+- Events timeline (disconnect/reconnect) — không hiển thị trên UI
+- Multi-device: chỉ `front_camera` được support hiện tại
+
+
+---
+
+## Kế hoạch Kiểm thử (Testing Plan)
+
+### Phân loại theo người thực hiện
+
+| Loại | Công cụ | Ai làm | Script có sẵn |
+|---|---|---|---|
+| Fake data | Node.js | **Script tự động** | `src/scripts/seed-full.js` |
+| Functional Test (API) | Node.js | **Script tự động** | `src/scripts/functional-test.js` |
+| API Load Test đơn giản | Node.js | **Bạn tự chạy** | `src/scripts/load-test.js` |
+| API Load Test nâng cao | Artillery | **Bạn tự chạy** | `src/scripts/artillery.yml` |
+| Frontend Lighthouse | Chrome DevTools | **Bạn tự làm** | — |
+| YOLO FPS benchmark | Log trong worker | **Cần viết thêm code** | — |
+| UI/UX manual test | Trình duyệt | **Bạn tự làm** | Checklist bên dưới |
+
+---
+
+### 1. Functional Testing — API (TỰ ĐỘNG)
+
+**Chạy:** `cd backend && node src/scripts/functional-test.js`
+**Kết quả hiện tại:** 37/37 passed (100%)
+
+**Auth (7 cases):** login đúng, sai password, email không tồn tại, thiếu field, GET /me với token hợp lệ/không có/sai.
+
+**RBAC (6 cases):** Viewer không tạo/xóa được, được đọc. Không auth → 401.
+
+**Validation (5 cases):** Thiếu field required, sai ObjectId format, projectId không tồn tại → 404, sensor readings không phải array, array rỗng.
+
+**CRUD (11 cases):** Tạo/đọc/sửa/xóa Project và Trip, cascade delete, verify 404 sau khi xóa.
+
+**Pagination (6 cases):** limit đúng, cấu trúc paginated response, filter theo status, page không tồn tại → data rỗng.
+
+Bug phát hiện qua test: `POST /projects/:id/trips` với projectId không tồn tại trả 201 thay vì 404 — đã fix bằng cách thêm kiểm tra project tồn tại trong trip.controller.js.
+
+---
+
+### 2. Load Testing (BẠN TỰ CHẠY)
+
+#### Option A — Không cần cài thêm
+```
+cd backend
+node src/scripts/load-test.js
+```
+20 concurrent x 3 rounds = 60 requests/endpoint
+
+**Kết quả baseline (Free tier Atlas, dev machine):**
+
+| Endpoint | Avg | P95 | Đánh giá |
+|---|---|---|---|
+| GET /auth/me | 138ms | 448ms | OK |
+| GET /media/trip/:id | 161ms | 784ms | OK |
+| GET /trips/:id/sensor-data | 301ms | 525ms | Chấp nhận |
+| GET /stats/overview | 906ms | 1842ms | Chậm - nhiều aggregation |
+| POST /auth/login | 41/60 errors | — | Rate limiter hoạt động đúng |
+
+#### Option B — Artillery (khuyên dùng cho báo cáo)
+```
+npm install -g artillery
+artillery run backend/src/scripts/artillery.yml
+artillery run backend/src/scripts/artillery.yml --output report.json
+artillery report report.json
+```
+
+3 phases: Warm-up (5 users/s x 15s) → Ramp-up (5→30 users/s x 30s) → Peak (30 users/s x 30s).
+Scenarios: 70% read data, 20% project detail flow, 10% notifications.
+
+---
+
+### 3. Frontend Performance — Lighthouse (BẠN TỰ LÀM)
+
+Chrome DevTools (F12) → tab Lighthouse → Analyze page load (chọn cả Mobile + Desktop).
+
+**Mục tiêu đồ án:**
+
+| Trang | Performance | Accessibility | Best Practices |
+|---|---|---|---|
+| Dashboard | ≥ 70 | ≥ 80 | ≥ 80 |
+| TripDetailPage (nặng nhất) | ≥ 60 | ≥ 75 | ≥ 80 |
+| ProjectsPage | ≥ 75 | ≥ 80 | ≥ 80 |
+
+---
+
+### 4. Manual UI Testing (BẠN TỰ LÀM)
+
+**Responsive:**
+- 375px: Header không overflow, Sonar panel hiện không cần toggle, bottom chart hiện
+- 768px: Layout stacked đúng thứ tự
+- 1440px: Layout 3 cột cockpit, expand/collapse CurrentStatus hoạt động
+
+**Dark mode:** Tất cả trang, chart lines, gauge SVG
+
+**Upload files (cần file thật):**
+
+| Test case | Input | Expected |
+|---|---|---|
+| Upload CSV hợp lệ | log_YYYYMMDD_HHMMSS.csv | Toast xanh, chart hiện |
+| Upload CSV sai format | File thiếu cột Depth | Toast đỏ, báo lỗi rõ |
+| Upload CSV trùng tên | File lần 2 | Overwrite, không duplicate |
+| Upload 2 CSV khác nhau | 2 file khác tên | Chart 2 đoạn, gap đúng chỗ |
+| Upload video .mp4 | Video thật | Playlist hiện, phát được |
+| Upload sonar binary | .sonar file | SonarViewer play/pause |
+| Upload DVL JSON | dvl_YYYYMMDD.json | TrajectoryViewer hiện path |
+
+**RBAC trên UI:**
+
+| Role | Hành động | Expected |
+|---|---|---|
+| viewer | TripDetailPage → không thấy nút Upload | Pass |
+| viewer | Thử navigate /admin → redirect | Pass |
+| operator | Tạo Project mới | Cần test |
+| operator | Xóa Project người khác | 403 |
+| admin | Xóa bất kỳ resource | Cần test |
+
+**Edge cases:**
+- [ ] Upload file lớn (>100MB) → progress bar đúng
+- [ ] Dive không có sensor → empty state không crash
+- [ ] Mạng chậm (DevTools → Network → Slow 3G) → skeleton loading
+- [ ] 2 tab cùng tài khoản → notifications sync qua SSE
+- [ ] Logout → dùng lại token cũ → 401 (Redis blacklist)
+- [ ] Session hết 15 phút → auto refresh trong background
+
+---
+
+### 5. YOLO Performance Benchmark (CẦN VIẾT THÊM CODE)
+
+Thêm vào `yolo-service/main.py` sau khi xử lý xong:
+```python
+duration_s = time.perf_counter() - t_start
+fps = frame_count / duration_s
+logger.info(f"YOLO [{req.model}] {duration_s:.2f}s — {fps:.1f} FPS — {len(labels)} labels")
+return {"labels": labels, "processingMs": round(duration_s * 1000), "fps": fps}
+```
+
+Thêm vào `media.worker.js`:
+```js
+const { labels, processingMs, fps } = yoloRes.data;
+console.log(`[YOLO] ${media.originalName} — ${processingMs}ms — ${fps} FPS`);
+```
+
+**Metrics cần ghi lại cho báo cáo:**
+
+| Input | Duration | FPS | Labels |
+|---|---|---|---|
+| Ảnh 1080p | _ms | N/A | _ |
+| Video 30s (0.5s sample) | _s | _ FPS | _ |
+| Video 3 phút (1s sample) | _s | _ FPS | _ |
+
+---
+
+### 6. Postman — Test thủ công endpoint (BẠN TỰ LÀM)
+
+Tạo collection với Pre-request Script auto-login:
+```js
+// Trong Postman Pre-request Script của folder root:
+pm.sendRequest({
+    url: pm.environment.get("baseUrl") + "/api/v1/auth/login",
+    method: "POST",
+    header: { "Content-Type": "application/json" },
+    body: { mode: "raw", raw: JSON.stringify({ email: "admin@rov.local", password: "Admin@123" }) }
+}, (err, res) => {
+    pm.environment.set("token", res.json().data.accessToken);
+});
+```
+
+Authorization header: `Bearer {{token}}`
+
+---
+
+### Checklist trước bảo vệ đồ án
+
+**Chạy script (5 phút):**
+- [ ] `node src/scripts/seed-full.js --reset`
+- [ ] `node src/scripts/functional-test.js` → phải 37/37
+- [ ] `node src/scripts/load-test.js` → chụp ảnh kết quả
+
+**Lighthouse (15 phút):**
+- [ ] Dashboard → chụp ảnh điểm số
+- [ ] TripDetailPage → chụp ảnh điểm số
+- [ ] ProjectsPage → chụp ảnh điểm số
+
+**Manual (30 phút):**
+- [ ] Upload CSV + video vào 1 trip thật → verify chart + playlist
+- [ ] Test RBAC với 3 role khác nhau
+- [ ] Kiểm tra dark mode + responsive 375px
+
+**Artillery (10 phút, nếu có):**
+- [ ] `artillery run backend/src/scripts/artillery.yml --output report.json`
+- [ ] `artillery report report.json` → chụp ảnh HTML report
+
+**YOLO benchmark (nếu có thời gian):**
+- [ ] Thêm timing log vào main.py + media.worker.js
+- [ ] Chạy analyze trên 1 ảnh + 1 video → ghi FPS

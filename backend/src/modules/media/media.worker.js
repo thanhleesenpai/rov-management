@@ -55,7 +55,7 @@ mediaAnalysisQueue.process(async (job) => {
       'media_analysis_done',
       'Object detection complete',
       `${labels.length} object${labels.length !== 1 ? 's' : ''} detected in your media.`,
-      `/dives/${media.dive}`
+      `/trips/${media.trip}`
     ).catch(() => {});
   }
 });

@@ -1,90 +1,448 @@
 \documentclass[../DoAn.tex]{subfiles}
 \begin{document}
 
-Chương 4 trình bày quá trình hiện thực hóa các yêu cầu chức năng và phi chức năng đã phân tích ở Chương 2, thông qua việc lựa chọn kiến trúc phần mềm, thiết kế cơ sở dữ liệu và xây dựng giao diện. Đồng thời, chương này cũng đưa ra các kịch bản kiểm thử (Test cases) quan trọng và phác thảo mô hình triển khai hệ thống thực tế trên máy chủ ảo.
+Chương này trình bày quá trình hiện thực hóa hệ thống từ thiết kế kiến trúc đến xây dựng giao diện và kiểm thử. Nội dung gồm bốn phần chính: (1)~thiết kế kiến trúc và cơ sở dữ liệu; (2)~hiện thực các chức năng cốt lõi kèm minh họa giao diện; (3)~kiểm thử chức năng, tải và hiệu năng; (4)~mô hình triển khai đề xuất.
 
-\section{Thiết kế kiến trúc}
+\section{Thiết kế kiến trúc hệ thống}
 \label{section:4.1}
-\subsection{Lựa chọn kiến trúc phần mềm}
-Hệ thống được thiết kế theo kiến trúc \textbf{Client-Server} đa tầng, kết hợp với mô hình \textbf{Microservices} thu nhỏ để xử lý các tác vụ AI đặc thù. Việc tách rời giao diện người dùng (Frontend) và máy chủ xử lý (Backend) giúp tăng khả năng bảo trì và dễ dàng mở rộng. Thay vì gộp chung bộ nhận diện hình ảnh nặng nề vào máy chủ Node.js, đồ án tách riêng khối nhận diện thành một dịch vụ vi mô độc lập chạy bằng Python, giao tiếp với máy chủ chính thông qua giao thức HTTP và Message Queue. 
 
-\subsection{Thiết kế tổng quan (Biểu đồ gói)}
-Hệ thống được chia thành 3 nhóm gói (Package) chính: Gói Giao diện (Presentation Layer), Gói Nghiệp vụ Máy chủ (Business Logic Layer) và Gói Dịch vụ AI (AI Microservice Layer).
+\subsection{Kiến trúc tổng quan}
 
-\begin{itemize}
-    \item \textbf{Presentation Layer (React):} Chịu trách nhiệm hiển thị (UI Components), quản lý trạng thái luồng (State Management - Zustand) và giao tiếp với API (React Query).
-    \item \textbf{Business Logic Layer (Node.js):} Bao gồm các gói Controllers (xử lý luồng HTTP), Services (logic nghiệp vụ chính như tính toán dữ liệu cảm biến) và Data Access (kết nối MongoDB qua Mongoose).
-    \item \textbf{AI Microservice (Python):} Gói xử lý tách biệt chuyên chạy mô hình học sâu YOLOv8 để trích xuất vật thể từ video, độc lập hoàn toàn với vòng lặp sự kiện của Node.js.
-\end{itemize}
+Hệ thống được thiết kế theo kiến trúc \textbf{Client-Server đa tầng}, kết hợp mô hình \textbf{Microservice thu nhỏ} để tách biệt bộ phận nhận diện hình ảnh nặng nề khỏi máy chủ chính. Ba tầng chính gồm: (1)~tầng trình bày (React SPA), (2)~tầng nghiệp vụ (Node.js), và (3)~tầng dữ liệu (MongoDB Atlas).
 
-\section{Thiết kế chi tiết}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\textwidth]{../Hinhve/arch_tong_quan.png}
+  \caption{Kiến trúc tổng quan hệ thống quản lý ROV}
+  \label{fig:arch_tong_quan}
+\end{figure}
+
+Như Hình~\ref{fig:arch_tong_quan}, frontend được phân phối qua Vercel CDN và giao tiếp với backend Node.js thông qua REST API. Backend đảm nhận toàn bộ nghiệp vụ: xác thực JWT, quản lý hàng đợi Bull, xử lý file S3 và điều phối các dịch vụ ngoài (Gemini API, YOLOv8 Microservice, Nominatim). Cơ sở dữ liệu MongoDB Atlas hoạt động độc lập trên cloud.
+
+\subsection{Sơ đồ phụ thuộc module}
+
+Hình~\ref{fig:arch_module_dep} thể hiện sự phân chia module phía backend theo nguyên tắc \textit{high cohesion, low coupling}. Mỗi thực thể nghiệp vụ (Projects, Trips, Media, Sensor, DVL, Sonar, Snapshots, Notifications, AI, Audit) có bộ tệp độc lập gồm \texttt{routes.js}, \texttt{controller.js}, \texttt{service.js}, \texttt{model.js}. Controller không chứa logic nghiệp vụ; Service là trung tâm xử lý duy nhất.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.88\textwidth]{../Hinhve/arch_module_dep.png}
+  \caption{Sơ đồ phụ thuộc module phía backend}
+  \label{fig:arch_module_dep}
+\end{figure}
+
+\subsection{Mô hình triển khai đề xuất}
+
+Do giới hạn phần cứng (YOLOv8 cần khoảng 1,5\,GB RAM, không có GPU), hệ thống chưa được triển khai lên VPS trong khuôn khổ đồ án. Mô hình triển khai đề xuất (Hình~\ref{fig:arch_deploy}) sử dụng Docker Compose để đóng gói bốn dịch vụ trên một VPS duy nhất: \texttt{nginx} (reverse proxy), \texttt{node-backend} (Express API + Bull Workers), \texttt{yolo-service} (FastAPI + YOLOv8n), \texttt{redis} (JWT blacklist + hàng đợi). Frontend được deploy riêng trên Vercel CDN; cơ sở dữ liệu ở MongoDB Atlas; file media trên AWS S3.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.90\textwidth]{../Hinhve/arch_deploy.png}
+  \caption{Mô hình triển khai đề xuất trên VPS}
+  \label{fig:arch_deploy}
+\end{figure}
+
+Phương án này giúp đơn giản hóa vận hành: một lệnh \texttt{docker compose up} khởi động toàn bộ hệ thống. Redis chạy cùng VPS đảm bảo độ trễ dưới 0,5\,ms cho JWT blacklist, tránh chi phí dịch vụ Redis trả phí.
+
+\section{Thiết kế cơ sở dữ liệu}
 \label{section:4.2}
-\subsection{Thiết kế cơ sở dữ liệu}
-Do đặc thù của dữ liệu môi trường luôn thay đổi, hệ quản trị cơ sở dữ liệu phi cấu trúc MongoDB được sử dụng. Cơ sở dữ liệu bao gồm các tập hợp (Collections) chính như sau:
-\begin{itemize}
-    \item \textbf{Users:} Lưu thông tin định danh, email và vai trò (Role) của người dùng.
-    \item \textbf{Trips:} Đại diện cho một chuyến đi lớn, chứa tên, địa điểm, thời gian và mảng tham chiếu đến các Lượt lặn (Dives).
-    \item \textbf{Dives:} Lưu trữ thông tin chi tiết của một lượt lặn, bao gồm đường dẫn tới tệp Video (trên S3) và tham chiếu tới bộ dữ liệu cảm biến.
-    \item \textbf{SensorData:} Lưu trữ chuỗi thời gian (time-series) của các thông số như độ sâu, nhiệt độ, áp suất, độ mặn theo từng giây.
-    \item \textbf{Evidences (Bằng chứng):} Lưu trữ vị trí (timestamp) và tọa độ khung hình của vật thể bất thường được AI phát hiện hoặc người dùng tự đánh dấu.
-\end{itemize}
 
-\subsection{Thiết kế giao diện Bảng điều khiển (Cockpit)}
-Giao diện Cockpit là linh hồn của hệ thống, được thiết kế tập trung vào trải nghiệm theo dõi song song dữ liệu đa phương thức. Màn hình được chia làm hai phần chính: 
-- Nửa trên là Trình phát Video (Video Player) kích thước lớn, hiển thị luồng hình ảnh từ ROV với thanh công cụ điều khiển AI và trích xuất bằng chứng.
-- Nửa dưới là Hệ thống Biểu đồ Đa biến (Multi-axis Charts), hiển thị dữ liệu cảm biến. Một đường gióng dọc (Synchronized Cursor) sẽ liên tục chạy ngang biểu đồ tương ứng chính xác với thời gian phát của video ở nửa trên, giúp người điều khiển đối chiếu dữ liệu một cách trực quan nhất.
+Hệ thống sử dụng MongoDB với 10 collection chính. Hình~\ref{fig:er_diagram} mô tả quan hệ giữa các collection dưới dạng sơ đồ ER.
 
-\section{Xây dựng ứng dụng}
-\label{section:4.3}
-\subsection{Thư viện và công cụ sử dụng}
-Quá trình xây dựng ứng dụng sử dụng các công cụ và thư viện được liệt kê trong Bảng \ref{table:tools}.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{../Hinhve/er_diagram.png}
+  \caption{Sơ đồ ER cơ sở dữ liệu hệ thống quản lý ROV}
+  \label{fig:er_diagram}
+\end{figure}
+
+Cấu trúc phân cấp trung tâm là \textbf{Users} $\to$ \textbf{Projects} $\to$ \textbf{Trips} $\to$ dữ liệu con (SensorData, DVLData, SonarFile, Media, Snapshots). Các collection mô tả trong Bảng~\ref{tab:collections}.
 
 \begin{table}[H]
-\centering{}
-    \begin{tabular}{|l|l|l|}
-        \hline
-        \textbf{Thành phần} & \textbf{Công cụ / Thư viện} & \textbf{Phiên bản} \\ \hline
-        Frontend            & ReactJS, Tailwind CSS, Zustand, Recharts & 18.x, 3.x \\ \hline
-        Backend             & Node.js, Express.js, Mongoose, Bull Queue & 20.x, 4.x \\ \hline
-        AI Microservice     & Python, FastAPI, Ultralytics (YOLOv8) & 3.11, 8.x \\ \hline
-        Database \& Cache   & MongoDB, Redis & 6.x, 7.x \\ \hline
-        IDE Lập trình       & Visual Studio Code & Mới nhất \\ \hline
-        Kiểm thử            & Postman, Artillery, Lighthouse & Mới nhất \\ \hline
-    \end{tabular}
-    \caption{Danh sách công cụ và thư viện sử dụng trong Đồ án}
-    \label{table:tools}
+\centering
+\caption{Mô tả các collection chính trong MongoDB}
+\label{tab:collections}
+\small
+\begin{tabular}{|p{2.8cm}|p{4.0cm}|p{5.6cm}|}
+\hline
+\textbf{Collection} & \textbf{Trường quan trọng} & \textbf{Mô tả} \\
+\hline
+\texttt{users} & email, role, googleId, isActive & Người dùng; role: viewer/operator/admin \\
+\hline
+\texttt{rovs} & name, serialNumber, status & Thiết bị ROV; status: active/maintenance/retired \\
+\hline
+\texttt{projects} & rov, status, aiSummary & Chuyến khảo sát; status: planned/ongoing/completed/cancelled \\
+\hline
+\texttt{trips} & project, status, gpsLocation, sensorCount & Lần lặn; status: pending/running/done/failed \\
+\hline
+\texttt{sensordatas} & trip, timestamp, depth, temp, sourceFile & Chuỗi thời gian cảm biến; index \{trip, timestamp\} \\
+\hline
+\texttt{dvldatas} & trip, ts, x, y, z, sourceFile & Quỹ đạo DVL theo thời gian \\
+\hline
+\texttt{sonarfiles} & trip, filename, frameCount, durationMs & Metadata file sonar nhị phân trên S3 \\
+\hline
+\texttt{media} & trip, type, labels, analysisStatus & Video/ảnh; labels từ YOLO \\
+\hline
+\texttt{snapshots} & trip, type, imageS3Key, aiLabels & Ảnh frame hoặc clip bằng chứng \\
+\hline
+\texttt{notifications} & userId, type, isRead, link & Thông báo in-app qua SSE \\
+\hline
+\texttt{auditlogs} & action, entity, userId, details & Nhật ký hoạt động admin \\
+\hline
+\end{tabular}
 \end{table}
 
-\subsection{Kết quả đạt được}
-Hệ thống đã hiện thực hóa thành công một nền tảng quản lý thông tin ROV khép kín, từ khâu tải lên dữ liệu thô (video + CSV) đến khâu đồng bộ tự động và tự động nhận diện vật thể bằng trí tuệ nhân tạo.
+Index phức hợp được đặt tại các collection truy vấn thường xuyên: \texttt{SensorData\{trip,timestamp,-1\}}, \texttt{Media\{trip,order\}}, \texttt{Notification\{userId,isRead,createdAt\}}.
 
-\section{Kiểm thử (Thiết kế kịch bản)}
+\section{Hiện thực các chức năng chính}
+\label{section:4.3}
+
+\subsection{Xác thực và phân quyền}
+
+Màn hình đăng nhập (Hình~\ref{fig:ui_login}) hỗ trợ hai luồng: đăng nhập bằng email/mật khẩu và đăng nhập bằng tài khoản Google qua OAuth 2.0. Sau khi xác thực thành công, hệ thống cấp Access Token (TTL 15 phút) và Refresh Token (TTL 7 ngày). Axios interceptor tự động làm mới token khi nhận lỗi 401, đảm bảo trải nghiệm không gián đoạn.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.80\textwidth]{../Hinhve/ui_login.png}
+  \caption{Màn hình đăng nhập — hỗ trợ Google OAuth}
+  \label{fig:ui_login}
+\end{figure}
+
+Hệ thống phân quyền RBAC (Bảng~\ref{tab:rbac4}) được thực thi tại middleware \texttt{authorize(roles)} trên mọi route. Frontend ẩn các nút thao tác không phù hợp với role hiện tại, nhưng backend vẫn kiểm tra độc lập để tránh bypass qua API trực tiếp.
+
+\begin{table}[H]
+\centering
+\caption{Ma trận phân quyền RBAC của hệ thống}
+\label{tab:rbac4}
+\small
+\begin{tabular}{|p{4.8cm}|c|c|c|}
+\hline
+\textbf{Chức năng} & \textbf{admin} & \textbf{operator} & \textbf{viewer} \\
+\hline
+Quản lý người dùng & \checkmark & $\times$ & $\times$ \\
+\hline
+Xem Audit Log & \checkmark & $\times$ & $\times$ \\
+\hline
+Xóa Project / Trip & \checkmark & $\times$ & $\times$ \\
+\hline
+Xóa ROV / Media & \checkmark & $\times$ & $\times$ \\
+\hline
+Tạo/sửa Project, Trip & \checkmark & \checkmark & $\times$ \\
+\hline
+Tạo/sửa ROV & \checkmark & \checkmark & $\times$ \\
+\hline
+Upload sensor / media & \checkmark & \checkmark & $\times$ \\
+\hline
+Xóa dữ liệu cảm biến / DVL / Sonar & \checkmark & \checkmark & $\times$ \\
+\hline
+Tạo/xóa Bằng chứng (Evidence) & \checkmark & \checkmark & $\times$ \\
+\hline
+Kích hoạt AI Summary / YOLO & \checkmark & \checkmark & $\times$ \\
+\hline
+Xem toàn bộ dữ liệu & \checkmark & \checkmark & \checkmark \\
+\hline
+Export CSV/PDF & \checkmark & \checkmark & $\times$ \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Dashboard và thống kê tổng quan}
+
+Dashboard (Hình~\ref{fig:ui_dashboard}) hiển thị bức tranh tổng quan hệ thống qua bốn thẻ KPI và ba biểu đồ Recharts, được tải song song qua bảy MongoDB aggregation. Thẻ KPI bao gồm: tổng số Project, số Trip đang chạy, số ROV hoạt động và tổng người dùng. Biểu đồ gồm: Project Status (donut), Trips by Status (bar), ROV Utilization (horizontal bar) và Activity Timeline 6 tháng.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{../Hinhve/ui_dashboard.png}
+  \caption{Dashboard — KPI cards và biểu đồ thống kê tổng quan}
+  \label{fig:ui_dashboard}
+\end{figure}
+
+\subsection{Quản lý Project và Trip}
+
+\subsubsection{Danh sách Projects}
+
+Trang Projects (Hình~\ref{fig:ui_projects_list}) hiển thị danh sách dạng bảng với đầy đủ tính năng: tìm kiếm theo tên, lọc theo trạng thái và khoảng thời gian, phân trang, xuất CSV/PDF. Mỗi hàng có nút mở rộng để xem nhanh danh sách Trip và nút điều hướng đến trang chi tiết.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{../Hinhve/ui_projects_list.png}
+  \caption{Trang danh sách Projects — filter, search và export}
+  \label{fig:ui_projects_list}
+\end{figure}
+
+\subsubsection{Chi tiết Project}
+
+ProjectDetailPage (Hình~\ref{fig:ui_project_detail}) hiển thị toàn bộ thông tin project và danh sách Trip con. Mỗi TripCard khi mở rộng hiện phần DATA FILES với tên file cụ thể (sensor CSV, DVL JSON, sonar), cho phép xóa từng file riêng lẻ, phía dưới là MediaGallery. Khu vực AI Summary hiện nội dung tóm tắt song ngữ (vi/en) sau khi Operator kích hoạt Generate.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{../Hinhve/ui_project_detail.png}
+  \caption{ProjectDetailPage — TripCard expanded với DATA FILES và AI Summary}
+  \label{fig:ui_project_detail}
+\end{figure}
+
+\subsubsection{Danh sách Trips}
+
+Trang Trips (Hình~\ref{fig:ui_trips_list}) cho phép lọc toàn bộ lượt lặn theo trạng thái và ngày, độc lập với Project. Mỗi hàng có badge trạng thái màu (pending: xám, running: xanh dương, done: xanh lá, failed: đỏ) và số lượng sensor/media.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{../Hinhve/ui_trips_list.png}
+  \caption{Trang danh sách Trips — filter theo status và date range}
+  \label{fig:ui_trips_list}
+\end{figure}
+
+\subsection{Giao diện Cockpit TripDetailPage}
+
+TripDetailPage là tính năng cốt lõi của hệ thống, được thiết kế theo phong cách ``cockpit'' (Hình~\ref{fig:ui_trip_cockpit}): layout 3 cột không cuộn trang, tối ưu cho màn hình 1080p.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.98\textwidth]{../Hinhve/ui_trip_cockpit.png}
+  \caption{TripDetailPage Cockpit — layout 3 cột đầy đủ tính năng}
+  \label{fig:ui_trip_cockpit}
+\end{figure}
+
+\textbf{Cột trái} (w-56) hiển thị: bản đồ Leaflet với Marker GPS lần lặn, ba thẻ KPI (độ sâu trung bình, nhiệt độ, áp suất) và mục DATA FILES liệt kê tên từng file dữ liệu kèm nút xóa riêng lẻ.
+
+\textbf{Cột giữa} (flex-1) là trình phát video nền đen, phía trên có thanh gradient chứa tên file và các nút điều khiển AI: ``Detect/Hide'' bật/tắt bounding box YOLO, ``Analyze'' mở popover cài đặt model/confidence, ``📷'' chụp frame ảnh, ``🎬'' ghi clip, ``Evidence N'' mở Evidence Panel. Khi video có \texttt{recordedAt}, badge ``LIVE SYNC'' xuất hiện tại góc và thanh đỏ ReferenceLine trên biểu đồ bên dưới di chuyển theo từng giây phát.
+
+\textbf{Cột phải} (w-56) có đồng hồ \texttt{ArtificialHorizon} và \texttt{CompassRose} dạng SVG kiểu hàng không, animate theo dữ liệu yaw/pitch/roll từ CSV. Phần Alerts hiển thị card cảnh báo màu hổ phách cho từng điểm bất thường.
+
+\textbf{Dưới cùng} là ba tab biểu đồ: Environment (depth/temp/pressure), Navigation (yaw/pitch/roll), System (voltage/battery/humidity), kèm Brush zoom, legend toggle và nút mở rộng.
+
+Biểu đồ Environment (Hình~\ref{fig:ui_trip_chart_anomaly}) làm nổi bật các điểm bất thường bằng dot đỏ, kết quả từ thuật toán Z-Score tự cài đặt với ngưỡng $|z| > 2{,}5$.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{../Hinhve/ui_trip_chart_anomaly.png}
+  \caption{Bottom chart tab Environment — dot đỏ đánh dấu điểm bất thường Z-Score}
+  \label{fig:ui_trip_chart_anomaly}
+\end{figure}
+
+\subsection{Nhận diện vật thể YOLOv8 và Evidence System}
+
+\subsubsection{Bounding box YOLO}
+
+Khi Operator nhấn ``Detect'', hệ thống hiển thị bounding box SVG chồng lên video/ảnh (Hình~\ref{fig:ui_yolo_detection}). Mỗi box có nhãn tên vật thể và độ tin cậy; badge xanh nếu confidence > 80\%, vàng nếu 50--80\%. Đối với video đã phân tích per-frame, box di chuyển theo thời gian phát và badge bar cập nhật theo frame hiện tại.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.92\textwidth]{../Hinhve/ui_yolo_detection.png}
+  \caption{Bounding box YOLO overlay trên ảnh/video ROV}
+  \label{fig:ui_yolo_detection}
+\end{figure}
+
+\subsubsection{AI Analyze Popover}
+
+Operator chọn model và điều chỉnh ngưỡng confidence qua popover nhỏ (Hình~\ref{fig:ui_ai_analyze_popover}) trước khi kích hoạt phân tích. Hệ thống hỗ trợ nhiều model; model nặng (YOLOv8m) hiển thị warning màu vàng. Yêu cầu phân tích được đưa vào Bull Queue và trả về ngay HTTP 202, tránh block giao diện.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.55\textwidth]{../Hinhve/ui_ai_analyze_popover.png}
+  \caption{AI Analyze Popover --- chọn model và ngưỡng confidence trước khi phân tích YOLO}
+  \label{fig:ui_ai_analyze_popover}
+\end{figure}
+
+\subsubsection{Evidence System}
+
+Operator có thể chụp frame ảnh (📷) hoặc ghi đoạn clip (🎬) làm bằng chứng trong khi xem video. Evidence Panel (Hình~\ref{fig:ui_evidence_panel}) hiển thị thumbnails kiểu single-column; click vào thumb mở EvidenceViewer overlay với đầy đủ điều khiển phát lại và bounding box.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.90\textwidth]{../Hinhve/ui_evidence_panel.png}
+  \caption{Evidence Panel — PHOTO/CLIP thumbnails và EvidenceViewer overlay}
+  \label{fig:ui_evidence_panel}
+\end{figure}
+
+\subsection{Tổng hợp báo cáo bằng AI (Gemini)}
+
+Khi Project đạt trạng thái \texttt{completed}, Operator/Admin có thể kích hoạt ``Generate AI Summary''. Yêu cầu được đưa vào hàng đợi \texttt{ai-summary} và trả về HTTP 202 tức thì. Sau 5--15 giây, Gemini 2.5 Flash sinh ra báo cáo song ngữ (tiếng Việt và tiếng Anh) từ prompt tổng hợp thông tin project, trip và điểm bất thường. Kết quả được SSE đẩy về frontend và hiển thị trong section AI Summary (Hình~\ref{fig:ui_ai_summary}).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{../Hinhve/ui_ai_summary.png}
+  \caption{AI Summary — báo cáo song ngữ được tổng hợp bởi Gemini 2.5 Flash}
+  \label{fig:ui_ai_summary}
+\end{figure}
+
+\subsection{Thông báo realtime và quản lý người dùng}
+
+Hệ thống đẩy thông báo realtime qua SSE mỗi khi có sự kiện quan trọng (trip chuyển sang \texttt{done/failed}, AI Summary hoàn tất). Bell icon trên navbar hiển thị badge số chưa đọc; click mở dropdown 15 thông báo gần nhất (Hình~\ref{fig:ui_notification_bell}).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.75\textwidth]{../Hinhve/ui_notification_bell.png}
+  \caption{Notification bell dropdown — thông báo realtime qua SSE}
+  \label{fig:ui_notification_bell}
+\end{figure}
+
+Trang quản lý người dùng (Hình~\ref{fig:ui_users_page}, chỉ hiện với Admin) cung cấp: tìm kiếm, lọc theo role, đổi role đơn lẻ hoặc bulk, kích hoạt/vô hiệu hóa tài khoản, xuất CSV. Mọi thao tác admin được ghi vào Audit Log (Hình~\ref{fig:ui_audit_log}).
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{../Hinhve/ui_users_page.png}
+  \caption{Trang quản lý người dùng (Admin) — bulk operations và role management}
+  \label{fig:ui_users_page}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{../Hinhve/ui_audit_log.png}
+  \caption{Audit Log — nhật ký hoạt động admin theo timeline}
+  \label{fig:ui_audit_log}
+\end{figure}
+
+\subsection{Sơ đồ tuần tự các luồng nghiệp vụ chính}
+
+Hai sơ đồ tuần tự dưới đây mô tả chi tiết tương tác giữa các thành phần hệ thống cho hai luồng nghiệp vụ quan trọng nhất: tải lên dữ liệu cảm biến và phân tích YOLO bất đồng bộ.
+
+\subsubsection{Luồng tải lên dữ liệu cảm biến CSV}
+
+Hình~\ref{fig:seq_sensor_upload} mô tả luồng tải lên dữ liệu cảm biến từ khi Operator chọn file đến khi dữ liệu được lưu vào MongoDB và bản đồ GPS được cập nhật.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{../Hinhve/seq_sensor_upload.png}
+  \caption{Sơ đồ tuần tự — luồng tải lên file CSV cảm biến}
+  \label{fig:seq_sensor_upload}
+\end{figure}
+
+Luồng gồm sáu bước chính: (1)~Frontend parse file CSV phía client, validate định dạng (bắt buộc timestamp và depth, các trường còn lại tùy chọn) trước khi gửi lên server; (2)~\code{POST /trips/:id/sensor-data} gửi mảng readings kèm tên file gốc (\texttt{sourceFile}); (3)~Controller kiểm tra sourceFile đã tồn tại trong DB chưa — nếu có thì xóa data của file đó trước (re-upload), nếu là file mới thì kiểm tra overlap theo timestamp lớn nhất hiện có và cắt bỏ dữ liệu trùng; (4)~\texttt{SensorData.insertMany()} ghi batch toàn bộ readings hợp lệ; (5)~Nếu dòng đầu tiên có tọa độ \texttt{lat/lng}, hệ thống gọi Nominatim reverse geocoding để lấy tên địa danh và cập nhật \code{trip.gpsLocation + trip.locationName}; (6)~Trả về \texttt{\{count, total, warning?\}} — frontend hiển thị toast xanh (thành công), vàng (overlap\_trimmed hoặc file\_skipped).
+
+\subsubsection{Luồng phân tích YOLO bất đồng bộ qua Bull Queue}
+
+Hình~\ref{fig:seq_ai_analysis} mô tả luồng phân tích nhận diện vật thể: Operator kích hoạt từ AIAnalyzePopover, backend trả ngay HTTP 202, Bull Worker xử lý nền và SSE đẩy kết quả về khi xong.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\textwidth]{../Hinhve/seq_ai_analysis.png}
+  \caption{Sơ đồ tuần tự — luồng phân tích YOLO bất đồng bộ qua Bull Queue}
+  \label{fig:seq_ai_analysis}
+\end{figure}
+
+Luồng gồm bảy bước: (1)~Operator chọn model và ngưỡng confidence trong popover, nhấn ``Run Analysis''; (2)~\texttt{POST /media/:id/analyze\allowbreak{} \{model, confidence\}} đến backend; (3)~\code{mediaService.enqueueAnalysis()} cập nhật \code{media.analysisStatus = 'pending'}, \texttt{labels = []} rồi thêm job vào hàng đợi \texttt{mediaAnalysisQueue}; (4)~Backend trả HTTP 202 ngay lập tức — giao diện người dùng không bị chặn; (5)~Bull Worker lấy job: tạo presigned GET URL (TTL 10 phút) để YOLO service tải file từ S3, gọi \texttt{POST yolo-service:\allowbreak{}8000/detect \{mediaUrl,\allowbreak{} model, confidence\}}; (6)~YOLO service tải file từ S3, chạy inference (ảnh: 1 lần, video: lấy mẫu thích nghi 0,2--1,0 giây/khung tùy độ dài), trả mảng \texttt{labels[]\{name, confidence,\allowbreak{} bbox, frameTime, trackId\}}; (7)~Worker lưu kết quả, đặt \code{analysisStatus = 'done'}, gọi \texttt{notifService.create()} để đẩy SSE về client — frontend nhận event, invalidate query \texttt{['media']} và labels xuất hiện mà không cần tải lại trang.
+
+Thiết kế bất đồng bộ này đảm bảo trải nghiệm người dùng mượt mà: phân tích video dài có thể mất 5--15 phút nhưng giao diện không bị đóng băng. Nếu YOLO service không phản hồi (\texttt{ECONNREFUSED}), Worker ghi \code{analysisStatus = 'failed'} mà không crash queue.
+
+\section{Kiểm thử hệ thống}
 \label{section:4.4}
-Để đảm bảo hệ thống hoạt động ổn định, quy trình kiểm thử được thiết kế chia làm kiểm thử chức năng và kiểm thử hiệu năng.
 
-\textbf{1. Kiểm thử chức năng tải lên file CSV (Functional Test):}
-\begin{itemize}
-    \item \textit{Mục tiêu:} Đảm bảo hệ thống bắt lỗi tốt khi người dùng tải lên file dữ liệu cảm biến sai định dạng.
-    \item \textit{Đầu vào:} Một file CSV thiếu cột bắt buộc "timestamp" hoặc "depth".
-    \item \textit{Kết quả mong đợi:} Hệ thống từ chối tải lên, hiển thị thông báo lỗi (Toast Notification) rõ ràng cho người dùng biết cột nào bị thiếu, và không ghi dữ liệu rác vào MongoDB.
+\subsection{Kiểm thử chức năng (Functional Test)}
+
+Script \texttt{functional-test.js} được xây dựng để tự động hóa 37 ca kiểm thử bao phủ đầy đủ các nhóm chức năng:
+
+\begin{itemize}[leftmargin=*, topsep=4pt, itemsep=1pt]
+  \item \textbf{Xác thực (7 ca):} đăng nhập đúng, sai mật khẩu, email không tồn tại, thiếu field, GET \texttt{/auth/me} với token hợp lệ/không có/sai.
+  \item \textbf{Phân quyền RBAC (6 ca):} Viewer không tạo/xóa được Project, Trip; thao tác không xác thực trả 401.
+  \item \textbf{Validation (5 ca):} thiếu field bắt buộc, sai ObjectId format, projectId không tồn tại → 404, sensor readings không phải array, array rỗng.
+  \item \textbf{CRUD (11 ca):} tạo/đọc/sửa/xóa Project và Trip, cascade delete, xác nhận 404 sau khi xóa.
+  \item \textbf{Phân trang (6 ca):} limit đúng, cấu trúc response paginated, filter theo status, page không tồn tại → data rỗng.
+  \item \textbf{Kiểm thử hồi quy (2 ca):} POST \texttt{/projects/:id/trips} với projectId không tồn tại phải trả 404.
 \end{itemize}
 
-\textbf{2. Kiểm thử chịu tải API (Load Test bằng Artillery):}
-\begin{itemize}
-    \item \textit{Mục tiêu:} Đánh giá khả năng chịu tải của Backend Node.js khi có nhiều người dùng cùng truy xuất dữ liệu cảm biến.
-    \item \textit{Kịch bản:} Bắn 50 request mỗi giây vào API lấy chi tiết Lượt lặn (Dives) liên tục trong 1 phút.
-    \item \textit{Kết quả mong đợi (Dự kiến):} Tỉ lệ lỗi (Error rate) < 1\%, thời gian phản hồi trung bình (p95 latency) dưới 200ms nhờ cơ sở dữ liệu đã được đánh chỉ mục (Index) tốt.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\textwidth]{../Hinhve/functional-test.png}
+  \caption{Kết quả kiểm thử chức năng — 37/37 ca đạt (100\%)}
+  \label{fig:functional_test}
+\end{figure}
+
+Kết quả Hình~\ref{fig:functional_test} cho thấy 37/37 ca kiểm thử đều PASSED (tỉ lệ 100\%). Trong quá trình viết test, phát hiện và sửa một lỗi thực tế: endpoint \texttt{POST /projects/:id/trips} không kiểm tra project tồn tại, trả về 201 thay vì 404 khi projectId sai.
+
+\subsection{Kiểm thử tải (Load Test)}
+
+Script \texttt{load-test.js} bắn 20 request đồng thời × 3 vòng = 60 request/endpoint lên backend đang chạy local với MongoDB Atlas (Bảng~\ref{tab:loadtest}).
+
+\begin{table}[H]
+\centering
+\caption{Kết quả kiểm thử tải — 20 concurrent × 3 rounds (60 requests/endpoint)}
+\label{tab:loadtest}
+\small
+\begin{tabular}{|p{5.0cm}|c|c|c|c|}
+\hline
+\textbf{Endpoint} & \textbf{avg} & \textbf{p50} & \textbf{p95} & \textbf{Errors} \\
+\hline
+POST /auth/login & 1312ms & 8ms & 4101ms & 41/60 \\
+\hline
+GET /auth/me & 132ms & 82ms & 492ms & 0/60 \\
+\hline
+GET /projects & 474ms & 456ms & 934ms & 0/60 \\
+\hline
+GET /trips & 458ms & 252ms & 988ms & 0/60 \\
+\hline
+GET /rovs & 205ms & 168ms & 540ms & 0/60 \\
+\hline
+GET /stats/overview & 825ms & 887ms & 1830ms & 0/60 \\
+\hline
+GET /trips/:id/sensor-data & 327ms & 261ms & 523ms & 0/60 \\
+\hline
+GET /trips/:id/dvl & 737ms & 810ms & 885ms & 0/60 \\
+\hline
+GET /media/trip/:id & 377ms & 241ms & 759ms & 0/60 \\
+\hline
+GET /notifications & 525ms & 645ms & 855ms & 0/60 \\
+\hline
+\end{tabular}
+\end{table}
+
+\textbf{Phân tích kết quả:}
+
+\begin{itemize}[leftmargin=*, topsep=4pt, itemsep=2pt]
+  \item \textbf{POST /auth/login} có 41/60 lỗi là hoạt động đúng thiết kế — rate limiter Redis chặn 20 request/15 phút để phòng chống brute-force. Các request đến sau ngưỡng trả về 429 Too Many Requests.
+  \item \textbf{GET /auth/me} với p95 = 492ms là kết quả tốt, phản ánh MongoDB Atlas (free tier) có độ trễ mạng Singapore-Vietnam khoảng 50--70ms.
+  \item \textbf{GET /stats/overview} chậm nhất (avg 825ms, p95 1830ms) do thực hiện 7 aggregation song song. Trong môi trường production với index đầy đủ và VPS gần MongoDB, thời gian này giảm đáng kể.
+  \item Tất cả endpoint đọc dữ liệu hoạt động ổn định không có lỗi ở tải 20 concurrent.
 \end{itemize}
 
-\section{Triển khai thực nghiệm}
+\subsection{Kiểm thử hiệu năng Lighthouse}
+
+Công cụ Lighthouse (Chrome DevTools, chế độ Desktop, throttling mô phỏng) được chạy trên ba trang đại diện của ứng dụng (Bảng~\ref{tab:lighthouse}).
+
+\begin{table}[H]
+\centering
+\caption{Kết quả kiểm thử Lighthouse — Desktop mode}
+\label{tab:lighthouse}
+\small
+\begin{tabular}{|p{3.5cm}|c|c|c|c|c|c|}
+\hline
+\textbf{Trang} & \textbf{Perf.} & \textbf{A11y} & \textbf{BP} & \textbf{SEO} & \textbf{FCP} & \textbf{LCP} \\
+\hline
+Dashboard & 98 & 94 & 96 & 100 & 0,8s & 0,9s \\
+\hline
+ProjectsPage & 95 & 81 & 100 & 100 & 0,7s & 1,4s \\
+\hline
+TripDetailPage & 88 & 89 & 100 & 100 & 0,7s & 1,9s \\
+\hline
+\end{tabular}
+\end{table}
+
+\textbf{Nhận xét:}
+
+\begin{itemize}[leftmargin=*, topsep=4pt, itemsep=2pt]
+  \item \textbf{Dashboard} đạt Performance 98 — xuất sắc. FCP 0,8s và LCP 0,9s cho thấy trang tải rất nhanh nhờ kiến trúc React SPA với Vite build tối ưu. TBT chỉ 90ms chứng tỏ main thread ít bị chặn.
+  \item \textbf{ProjectsPage} đạt Performance 95. Accessibility 81 do một số button thiếu accessible name và input date không có label — vấn đề cần cải thiện trong phiên bản tiếp theo.
+  \item \textbf{TripDetailPage} đạt Performance 88 do LCP 1,9s: ảnh/video phải tải từ AWS S3 (Singapore) mất thêm 40--50ms RTT so với localhost. Đây là giới hạn về hạ tầng, không phải tối ưu code. TBT 100ms vẫn trong ngưỡng tốt.
+  \item \textbf{Best Practices 100} trên hai trang kỹ thuật phản ánh code không có lỗi console, không dùng API deprecated, không có third-party cookies.
+  \item \textbf{SEO 100} trên tất cả trang nhờ \texttt{<title>}, \texttt{<meta description>}, hreflang hợp lệ và tất cả link có thể crawl được.
+\end{itemize}
+
+\section{Mô hình triển khai (đề xuất)}
 \label{section:4.5}
-Hệ thống được thiết kế để triển khai trên môi trường máy chủ ảo (VPS) sử dụng hệ điều hành Ubuntu Linux. Mô hình triển khai cụ thể như sau:
-\begin{itemize}
-    \item \textbf{Docker Containers:} Cơ sở dữ liệu MongoDB và Redis được đóng gói và chạy trong các container Docker để dễ dàng cô lập và quản lý tài nguyên.
-    \item \textbf{Process Manager (PM2):} Ứng dụng Backend Node.js được duy trì hoạt động bằng PM2, giúp tự động khởi động lại (auto-restart) khi gặp sự cố crash.
-    \item \textbf{Reverse Proxy (Nginx):} Nginx đóng vai trò đứng trước hệ thống, tiếp nhận toàn bộ các luồng truy cập HTTP. Nginx sẽ giải quyết chứng chỉ bảo mật SSL (HTTPS) và điều hướng (route) các luồng yêu cầu tĩnh về thư mục build của ReactJS, và các luồng API về cổng của Node.js.
+
+Do yêu cầu phần cứng của YOLOv8 (1,5 GB RAM), hệ thống chưa triển khai lên VPS trong phạm vi đồ án này. Mô hình triển khai đề xuất được thiết kế để dễ dàng thực hiện khi có hạ tầng phù hợp.
+
+\textbf{Cấu hình đề xuất:}
+\begin{itemize}[leftmargin=*, topsep=4pt, itemsep=2pt]
+  \item \textbf{Frontend:} Vercel (CDN toàn cầu, deploy tự động từ git push).
+  \item \textbf{Backend VPS:} Contabo 4 vCPU / 4 GB RAM / ~6 USD/tháng, chạy Ubuntu 22.04.
+  \item \textbf{Docker Compose:} 4 service — \texttt{nginx:alpine} (reverse proxy + SSL), \texttt{node-backend} (Express + Bull Workers), \texttt{yolo-service} (FastAPI + YOLOv8n CPU), \texttt{redis:alpine} (~30MB RAM).
+  \item \textbf{Database:} MongoDB Atlas M0 (free tier, 512MB).
+  \item \textbf{Storage:} AWS S3 ap-southeast-1 (pay-per-use, gần như miễn phí với traffic demo).
+  \item \textbf{AI:} Gemini 2.5 Flash qua Google AI Studio API (free tier 1500 request/ngày).
 \end{itemize}
 
-Trong tương lai, khi hệ thống đi vào vận hành thực tế tại môi trường thử nghiệm, các số liệu về khả năng đáp ứng khung hình (FPS) của dịch vụ AI và băng thông truyền tải video sẽ được đo đạc và cập nhật chi tiết.
+Cách triển khai: \texttt{git clone} lên VPS, tạo \texttt{.env}, chạy \texttt{docker compose up -d}. Nginx tự động cấp SSL/TLS qua Let's Encrypt và điều hướng: \texttt{/api/v1/*} → Node.js:5000, còn lại → Vercel fallback.
+
+\textbf{Ước tính chi phí hàng tháng:} VPS \$6 + MongoDB Atlas \$0 + AWS S3 <\$1 + Gemini \$0 = \textbf{~\$7/tháng} — hoàn toàn khả thi cho môi trường demo và thử nghiệm thực địa.
 
 \end{document}

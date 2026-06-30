@@ -1,0 +1,150 @@
+{
+  "schema_version": "1.0",
+  "trip": {
+    "trip_id": "trip_20260623_112137",
+    "vehicle": "ROV_01",
+    "created_at": "2026-06-23T04:21:36.0546184Z",
+    "status": "completed",
+    "integrity": "full",
+    "total_duration_ms": 61998
+  },
+  "recording_config": {
+    "video_enabled": true,
+    "sonar_enabled": true,
+    "dvl_enabled": true,
+    "log_enabled": true
+  },
+  "sessions": [
+    {
+      "session_id": "session_20260623_112136",
+      "start_ms": 0,
+      "end_ms": 5578,
+      "duration_ms": 5578,
+      "status": "completed",
+      "assets": [
+        {
+          "asset_id": "sns_001",
+          "type": "sensor_csv",
+          "device": "imu_depth_sensor",
+          "file": "Sensors/log_20260623_112136.csv",
+          "start_ms": 0,
+          "end_ms": 5578,
+          "status": "completed"
+        }
+      ],
+      "events": [
+        { "timestamp_ms": 8, "event": "session_start" },
+        { "timestamp_ms": 5581, "event": "session_stop" }
+      ]
+    },
+    {
+      "session_id": "session_20260623_112414",
+      "start_ms": 0,
+      "end_ms": 10755,
+      "duration_ms": 10755,
+      "status": "completed",
+      "assets": [
+        {
+          "asset_id": "vid_001",
+          "type": "video",
+          "device": "front_camera",
+          "file": "Camera/record_20260623_112416.mp4",
+          "start_ms": 9,
+          "end_ms": 10755,
+          "status": "completed"
+        },
+        {
+          "asset_id": "sns_002",
+          "type": "sensor_csv",
+          "device": "imu_depth_sensor",
+          "file": "Sensors/log_20260623_112414.csv",
+          "start_ms": 0,
+          "end_ms": 10755,
+          "status": "completed"
+        },
+        {
+          "asset_id": "dvl_001",
+          "type": "dvl_data",
+          "device": "dvl_teledyne",
+          "file": "DVL/DVL_20260623_112414.json",
+          "start_ms": 0,
+          "end_ms": 10755,
+          "status": "completed"
+        },
+        {
+          "asset_id": "snr_001",
+          "type": "sonar_data",
+          "device": "ping_sonar_360",
+          "file": "Sonar/sonar_20260623_112414.sonar",
+          "start_ms": 12,
+          "end_ms": 10755,
+          "status": "completed"
+        }
+      ],
+      "events": [
+        { "timestamp_ms": 5, "event": "session_start" },
+        { "timestamp_ms": 10755, "event": "session_stop" }
+      ]
+    },
+    {
+      "session_id": "session_20260623_113402",
+      "start_ms": 0,
+      "end_ms": 45665,
+      "duration_ms": 45665,
+      "status": "completed",
+      "assets": [
+        {
+          "asset_id": "vid_001",
+          "type": "video",
+          "device": "front_camera",
+          "file": "Camera/record_20260623_113402.mp4",
+          "start_ms": 33,
+          "end_ms": 11557,
+          "status": "disconnect"
+        },
+        {
+          "asset_id": "vid_002",
+          "type": "video",
+          "device": "front_camera",
+          "file": "Camera/record_20260623_113433.mp4",
+          "start_ms": 31077,
+          "end_ms": 45665,
+          "status": "completed"
+        },
+        {
+          "asset_id": "sns_003",
+          "type": "sensor_csv",
+          "device": "imu_depth_sensor",
+          "file": "Sensors/log_20260623_113402.csv",
+          "start_ms": 0,
+          "end_ms": 45665,
+          "status": "completed"
+        },
+        {
+          "asset_id": "dvl_002",
+          "type": "dvl_data",
+          "device": "dvl_teledyne",
+          "file": "DVL/DVL_20260623_113402.json",
+          "start_ms": 0,
+          "end_ms": 45665,
+          "status": "completed"
+        },
+        {
+          "asset_id": "img_evidence_001",
+          "type": "photo",
+          "device": "front_camera_snapshot",
+          "file": "Snapshots/capture_20260623_113445.png",
+          "start_ms": 43000,
+          "end_ms": 43000,
+          "status": "completed"
+        }
+      ],
+      "events": [
+        { "timestamp_ms": 21, "event": "session_start" },
+        { "timestamp_ms": 11557, "event": "front_camera_disconnect" },
+        { "timestamp_ms": 31077, "event": "front_camera_reconnect" },
+        { "timestamp_ms": 45667, "event": "session_stop" }
+      ]
+    }
+  ]
+}

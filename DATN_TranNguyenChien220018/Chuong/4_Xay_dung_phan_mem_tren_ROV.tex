@@ -1,0 +1,269 @@
+\documentclass[../DoAn.tex]{subfiles}
+\begin{document}
+
+Triển khai mọi module 
+\section{Kiến trúc tổng thể và luồng dữ liệu}
+
+\section{Module cảm biến}
+\subsection{Đo độ sâu và nhiệt độ nước (MS5837)}
+
+Cảm biến MS5837-30BA là cảm biến áp suất độ phân giải cao giao tiếp
+qua I2C bus 3, đo áp suất nước để tính độ sâu và đồng thời đo nhiệt
+độ nước. Dữ liệu được cập nhật liên tục vào hai biến toàn cục
+\texttt{latest\_depth} và \texttt{WaterTemp} bởi luồng nền
+\texttt{depth\_reader()} chạy ở tần suất $20\,Hz$.
+
+\paragraph{Nguyên lý đo}
+
+Cảm biến lưu 6 hệ số hiệu chuẩn $C_1$--$C_6$ trong PROM nội tại,
+được đọc một lần khi khởi tạo và xác minh bằng CRC-4. Mỗi chu kỳ
+đọc, cảm biến thực hiện hai lần chuyển đổi ADC 24-bit: $D_1$ cho áp
+suất và $D_2$ cho nhiệt độ thô. Từ hai giá trị này, thư viện driver
+áp dụng bù nhiễu bậc hai (second order compensation) để đạt độ chính
+xác cao trong dải nhiệt độ thấp điển hình của môi trường dưới nước.
+
+Độ sâu được tính từ áp suất hiệu chuẩn theo công thức:
+\begin{equation}
+    d = \frac{P - P_{atm}}{\rho \cdot g}
+\end{equation}
+trong đó $P$ là áp suất đo được (Pa), $P_{atm} = 101300\,Pa$ là áp
+suất khí quyển chuẩn, $\rho = 1029\,kg/m^3$ là mật độ nước biển
+và $g = 9.80665\,m/s^2$.
+
+\paragraph{Thiết kế tích hợp}
+
+Mức oversampling được chọn là \texttt{OSR\_8192} cho độ phân giải
+tốt nhất ($\approx 0.2\,mbar$, tương đương $\approx 2\,mm$ độ sâu)
+với thời gian chuyển đổi $\approx 18\,ms$ mỗi lần đọc, vẫn đáp ứng
+tốt chu kỳ $50\,ms$ của luồng. Mật độ chất lỏng được cấu hình là
+nước biển ($1029\,kg/m^3$) để phù hợp với môi trường vận hành thực tế.
+
+Nếu cảm biến không khởi tạo được (CRC thất bại hoặc không phản hồi
+I2C), hệ thống bật \texttt{exit\_flag} để dừng toàn bộ tiến trình
+thay vì chạy tiếp với dữ liệu sai --- đây là quyết định thiết kế
+quan trọng vì \texttt{latest\_depth} được dùng trực tiếp bởi bộ
+điều khiển PID giữ độ sâu. Trong vòng lặp đọc, cơ chế
+\texttt{try/except} với độ trễ 1 giây cho phép luồng tự phục hồi
+sau lỗi I2C thoáng qua mà không làm sập tiến trình.
+
+Hai biến đầu ra \texttt{latest\_depth} và \texttt{WaterTemp} được
+dùng chung bởi ba module: bộ điều khiển PID giữ độ sâu, module
+telemetry attitude và module telemetry status.
+\subsection{IMU ICM20602 (gia tốc, con quay, từ kế) + pitch,roll,yaw qua Extended Kalman filter}
+
+Module này chịu trách nhiệm cung cấp góc tư thế (roll, pitch, yaw)
+chính xác cho hệ thống điều khiển. Do dữ liệu thô từ cảm biến IMU
+chứa nhiễu và sai lệch tích lũy theo thời gian, hệ thống sử dụng
+bộ lọc Kalman mở rộng (Extended Kalman Filter --- EKF) để tổng hợp
+dữ liệu từ ba nguồn cảm biến: gia tốc kế, con quay hồi chuyển và
+từ kế, cho ra góc tư thế ổn định và liên tục.
+
+\textbf{Phần cứng.}
+ICM20602 là IMU 6 trục (gia tốc kế 3 trục + con quay hồi chuyển 3
+trục) giao tiếp với SoC QCS8550 qua SPI bus 0. Từ kế 3 trục MMC5983
+được tích hợp thêm để cung cấp thông tin hướng tuyệt đối (heading),
+cũng giao tiếp qua SPI. Cả hai cảm biến được đọc đồng thời trong
+cùng một luồng \texttt{heading\_reader\_ekf()} chạy liên tục.
+
+\textbf{Hiệu chuẩn.}
+Trước khi vận hành, hệ thống thực hiện hiệu chuẩn con quay hồi chuyển
+bằng cách lấy trung bình 500 mẫu khi ROV đứng yên để xác định độ
+lệch zero (gyro bias) theo ba trục. Độ lệch này được trừ đi ở mỗi
+lần đọc, loại bỏ sai số hệ thống trước khi đưa vào bộ lọc EKF. Từ
+kế có thể được hiệu chuẩn thêm bằng cách thu thập dữ liệu theo nhiều
+hướng để xác định offset và scale theo từng trục, bù ảnh hưởng của
+từ trường cục bộ từ các thiết bị điện tử xung quanh.
+
+\textbf{Bộ lọc Kalman mở rộng.}
+EKF hoạt động trong không gian quaternion thay vì góc Euler để tránh
+hiện tượng gimbal lock. Mỗi chu kỳ cập nhật, bộ lọc thực hiện hai
+bước:
+\begin{itemize}
+    \item \textbf{Bước dự đoán}: sử dụng dữ liệu con quay hồi chuyển
+    (tốc độ góc) tích phân theo thời gian $dt$ để dự đoán quaternion
+    tư thế tiếp theo.
+    \item \textbf{Bước hiệu chỉnh}: sử dụng gia tốc kế (xác định
+    hướng trọng lực) và từ kế (xác định hướng Bắc từ) để hiệu chỉnh
+    sai lệch tích lũy từ bước dự đoán.
+\end{itemize}
+
+Quaternion đầu ra $\mathbf{q} = [w, x, y, z]$ được chuyển đổi sang
+góc Euler theo hệ tọa độ NED (North-East-Down) thông qua các công
+thức:
+\begin{equation}
+    \phi = \arctan2\!\left(2(wx + yz),\ w^2 - x^2 - y^2 + z^2\right)
+\end{equation}
+\begin{equation}
+    \theta = -\arcsin\!\left(2(xz - wy)\right)
+\end{equation}
+\begin{equation}
+    \psi = \arctan2\!\left(2(xy + wz),\ w^2 + x^2 - y^2 - z^2\right)
+\end{equation}
+trong đó $\phi$, $\theta$, $\psi$ lần lượt là roll, pitch và yaw.
+
+\textbf{Thiết kế tích hợp.}
+Ba biến toàn cục \texttt{latest\_roll}, \texttt{latest\_pitch},
+\texttt{latest\_yaw} được cập nhật liên tục và dùng chung bởi hai
+module: bộ điều khiển PID giữ hướng (đọc \texttt{latest\_yaw} làm
+phản hồi) và module telemetry attitude (gửi cả ba góc về GCS để hiển
+thị trên UserControl Compass). Biến \texttt{dt} được tính chính xác
+theo thời gian thực bằng \texttt{time.perf\_counter()} thay vì giá
+trị cố định, đảm bảo tần số EKF không bị ảnh hưởng bởi độ trễ hệ
+thống.
+\subsection{Đo nhiệt độ và độ ẩm khoang kín (Si7021)}
+
+Cảm biến Si7021 được đặt bên trong khoang kín của ROV, có nhiệm vụ
+giám sát nhiệt độ và độ ẩm không khí trong ống nhằm phát hiện sớm
+hiện tượng ngấm nước --- một trong những nguy cơ nghiêm trọng nhất
+có thể gây hỏng toàn bộ hệ thống điện tử bên trong ROV.
+
+\textbf{Kiến trúc phần cứng}
+
+Si7021 giao tiếp với vi điều khiển Arduino qua I2C. Arduino đóng vai
+trò trung gian: đọc dữ liệu từ Si7021, đóng gói thành chuỗi văn bản
+ASCII theo định dạng \texttt{nhiệt\_độ,độ\_ẩm} (ví dụ
+\texttt{28.5,65.3}) rồi truyền sang SoC QCS8550 qua UART ở tốc độ
+$9600\,baud$ trên cổng \texttt{/dev/ttyHS3}. Thiết kế này giúp tách
+biệt hoàn toàn tầng thu thập dữ liệu cảm biến (Arduino + I2C) khỏi
+tầng xử lý chính (QCS8550), đồng thời tận dụng lợi thế của UART là
+giao tiếp đơn giản, ít nhiễu và không yêu cầu đồng bộ clock chặt chẽ
+như I2C trên đường dây dài trong khoang kín.
+
+\textbf{Thiết kế tích hợp}
+
+Driver phía QCS8550 được thiết kế theo mô hình non-blocking: hàm
+\texttt{get\_latest\_data()} kiểm tra \texttt{in\_waiting} trước khi
+đọc, chỉ thực hiện \texttt{readline()} khi đã có dữ liệu trong buffer.
+Nhờ vậy luồng gọi không bị chặn khi UART chưa có dữ liệu mới, phù
+hợp với kiến trúc đa luồng của hệ thống. Nếu chuỗi nhận được không
+đúng định dạng (lỗi decode hoặc thiếu trường), hàm trả về
+\texttt{None} thay vì ném ngoại lệ, tránh làm gián đoạn luồng đọc.
+
+Luồng \texttt{temp\_humid\_reader()} gọi \texttt{get\_latest\_data()}
+liên tục với chu kỳ $10\,ms$, cập nhật hai biến toàn cục \texttt{temp}
+và \texttt{humid}. Hai biến này được module telemetry gửi định kỳ về
+GCS qua \texttt{NAMED\_VALUE\_FLOAT} với nhãn \texttt{"Temp"} và
+\texttt{"Humid"}, hiển thị trên giao diện \texttt{RovHealth} để người
+vận hành theo dõi trạng thái khoang kín trong suốt nhiệm vụ.
+
+Ngưỡng cảnh báo độ ẩm không được xử lý tự động ở tầng firmware mà
+được hiển thị trực tiếp lên giao diện GCS, để người vận hành tự quyết
+định dừng nhiệm vụ khi phát hiện độ ẩm tăng bất thường --- tránh
+việc hệ thống tự dừng động cơ đột ngột ở độ sâu lớn gây nguy hiểm
+cho ROV.
+\subsection{Module giám sát năng lượng qua ADC ADS1115 (Điện áp, Dòng điện, SOC)}
+
+Module này chịu trách nhiệm giám sát thời gian thực các thông số năng lượng cốt lõi của ROV bao gồm: tổng điện áp khối pin (Pack Voltage), dòng điện tiêu thụ toàn hệ thống, điện áp trung bình của từng cell và dung lượng pin còn lại (State of Charge --- SOC). Việc này giúp hệ thống kịp thời đưa ra cảnh báo an toàn độc lập hoặc kích hoạt chế độ cứu hộ (failsafe) khi năng lượng cạn kiệt.
+
+\textbf{Phần cứng và Cấu hình giao tiếp.}
+Bộ chuyển đổi tương tự --- số (ADC) 16-bit độ chính xác cao ADS1115 được sử dụng để đọc tín hiệu analog từ các cảm biến nguồn (phân áp điện áp và cảm biến dòng Hall). ADS1115 giao tiếp với SoC QCS8550 qua bus ngoại vi I2C số 4 tại địa chỉ \texttt{0x48}. 
+Để tối ưu hóa tài nguyên phần cứng, hệ thống cấu hình bộ chuyển đổi ở chế độ đơn lẻ (Single-ended) với tốc độ lấy mẫu $128$\,SPS (\textit{Samples Per Second}), cấu hình tầm đo điện áp đầu vào (PGA) tối đa ở mức $\pm 4.096$\,V, tương ứng với độ phân giải lý thuyết cho mỗi LSB là:
+\begin{equation}
+    1\,\text{LSB} = \frac{4.096\,\text{V}}{2^{15}} = 125\,\mu\text{V}
+\end{equation}
+Hệ thống sử dụng hai kênh đầu vào đơn lẻ: kênh \texttt{AIN3} dùng để giám sát điện áp tổng khối pin qua mạch phân áp, kênh \texttt{AIN2} dùng để giám sát dòng điện tiêu thụ của ROV.
+
+\textbf{Hiệu chuẩn Điện áp bằng phương pháp tuyến tính hóa 2 điểm.}
+Dữ liệu thô (\textit{raw ADC data}) từ kênh \texttt{AIN3} mang giá trị đại số nguyên có dấu 16-bit. Do ảnh hưởng của sai số linh kiện từ mạch phân áp cơ khí và điện trở ký sinh, hệ thống thực hiện hiệu chuẩn thực nghiệm bằng phương pháp hồi quy tuyến tính qua 2 điểm đo chuẩn để xác định hệ số góc $A_V$ và độ lệch $B_V$:
+\begin{equation}
+    V_{pack} = A_V \cdot \text{Raw}_{AIN3} + B_V
+\end{equation}
+Qua thực nghiệm đo đạc, các thông số tối ưu được xác định và cấu hình trực tiếp vào firmware bao gồm: $A_V = 0.00201448$ và $B_V = -0.31670$. Phương pháp này cho phép bù sai số hệ thống trực tiếp, đảm bảo điện áp khối pin đầu ra đạt độ chính xác cao.
+
+\textbf{Ước lượng Dung lượng Pin (SOC) bằng phương pháp Nội suy Tuyến tính.}
+Khối nguồn chính của ROV sử dụng cấu trúc pin LiPo 4S (4 cell nối tiếp). Điện áp của một cell đơn lẻ được tính toán gián tiếp bằng công thức:
+\begin{equation}
+    V_{cell} = \frac{V_{pack}}{4.0}
+\end{equation}
+Dung lượng pin còn lại (SOC \%) được ước lượng dựa trên mối quan hệ phi tuyến giữa điện áp nghỉ (hoặc nhẹ tải) và dung lượng pin thông qua bảng tra cứu thực nghiệm (Look-up Table - LUT) gồm 21 điểm đặc tính từ $4.20\,\text{V}$ ($100\%$) đến $3.50\,\text{V}$ ($0\%$). 
+
+Khi giá trị $V_{cell}$ nằm giữa hai điểm mốc $(V_{low}, P_{low})$ và $(V_{high}, P_{high})$ trong bảng LUT, thuật toán nội suy tuyến tính (\textit{Linear Interpolation}) được áp dụng để tính toán mịn giá trị phần trăm năng lượng:
+\begin{equation}
+    \text{SOC} = P_{low} + \frac{V_{cell} - V_{low}}{V_{high} - V_{low}} \cdot (P_{high} - P_{low})
+    \label{eq:interp}
+\end{equation}
+Đối với các trường hợp tới hạn ($V_{cell} \ge 4.20\,\text{V}$ hoặc $V_{cell} \le 3.50\,\text{V}$), hàm xử lý tự động bão hòa đầu ra về giá trị $100.0\%$ hoặc $0.0\%$ để triệt tiêu các sai số ngoại biên.
+
+\textbf{Thiết kế Tích hợp Hệ thống và Đảm bảo An toàn.}
+Luồng giám sát nguồn chạy song song, độc lập với vòng điều khiển động cơ để tránh hiện tượng nghẽn luồng (\textit{thread blocking}) khi truy cập bus I2C. Dữ liệu tính toán bao gồm \texttt{v\_pack}, \texttt{v\_cell}, và \texttt{soc} được cập nhật liên tục vào bộ nhớ chia sẻ sau mỗi chu kỳ $0.2$\,giây ($5$\,Hz).
+
+Kiến trúc phần mềm tích hợp module này phục vụ hai nhiệm vụ chính:
+\begin{itemize}
+    \item \textbf{Telemetry hạ tầng:} Dữ liệu đóng gói thành các bản tin trạng thái gửi về Trạm điều khiển mặt đất (GCS) để hiển thị trực quan đồ họa thông tin năng lượng cho người vận hành.
+    \item \textbf{Module Failsafe hệ thống:} Firmware liên tục giám sát điều kiện an toàn: nếu $\text{SOC} < 15\%$ hoặc $V_{cell} < 3.6\,\text{V}$ kéo dài quá 3 giây, hệ thống tự động kích hoạt trạng thái cảnh báo nguy hiểm độc lập, ép ROV chuyển sang chế độ tự nổi hoặc phát tín hiệu khẩn cấp về GCS.
+\end{itemize}
+
+\section{Module truyền thông}
+\subsection{Kết nối GCS(ping\_server)}
+\subsection{Nhận lệnh điều khiển(control\_loop)}
+
+\section{Moudle điểu khiển}
+\subsection{Điều khiển thủ công - Mixing matrix và điểu khiển động cơ}
+\subsection{Điều khiển tự động}
+\subsubsection{PID giữ hướng}
+\subsubsection{PID giữ độ sâu}
+\subsubsection{PID tự động giữ ổn định vị trí}
+\subsubsection{PID dự ổn định dựa vào AI bám theo vật thể}
+
+\section{Module cơ cấu chấp hành}
+\subsection{Điều khiển ESC và cơ cấu chấp hành qua PCA9685}
+
+Để điều khiển hệ thống động cơ (thông qua ESC), hệ thống đèn chiếu sáng và các cơ cấu servo (tay gắp, độ ngẩng camera), ROV sử dụng vi điều khiển mở rộng PWM 16-channel 12-bit PCA9685. Chip này giao tiếp với SoC QCS8550 qua bus I2C số 1 tại địa chỉ \texttt{0x40}. Việc sử dụng PCA9685 giúp giải phóng tài nguyên phần cứng của SoC, đảm bảo xung điều khiển động cơ luôn ổn định, không bị méo tiếng hoặc trễ do phân phối đa nhiệm của hệ điều hành.
+
+\paragraph{Kiến trúc phần cứng và Quản lý GPIO.}
+
+Hệ thống tích hợp chân cho phép xuất đầu ra Output Enable ($\overline{\text{OE}}$) của PCA9685 với chân số 8 thuộc chip GPIO ngoại vi \texttt{/dev/gpiochip1}. Quá trình quản lý pin được thực hiện thông qua thư viện \texttt{gpiod} hiện đại (V2 API) thay vì hệ thống sysfs cũ đã bị loại bỏ:
+\begin{itemize}
+    \item \textbf{Khởi tạo cấu hình:} Chân $\overline{\text{OE}}$ được thiết lập ở chế độ \texttt{Direction.OUTPUT} với giá trị mặc định là \texttt{Value.ACTIVE} (Mức cao) để tạm thời vô hiệu hóa toàn bộ đầu ra PWM trong quá trình khởi động hệ thống, tránh xung nhiễu kích hoạt động cơ bất ngờ.
+    \item \textbf{Kích hoạt hệ thống:} Hàm \texttt{output\_enable()} sẽ kéo chân $\overline{\text{OE}}$ xuống mức thấp (\texttt{Value.INACTIVE}), cho phép các chân PWM xuất tín hiệu điều khiển đến các ESC và Servo.
+\end{itemize}
+
+\paragraph{Nguyên lý phát xung và Cấu hình tần số.}
+
+PCA9685 hoạt động dựa trên một bộ đếm nội bộ 12-bit chạy liên tục từ $0$ đến $4095$ ($0\text{xFFF}$). Mỗi kênh có hai cặp thanh ghi 16-bit xác định thời điểm lật trạng thái: \texttt{LEDn\_ON} (thời điểm xung lên mức cao) và \texttt{LEDn\_OFF} (thời điểm xung xuống mức thấp). Trong kiến trúc phần mềm này, hệ thống cố định giá trị \texttt{ON} bằng $0$ và chỉ thay đổi giá trị \texttt{OFF} (tương ứng với giá trị đại số \texttt{raw} từ $0$ đến $4095$) để điều chỉnh chu kỳ nhiệm vụ (\textit{Duty Cycle}).
+
+Tần số xung đầu ra ($f$) được thiết lập thông qua thanh ghi bộ tiền chia tần số (\texttt{Prescaler}) dựa trên xung thạch anh nội bộ hoặc ngoại vi (\texttt{extclk}). Mối quan hệ giữa tần số mục tiêu và giá trị thanh ghi được định nghĩa theo công thức từ datasheet:
+\begin{equation}
+    \text{prescaler} = \text{round}\left( \frac{\text{extclk}}{4096 \cdot f} \right) - 1
+\end{equation}
+Ngược lại, tần số thực tế của hệ thống được tính toán lại để cập nhật chu kỳ thời gian thực (\texttt{period\_us}) phục vụ cho việc chuyển đổi đơn vị:
+\begin{equation}
+    f = \frac{\text{extclk}}{4096 \cdot (\text{prescaler} + 1)}
+\end{equation}
+
+Khi thay đổi tần số cấu hình (ví dụ đặt tần số $50\,\text{Hz}$ cho ESC và Servo), chip bắt buộc phải được đưa về chế độ ngủ (\texttt{MODE1\_SLEEP}) kết hợp bật chế độ tự động tăng địa chỉ thanh ghi (\texttt{MODE1\_AI - Auto-Increment}) nhằm tối ưu hóa băng thông truyền tải dữ liệu hàng loạt I2C.
+
+\paragraph{Mô hình ánh xạ dữ liệu (Data Abstraction Layers).}
+
+Để đơn giản hóa việc lập trình ở các tầng điều khiển phía trên (như vòng lặp PID hay ma trận Mixing), phần mềm xây dựng lớp trừu tượng truy cập thông qua các thuộc tính Python (\texttt{@property}). Người lập trình có thể tương tác với 16 kênh đầu ra dưới dạng mảng (List) thông qua 3 không gian đơn vị:
+\begin{enumerate}
+    \item \textbf{Raw Access (\texttt{raw}):} Truy cập trực tiếp vào giá trị số nguyên 12-bit ($0 \to 4095$) nạp vào thanh ghi.
+    \item \textbf{Duty Access (\texttt{duty}):} Điều khiển theo tỷ lệ phần trăm chu kỳ nhiệm vụ từ $0.0$ đến $1.0$. Công thức chuyển đổi tuyến tính:
+    \begin{equation}
+        \text{raw} = \text{round}(\text{duty} \cdot 4095)
+    \end{equation}
+    \item \textbf{PWM Access (\texttt{pwm}):} Điều khiển trực tiếp theo độ rộng xung thời gian thực (Microseconds - $\mu s$), đặc biệt quan trọng đối với tín hiệu điều khiển ESC chuẩn RC (thường từ $1000\,\mu s$ đến $2000\,\mu s$, điểm chết trung tính tại $1500\,\mu s$). Giá trị thanh ghi được tính bằng:
+    \begin{equation}
+        \text{raw} = \text{round}\left( 4095 \cdot \frac{\text{pwm\_us}}{\text{period\_us}} \right)
+    \end{equation}
+\end{enumerate}
+
+\paragraph{Thiết kế tối ưu hóa Bus I2C và An toàn hệ thống.}
+
+Do việc điều khiển đồng thời nhiều động cơ yêu cầu tần suất cập nhật cao, nếu ghi dữ liệu riêng lẻ từng kênh sẽ gây nghẽn bus I2C. Firmware giải quyết vấn đề này bằng cách tận dụng cờ \texttt{MODE1\_AI}. 
+
+Hàm \texttt{channels\_set\_raw()} đóng gói toàn bộ giá trị \texttt{ON} ($0, 0$) và \texttt{OFF} của cả 16 kênh vào một mảng byte duy nhất và thực hiện ghi một lần (\textit{Block Write}) bắt đầu từ thanh ghi gốc \texttt{REG\_LED0\_ON\_L} ($0\text{x06}$). Sau mỗi lệnh ghi, hệ thống thực hiện đọc ngược lại trạng thái thanh ghi (\textit{Read-back Verification}) để đối chiếu dữ liệu; nếu phát hiện sai lệch do nhiễu đường truyền, một ngoại lệ sẽ được ném ra để hệ thống xử lý failsafe kịp thời.
+
+Khi kết thúc tiến trình hoặc hệ thống gặp sự cố nghiêm trọng, hàm giải phóng \texttt{release\_gpio()} sẽ được kích hoạt nhằm cấu hình lại chân $\overline{\text{OE}}$ về trạng thái đầu vào (\texttt{Direction.INPUT}) tách biệt trở kháng, giải phóng tài nguyên dòng lệnh và đóng an toàn kết nối xử lý chip nhằm đưa toàn bộ hệ thống động cơ về trạng thái dừng hoàn toàn.
+\subsection{Điểu khiển đèn chiếu sáng}
+\subsection{Điểu khiển độ ngẩng camera}
+\subsection{Điểu khiển tay gắp (Gripper)}
+
+\section{Module telemtry}
+\subsection{Đóng gói và phát dữ liệu về cho GCS}
+
+\section{Moule cấu hình động cơ}
+\subsubsection{UDP config listener}
+\subsubsection{Load, Save THRUSTER\_MAP}
+
+\end{document}

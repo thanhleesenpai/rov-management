@@ -1,12 +1,31 @@
 \addvspace {10\p@ }
 \addvspace {10\p@ }
+\contentsline {table}{\numberline {2.1}{\ignorespaces So sánh các giải pháp quản lý dữ liệu ROV hiện có}}{4}{table.caption.8}%
+\contentsline {table}{\numberline {2.2}{\ignorespaces Ma trận phân quyền RBAC}}{6}{table.caption.9}%
+\contentsline {table}{\numberline {2.3}{\ignorespaces Đặc tả Use Case UC-01: Tải lên và đồng bộ dữ liệu cảm biến}}{9}{table.2.3}%
+\contentsline {table}{\numberline {2.4}{\ignorespaces Đặc tả Use Case UC-02: Phân tích nhận diện vật thể bằng AI}}{10}{table.2.4}%
+\contentsline {table}{\numberline {2.5}{\ignorespaces Đặc tả Use Case UC-03: Trích xuất bằng chứng (Evidence System)}}{11}{table.2.5}%
+\contentsline {table}{\numberline {2.6}{\ignorespaces Đặc tả Use Case UC-04: Tóm tắt nhiệm vụ bằng AI (AI Summary)}}{12}{table.2.6}%
+\contentsline {table}{\numberline {2.7}{\ignorespaces Các trạng thái vòng đời phân tích Media}}{18}{table.2.7}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {3.1}{\ignorespaces Hệ sinh thái công nghệ của hệ thống}}{19}{table.caption.17}%
+\contentsline {table}{\numberline {3.2}{\ignorespaces Cấu hình các hàng đợi Bull Queue trong hệ thống}}{24}{table.caption.18}%
+\contentsline {table}{\numberline {3.3}{\ignorespaces Chiến lược lấy mẫu frame thích nghi của YOLO Microservice}}{25}{table.caption.19}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {4.1}{\ignorespaces Mô tả các collection chính trong MongoDB}}{31}{table.caption.24}%
+\contentsline {table}{\numberline {4.2}{\ignorespaces Ma trận phân quyền RBAC của hệ thống}}{32}{table.caption.26}%
+\contentsline {table}{\numberline {4.3}{\ignorespaces Kết quả kiểm thử tải — 20 concurrent × 3 rounds (60 requests/endpoint)}}{45}{table.caption.43}%
+\contentsline {table}{\numberline {4.4}{\ignorespaces Kết quả kiểm thử Lighthouse — Desktop mode}}{45}{table.caption.44}%
 \addvspace {10\p@ }
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {4.1}{\ignorespaces Danh sách công cụ và thư viện sử dụng trong Đồ án}}{15}{table.caption.11}%
 \addvspace {10\p@ }
-\addvspace {10\p@ }
-\addvspace {10\p@ }
-\contentsline {table}{\numberline {A.1}{\ignorespaces Table to test captions and labels.}}{28}{table.caption.15}%
-\addvspace {10\p@ }
+\contentsline {table}{\numberline {A.1}{\ignorespaces Đặc tả Use Case UC-B01: Đăng nhập bằng Email/Mật khẩu}}{60}{table.1.A.1}%
+\contentsline {table}{\numberline {A.2}{\ignorespaces Đặc tả Use Case UC-B02: Đăng nhập bằng Google OAuth 2.0}}{60}{table.1.A.2}%
+\contentsline {table}{\numberline {A.3}{\ignorespaces Đặc tả Use Case UC-B03: Quản lý Thiết bị ROV}}{61}{table.1.A.3}%
+\contentsline {table}{\numberline {A.4}{\ignorespaces Đặc tả Use Case UC-B04: Quản lý Chuyến khảo sát}}{62}{table.1.A.4}%
+\contentsline {table}{\numberline {A.5}{\ignorespaces Đặc tả Use Case UC-B05: Tạo Lượt lặn (Trip)}}{62}{table.1.A.5}%
+\contentsline {table}{\numberline {A.6}{\ignorespaces Đặc tả Use Case UC-B06: Tải lên Tệp phương tiện qua Presigned URL}}{63}{table.1.A.6}%
+\contentsline {table}{\numberline {A.7}{\ignorespaces Đặc tả Use Case UC-B07: Quản lý Người dùng}}{64}{table.1.A.7}%
+\contentsline {table}{\numberline {A.8}{\ignorespaces Đặc tả Use Case UC-B08: Xem Dashboard tổng quan}}{65}{table.1.A.8}%
 \contentsfinish 
 \contentsfinish 

@@ -9,7 +9,7 @@
 
 ```
 ROV_DATA/
-└── Trip_YYYYMMDD_HHMMSS/
+└── Project_YYYYMMDD_HHMMSS/
     ├── log_YYYYMMDD_HHMMSS.csv     ← GCS sensor log (semicolon-sep, comma-decimal)
     ├── DVL_YYYYMMDD_HHMMSS.json    ← DVL position data (newline-delimited JSON objects)
     ├── record_*.mp4                ← Video recordings
@@ -34,7 +34,7 @@ ROV_DATA/
 ### Upload: Folder upload (ưu tiên) + ZIP (thứ hai) + individual files (cho replace)
 
 **Folder upload** (`<input webkitdirectory>`) là primary:
-- Operator chọn thư mục `Trip_YYYYMMDD_*/` trực tiếp, không cần nén
+- Operator chọn thư mục `Project_YYYYMMDD_*/` trực tiếp, không cần nén
 - Files gửi trực tiếp lên server — quan trọng khi có video `.mp4` nặng vài GB
 - Không cần thêm library, hoạt động trên tất cả modern browser
 - Browser giữ nguyên cấu trúc thư mục con (Sonar/ subfolder)
@@ -75,7 +75,7 @@ Thay vì chỉ hỗ trợ đúng 1 cấu trúc cố định:
 #### `DVLData` model (`backend/src/modules/dvl/dvl.model.js`)
 ```js
 {
-  dive:   ObjectId (ref: 'Dive', required),
+  trip:   ObjectId (ref: 'Trip', required),
   ts:     Number,    // Unix timestamp (seconds, float)
   x:      Number,    // meters, local frame East
   y:      Number,    // meters, local frame North
@@ -86,13 +86,13 @@ Thay vì chỉ hỗ trợ đúng 1 cấu trúc cố định:
   yaw:    Number,    // degrees (heading)
   status: Number     // 0 = valid
 }
-// Index: { dive: 1, ts: 1 }
+// Index: { trip: 1, ts: 1 }
 ```
 
 #### `SonarFile` model (`backend/src/modules/sonar/sonar.model.js`)
 ```js
 {
-  dive:          ObjectId (ref: 'Dive', required),
+  trip:          ObjectId (ref: 'Trip', required),
   filename:      String,
   s3Key:         String,
   frameCount:    Number,
@@ -100,36 +100,36 @@ Thay vì chỉ hỗ trợ đúng 1 cấu trúc cố định:
   fileSizeBytes: Number,
   recordedAt:    Date    // parse từ filename timestamp
 }
-// Index: { dive: 1 }
+// Index: { trip: 1 }
 ```
 
 ### A2 — Backend: Upload endpoints
 
 #### Individual endpoints (replace từng loại)
 ```
-POST /dives/:id/dvl/upload
+POST /trips/:id/dvl/upload
   Body: multipart file (.json) hoặc { readings: [...] }
   → parse DVL JSON, filter status===0, xóa cũ, insertMany
-  → update dive.dvlCount
+  → update trip.dvlCount
   → Response: { count }
 
-POST /dives/:id/sonar/upload
+POST /trips/:id/sonar/upload
   Body: multipart file (.sonar binary)
-  → upload S3 (sonar/{diveId}/{filename})
+  → upload S3 (sonar/{tripId}/{filename})
   → parse header: validate magic "SONAR360", đọc frameCount, durationMs
   → lưu SonarFile document
   → Response: SonarFile doc
 
-DELETE /dives/:id/dvl
-  → xóa toàn bộ DVLData của dive, reset dive.dvlCount = 0
+DELETE /trips/:id/dvl
+  → xóa toàn bộ DVLData của trip, reset trip.dvlCount = 0
 
-DELETE /dives/:id/sonar/:sonarFileId
+DELETE /trips/:id/sonar/:sonarFileId
   → xóa S3 key + SonarFile document
 ```
 
 #### Batch endpoint (folder hoặc ZIP)
 ```
-POST /dives/:id/data/upload-batch
+POST /trips/:id/data/upload-batch
   Body: multipart files[] (nhiều file từ folder) hoặc 1 file .zip
   → nếu zip: extract to temp dir
   → classify từng file theo tên/extension
@@ -151,24 +151,24 @@ POST /dives/:id/data/upload-batch
 
 | Context | Trigger | Hành vi |
 |---------|---------|---------|
-| **TripDetailPage** | Nút "Import Folder" cạnh "+ Add Dive" | Auto-tạo dive → upload hết |
-| **DiveDetailPage** | Nút HardDrive (đã có) | Upload thẳng vào dive hiện tại |
+| **ProjectDetailPage** | Nút "Import Folder" cạnh "+ Add Trip" | Auto-tạo trip → upload hết |
+| **TripDetailPage** | Nút HardDrive (đã có) | Upload thẳng vào trip hiện tại |
 
 ```
-Props: { tripId?: string, dive?: Dive, onClose, onDiveCreated? }
-  → dive = null + tripId:  auto-tạo dive → upload
-  → dive = exist:          thẳng upload vào dive (bỏ qua tạo mới)
+Props: { projectId?: string, trip?: Trip, onClose, onTripCreated? }
+  → trip = null + projectId:  auto-tạo trip → upload
+  → trip = exist:          thẳng upload vào trip (bỏ qua tạo mới)
 ```
 
-**Auto-tạo dive (TripDetailPage context):**
-- Parse tên từ timestamp trong filename: `log_20260601_164637.csv` → `Dive 2026-06-01 16:46`
-- Fallback nếu không có timestamp: `Dive YYYY-MM-DD HH:mm` theo giờ hiện tại
+**Auto-tạo trip (ProjectDetailPage context):**
+- Parse tên từ timestamp trong filename: `log_20260601_164637.csv` → `Trip 2026-06-01 16:46`
+- Fallback nếu không có timestamp: `Trip YYYY-MM-DD HH:mm` theo giờ hiện tại
 - Description: `"Auto-imported from folder"` — không cần input từ user
-- Nếu batch/media upload fail sau khi tạo dive → `DELETE /dives/:id` (rollback)
+- Nếu batch/media upload fail sau khi tạo trip → `DELETE /trips/:id` (rollback)
 
-**Luồng upload (sau khi có diveId):**
+**Luồng upload (sau khi có tripId):**
 ```
-[nếu cần] Tạo dive (POST /trips/:tripId/dives)
+[nếu cần] Tạo trip (POST /projects/:projectId/trips)
     ↓
 ┌───────────────────────┬───────────────────────────┐
 │ Batch endpoint (0→80%)│ S3 Presigned (80→100%)    │
@@ -177,7 +177,7 @@ Props: { tripId?: string, dive?: Dive, onClose, onDiveCreated? }
 │ dvl (JSON parse)      │ *.png, *.jpg, *.webp       │
 │ sonar (S3 binary)     │                            │
 └───────────────────────┴───────────────────────────┘
-  Fail sau tạo dive → DELETE dive (rollback)
+  Fail sau tạo trip → DELETE trip (rollback)
 ```
 
 **File classification + hiển thị:**
@@ -261,13 +261,13 @@ npm install adm-zip    # backend — ZIP extraction
 
 | Mode | Điều kiện | Render |
 |------|-----------|--------|
-| **Geo path** | Có `dive.gpsLocation` từ sensor data | Polyline trên Leaflet map hiện có |
+| **Geo path** | Có `trip.gpsLocation` từ sensor data | Polyline trên Leaflet map hiện có |
 | **Relative path** | Không có GPS | SVG Canvas tự scale, nền trống, đơn vị meters |
 
 ### B1 — Backend: DVL API
 
 ```
-GET /dives/:id/dvl
+GET /trips/:id/dvl
 → trả về { data: [{ts, x, y, z, roll, pitch, yaw, status}], count, gpsAnchor: {lat,lng} | null }
 → downsample về max 2000 điểm nếu nhiều hơn (uniform sampling)
 ```
@@ -276,7 +276,7 @@ GET /dives/:id/dvl
 
 #### Coordinate transform (geo mode)
 ```js
-// gpsAnchor = dive.gpsLocation, DVL x=East(m), y=North(m)
+// gpsAnchor = trip.gpsLocation, DVL x=East(m), y=North(m)
 const EARTH_R = 6371000;
 const lat = anchor.lat + (pt.y / EARTH_R) * (180 / Math.PI);
 const lng = anchor.lng + (pt.x / EARTH_R) * (180 / Math.PI) / Math.cos(anchor.lat * Math.PI / 180);
@@ -290,7 +290,7 @@ const lng = anchor.lng + (pt.x / EARTH_R) * (180 / Math.PI) / Math.cos(anchor.la
 - Path: gradient xanh (start) → đỏ (end) — vẽ từng segment với lerp màu
 - Yaw arrows: mỗi ~20 điểm, vẽ triangle xoay theo góc yaw
 
-#### UI trong LocationPanel (left column DiveDetailPage)
+#### UI trong LocationPanel (left column TripDetailPage)
 - **Có DVL + GPS**: Leaflet map với Polyline path + dot đánh dấu đầu/cuối + Marker GPS gốc
 - **Có DVL, không GPS**: Canvas relative path thay Leaflet map
 - **Không có DVL**: giữ nguyên như hiện tại (Leaflet marker đơn hoặc "No GPS")
@@ -310,7 +310,7 @@ Map 1:1 với `video.currentTime` (giả định DVL và video bắt đầu cùn
 - Scale/grid tính từ **toàn bộ data** (không nhảy khi path ngắn)
 - Cursor dot tại điểm visible cuối cùng (blink hoặc pulse)
 
-**DiveDetailPage truyền `currentVideoTime`** (đã có từ chart sync) vào TrajectoryViewer.
+**TripDetailPage truyền `currentVideoTime`** (đã có từ chart sync) vào TrajectoryViewer.
 
 #### Checklist TASK B
 - [x] Upload DVL + có GPS → Polyline overlay trên Leaflet map
@@ -319,7 +319,7 @@ Map 1:1 với `video.currentTime` (giả định DVL và video bắt đầu cùn
 - [x] Yaw arrows ở điểm đều nhau
 - [x] Downsample đúng khi >2000 điểm
 - [x] Toggle layer Map/Path/Both hoạt động
-- [x] Dive không có DVL → không crash, hiện UI cũ
+- [x] Trip không có DVL → không crash, hiện UI cũ
 - [x] DVL animation: path vẽ dần theo video currentTime
 - [x] Seek video → DVL path tua lại đúng thời điểm tức thì
 - [x] Cursor dot tại vị trí ROV hiện tại trên path
@@ -353,10 +353,10 @@ Frame (repeating):
 ### C1 — Backend: Sonar file serving
 
 ```
-GET /dives/:id/sonar
+GET /trips/:id/sonar
 → list SonarFile docs { _id, filename, durationMs, frameCount, fileSizeBytes, recordedAt }
 
-GET /dives/:id/sonar/:sonarFileId/url
+GET /trips/:id/sonar/:sonarFileId/url
 → generate presigned S3 URL (15 phút TTL)
 → client fetch binary trực tiếp qua presigned URL
 ```
@@ -541,7 +541,7 @@ Sprint 1 (backend):
 
 Sprint 2 (frontend upload + DVL):
   A3   → ROVDataUpload modal (folder input + ZIP + column mapping preview)
-  B1   → GET /dives/:id/dvl endpoint
+  B1   → GET /trips/:id/dvl endpoint
   B2   → Trajectory overlay (geo Polyline + relative Canvas)
 
 Sprint 3 (sonar):
@@ -579,19 +579,19 @@ Sprint 3 (sonar):
 - `backend/src/modules/sonar/sonar.routes.js`
 
 ### Backend (sửa)
-- `backend/src/modules/dives/dive.model.js` — thêm `dvlCount`, `sonarCount`
+- `backend/src/modules/trips/trip.model.js` — thêm `dvlCount`, `sonarCount`
 - `backend/src/modules/sensor/sensor.controller.js` — flexible CSV parser
 - `backend/src/app.js` — đăng ký routes mới
 
 ### Frontend (mới)
-- `frontend/src/features/dives/components/ROVDataUpload.jsx`
-- `frontend/src/features/dives/components/TrajectoryViewer.jsx`  ← DVL path (geo + relative)
-- `frontend/src/features/dives/components/SonarViewer/SonarViewer.jsx`
-- `frontend/src/features/dives/components/SonarViewer/SonarCanvas.jsx`
-- `frontend/src/features/dives/components/SonarViewer/useSonarParser.js`
-- `frontend/src/features/dives/components/SonarViewer/useSonarPlayer.js`
+- `frontend/src/features/trips/components/ROVDataUpload.jsx`
+- `frontend/src/features/trips/components/TrajectoryViewer.jsx`  ← DVL path (geo + relative)
+- `frontend/src/features/trips/components/SonarViewer/SonarViewer.jsx`
+- `frontend/src/features/trips/components/SonarViewer/SonarCanvas.jsx`
+- `frontend/src/features/trips/components/SonarViewer/useSonarParser.js`
+- `frontend/src/features/trips/components/SonarViewer/useSonarPlayer.js`
 
 ### Frontend (sửa)
-- `frontend/src/features/dives/components/layout/LocationPanel.jsx` — dùng TrajectoryViewer
-- `frontend/src/features/dives/components/DiveMap.jsx` — thêm DVL Polyline layer
-- `frontend/src/features/dives/DiveDetailPage.jsx` — Video/Sonar toggle + Upload button mới
+- `frontend/src/features/trips/components/layout/LocationPanel.jsx` — dùng TrajectoryViewer
+- `frontend/src/features/trips/components/TripMap.jsx` — thêm DVL Polyline layer
+- `frontend/src/features/trips/TripDetailPage.jsx` — Video/Sonar toggle + Upload button mới

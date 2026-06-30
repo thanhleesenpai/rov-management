@@ -298,7 +298,7 @@ function Lightbox({ mediaList, initialIndex, onClose }) {
   }, [onClose, mediaList.length])
 
   return (
-    <div className={`fixed inset-0 flex items-center justify-center z-50 transition-colors duration-200 ${visible ? 'bg-black/90' : 'bg-black/0'}`}
+    <div className={`fixed inset-0 flex items-center justify-center z-[10000] transition-colors duration-200 ${visible ? 'bg-black/90' : 'bg-black/0'}`}
       onClick={onClose}>
       <div className={`relative max-w-5xl w-full max-h-[90vh] px-4 sm:px-16 transition-all duration-200 ${visible ? 'scale-100 opacity-100' : 'scale-95 opacity-0'}`}
         onClick={e => e.stopPropagation()}>
@@ -369,7 +369,7 @@ function Lightbox({ mediaList, initialIndex, onClose }) {
                 className={`w-12 h-12 rounded-md overflow-hidden shrink-0 border-2 transition-colors ${
                   i === index ? 'border-primary' : 'border-transparent opacity-50 hover:opacity-80'
                 }`}>
-                <ThumbnailStrip media={m} />
+                <ThumbnailSproject media={m} />
               </button>
             ))}
           </div>
@@ -395,7 +395,7 @@ function LabelBadges({ labels, max = 4, showConf = false }) {
   )
 }
 
-function ThumbnailStrip({ media }) {
+function ThumbnailSproject({ media }) {
   const { data: url } = useMediaUrl(media._id)
   const type = resolveType(media)
 
@@ -411,10 +411,10 @@ function ThumbnailStrip({ media }) {
   )
 }
 
-function SortableCard({ media, diveId, canDrag, canDelete, onClick, onDelete, selectMode, selected, onSelect }) {
+function SortableCard({ media, tripId, canDrag, canDelete, onClick, onDelete, selectMode, selected, onSelect }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: media._id,
-    data: { diveId, media },
+    data: { tripId, media },
     disabled: !canDrag || selectMode,
   })
 
@@ -463,7 +463,7 @@ function CrossJobGhost({ media }) {
   )
 }
 
-export default function MediaGallery({ diveId }) {
+export default function MediaGallery({ tripId }) {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
   const [tab, setTab] = useState('all')
@@ -474,21 +474,21 @@ export default function MediaGallery({ diveId }) {
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false)
 
   const { data: allMedia = [], isLoading } = useQuery({
-    queryKey: ['media', diveId],
-    queryFn: () => api.get(`/media/dive/${diveId}`).then(r => r.data),
-    enabled: !!diveId
+    queryKey: ['media', tripId],
+    queryFn: () => api.get(`/media/trip/${tripId}`).then(r => r.data),
+    enabled: !!tripId
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id) => api.delete(`/media/${id}`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['media', diveId] }); toast.success('File deleted') },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['media', tripId] }); toast.success('File deleted') },
     onError: () => toast.error('Failed to delete file')
   })
 
   const bulkDeleteMutation = useMutation({
     mutationFn: (ids) => api.delete('/media/bulk', { data: { ids } }),
     onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ['media', diveId] })
+      queryClient.invalidateQueries({ queryKey: ['media', tripId] })
       toast.success(`${res.data?.deleted ?? selected.size} file(s) deleted`)
       setSelected(new Set()); setSelectMode(false); setConfirmBulkDelete(false)
     },
@@ -510,10 +510,10 @@ export default function MediaGallery({ diveId }) {
   const selectAll = () => setSelected(selected.size === orderedMedia.length ? new Set() : new Set(orderedMedia.map(m => m._id)))
 
   const { active, over } = useDndContext()
-  const showCrossDivePlaceholder =
-    active?.data?.current?.diveId &&
-    active.data.current.diveId !== diveId &&
-    over?.data?.current?.diveId === diveId
+  const showCrossTripPlaceholder =
+    active?.data?.current?.tripId &&
+    active.data.current.tripId !== tripId &&
+    over?.data?.current?.tripId === tripId
 
   if (isLoading) return (
     <div className="grid grid-cols-3 gap-2 mt-3">
@@ -599,7 +599,7 @@ export default function MediaGallery({ diveId }) {
               <SortableCard
                 key={media._id}
                 media={media}
-                diveId={diveId}
+                tripId={tripId}
                 canDrag={canDrag}
                 canDelete={canDelete}
                 onClick={() => setLightboxIndex(i)}
@@ -609,7 +609,7 @@ export default function MediaGallery({ diveId }) {
                 onSelect={() => toggleSelect(media._id)}
               />
             ))}
-            {showCrossDivePlaceholder && <CrossJobGhost media={active.data.current.media} />}
+            {showCrossTripPlaceholder && <CrossJobGhost media={active.data.current.media} />}
           </div>
         </SortableContext>
       )}

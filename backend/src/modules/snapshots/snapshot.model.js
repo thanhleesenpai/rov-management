@@ -2,8 +2,8 @@ const mongoose = require('mongoose');
 
 const snapshotSchema = new mongoose.Schema({
   type:          { type: String, enum: ['photo', 'clip'], required: true },
-  dive:          { type: mongoose.Schema.Types.ObjectId, ref: 'Dive',  required: true },
   trip:          { type: mongoose.Schema.Types.ObjectId, ref: 'Trip',  required: true },
+  project:          { type: mongoose.Schema.Types.ObjectId, ref: 'Project',  required: true },
   createdBy:     { type: mongoose.Schema.Types.ObjectId, ref: 'User',  required: true },
   parentMediaId: { type: mongoose.Schema.Types.ObjectId, ref: 'Media', required: true },
 
@@ -38,6 +38,6 @@ const snapshotSchema = new mongoose.Schema({
   note: { type: String, default: '' },
 }, { timestamps: true });
 
-snapshotSchema.index({ dive: 1, createdAt: -1 });
+snapshotSchema.index({ trip: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Snapshot', snapshotSchema);

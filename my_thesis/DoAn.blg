@@ -1,0 +1,77 @@
+This is BibTeX, Version 0.99e
+Capacity: max_strings=200000, hash_size=200000, hash_prime=170003
+The top-level auxiliary file: DoAn.aux
+Reallocating 'name_of_file' (item size: 1) to 9 items.
+The style file: biblatex.bst
+Reallocating 'name_of_file' (item size: 1) to 9 items.
+Reallocating 'name_of_file' (item size: 1) to 29 items.
+Reallocating 'glb_str_end' (item size: 4) to 20 items.
+Reallocating 'glb_str_ptr' (item size: 4) to 20 items.
+Reallocating 'global_strs' (item size: 1) to 4000000 items.
+Reallocating 'singl_function' (item size: 4) to 100 items.
+Reallocating 'singl_function' (item size: 4) to 100 items.
+Reallocating 'singl_function' (item size: 4) to 100 items.
+Reallocating 'wiz_functions' (item size: 4) to 6000 items.
+Reallocating 'singl_function' (item size: 4) to 100 items.
+Reallocating 'singl_function' (item size: 4) to 100 items.
+Reallocating 'singl_function' (item size: 4) to 100 items.
+Reallocating 'singl_function' (item size: 4) to 100 items.
+Reallocating 'singl_function' (item size: 4) to 100 items.
+Reallocating 'singl_function' (item size: 4) to 100 items.
+Reallocating 'singl_function' (item size: 4) to 100 items.
+Reallocating 'singl_function' (item size: 4) to 100 items.
+Database file #1: DoAn-blx.bib
+Database file #2: Danh_sach_tai_lieu_tham_khao.bib
+Warning--I didn't find a database entry for "hovy1993automated"
+Warning--I didn't find a database entry for "peterson2007computer"
+Warning--I didn't find a database entry for "NguyenThucHai"
+Warning--I didn't find a database entry for "poesio2001discourse"
+Warning--I didn't find a database entry for "knott1996data"
+Warning--I didn't find a database entry for "BernersTim"
+Warning--I didn't find a database entry for "scott2013sdn"
+Warning--I didn't find a database entry for "ashton2009internet"
+Biblatex version: 3.21
+Reallocating 'wiz_functions' (item size: 4) to 9000 items.
+Reallocating 'singl_function' (item size: 4) to 100 items.
+You've used 2 entries,
+            6402 wiz_defined-function locations,
+            1220 strings with 9297 characters,
+and the built_in function-call counts, 5027 in all, are:
+= -- 274
+> -- 141
+< -- 18
++ -- 101
+- -- 51
+* -- 250
+:= -- 663
+add.period$ -- 0
+call.type$ -- 2
+change.case$ -- 7
+chr.to.int$ -- 42
+cite$ -- 2
+duplicate$ -- 392
+empty$ -- 483
+format.name$ -- 43
+if$ -- 1087
+int.to.chr$ -- 0
+int.to.str$ -- 2
+missing$ -- 0
+newline$ -- 39
+num.names$ -- 38
+pop$ -- 373
+preamble$ -- 1
+purify$ -- 10
+quote$ -- 0
+skip$ -- 223
+stack$ -- 0
+substring$ -- 459
+swap$ -- 96
+text.length$ -- 38
+text.prefix$ -- 0
+top$ -- 1
+type$ -- 56
+warning$ -- 0
+while$ -- 97
+width$ -- 0
+write$ -- 38
+(There were 8 warnings)

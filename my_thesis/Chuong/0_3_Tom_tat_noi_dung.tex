@@ -5,12 +5,21 @@
     \Large{\textbf{TÓM TẮT NỘI DUNG ĐỒ ÁN}}\\
 \end{center}
 \vspace{1cm}
-Sinh viên viết tóm tắt ĐATN của mình trong mục này, với 200 đến 350 từ. Theo trình tự, các nội dung tóm tắt cần có: (i) Giới thiệu vấn đề (tại sao có vấn đề đó, hiện tại được giải quyết chưa, có những hướng tiếp cận nào, các hướng này giải quyết như thế nào, hạn chế là gì), (ii) Hướng tiếp cận sinh viên lựa chọn là gì, vì sao chọn hướng đó, (iii) Tổng quan giải pháp của sinh viên theo hướng tiếp cận đã chọn, và (iv) Đóng góp chính của ĐATN là gì, kết quả đạt được sau cùng là gì. Sinh viên cần viết thành đoạn văn, không được viết ý hoặc gạch đầu dòng.
+
+Phương tiện lặn điều khiển từ xa (ROV) ngày càng được ứng dụng rộng rãi trong các nhiệm vụ khảo sát dưới nước như kiểm tra kết cấu công trình ngầm, quan trắc hệ sinh thái biển và thu thập dữ liệu địa chất. Trong quá trình vận hành thực tế, toàn bộ dữ liệu cảm biến (nhiệt độ, áp suất, độ sâu, định vị GPS) và phương tiện truyền thông (video, ảnh) được ghi lại trực tiếp trên thiết bị, sau đó người vận hành mới thực hiện tải lên hậu kỳ sau khi ROV về bờ do môi trường thực địa không có kết nối mạng ổn định. Tuy nhiên, quy trình phân tích sau chuyến lặn hiện nay hoàn toàn rời rạc: người phân tích phải mở đồng thời trình phát video và tệp CSV cảm biến, đối chiếu thủ công từng dòng dữ liệu với từng khung hình để xác định trạng thái môi trường tại một thời điểm cụ thể. Quy trình này không chỉ tốn nhiều thời gian và dễ sai sót, mà còn thiếu khả năng phân tích tự động và chia sẻ dữ liệu trong nhóm vận hành. Các giải pháp hiện có như QGroundControl hay BlueOS được thiết kế cho điều khiển thời gian thực, chưa đáp ứng nhu cầu quản lý và phân tích dữ liệu hậu kỳ trên nền tảng web đa người dùng.
+
+Đồ án này đề xuất và xây dựng hệ thống web \textit{``Quản lý Vận hành ROV tích hợp Trí tuệ Nhân tạo''} theo kiến trúc Client-Server đa tầng, lấy việc số hóa và tự động hóa quy trình phân tích hậu kỳ làm trọng tâm. Về mặt kỹ thuật, hệ thống áp dụng ngăn xếp công nghệ hiện đại bao gồm Node.js/Express.js cho tầng máy chủ, MongoDB cho lưu trữ dữ liệu cảm biến dạng tài liệu linh hoạt, React 18 với Vite cho giao diện người dùng tương tác, Redis cho hàng đợi tác vụ và bảo mật phiên đăng nhập. Điểm khác biệt cốt lõi so với các giải pháp hiện có là việc tích hợp ba mô-đun trí tuệ nhân tạo độc lập: mô-đun nhận diện vật thể sử dụng mô hình YOLOv8n chạy trên Python FastAPI microservice để tự động phát hiện và theo dõi vật thể trong từng khung hình video theo cơ chế bất đồng bộ qua Bull Queue; mô-đun tóm tắt nhiệm vụ sử dụng Gemini 2.5 Flash API để tổng hợp toàn bộ thông tin chuyến lặn thành văn bản báo cáo tự nhiên; và mô-đun phát hiện bất thường cảm biến triển khai thuật toán Z-Score không cần dữ liệu huấn luyện để tự động gắn cờ các điểm đo bất thường. Hệ thống còn cung cấp tính năng đồng bộ video--biểu đồ cảm biến theo thời gian thực và hệ thống trích xuất bằng chứng (Evidence System) cho phép người vận hành chụp ảnh khung hình và đánh dấu đoạn clip trực tiếp trong khi xem video.
+
+Hệ thống được đóng gói theo mô hình triển khai đề xuất sử dụng Docker Compose với bốn dịch vụ (nginx, node-backend, yolo-service, redis) trên VPS, giao diện frontend phân phối qua Vercel CDN, cơ sở dữ liệu trên MongoDB Atlas và lưu trữ file trên AWS S3. Kết quả kiểm thử chức năng đạt 37/37 test case (100\%), bao gồm các nhóm xác thực, phân quyền RBAC, kiểm tra đầu vào và CRUD toàn bộ tài nguyên. Kiểm thử tải bằng script Node.js tùy chỉnh ở mức 20 người dùng đồng thời cho thấy thời gian phản hồi trung bình dưới 500ms với p95 dưới 1 giây cho các endpoint dữ liệu thông thường; endpoint thống kê tổng hợp (dashboard) đạt p95 khoảng 1,8 giây do cần thực hiện bảy aggregation song song trên MongoDB. Mô hình YOLOv8n xử lý một ảnh đơn trong dưới một giây và video với tốc độ lấy mẫu thích nghi (0,2--1,0 giây mỗi khung hình tùy độ dài clip). Toàn bộ kết quả phân tích AI được đẩy về giao diện theo cơ chế Server-Sent Events (SSE) mà không cần tải lại trang.
+
+Hệ thống đặt nền móng cho việc số hóa toàn diện quy trình vận hành và quản lý dữ liệu ROV, thay thế thao tác thủ công rời rạc bằng một nền tảng tập trung, đa người dùng và tự động hóa. Về hướng phát triển, hệ thống có thể được mở rộng tích hợp thêm luồng GCS thời gian thực khi có kết nối mạng ngoài thực địa, tinh chỉnh mô hình YOLOv8 trên tập dữ liệu ROV thực tế (san hô, mảnh vỡ, sinh vật biển) để nâng cao độ chính xác, hoặc phát triển ứng dụng di động cho người vận hành sử dụng ngay tại hiện trường. Khung kiến trúc microservice đã xây dựng tạo điều kiện thuận lợi cho việc bổ sung các mô hình AI chuyên biệt trong tương lai mà không cần thay đổi cấu trúc hệ thống.
+
+\vspace{1.5cm}
 \begin{flushright}
-Sinh viên thực hiện\\
-\begin{tabular}{@{}c@{}}
-\textit{(Ký và ghi rõ họ tên)}
-\end{tabular}
+\textit{Hà Nội, tháng 5 năm 2026}\\[0.5cm]
+Sinh viên thực hiện\\[0.5cm]
+\textit{(Ký và ghi rõ họ tên)}\\[1cm]
+\textbf{Lê Minh Thành}
 \end{flushright}
 
 \end{document}

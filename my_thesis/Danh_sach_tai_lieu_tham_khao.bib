@@ -1,55 +1,245 @@
-@article{hovy1993automated,
-  title={Automated discourse generation using discourse structure relations},
-  author={Hovy, Eduard H},
-  journal={Artificial intelligence},
-  volume={63},
-  number={1-2},
-  pages={341--385},
-  year={1993},
-  publisher={Elsevier Science Publishers}
-}
+% ============================================================
+% Tài liệu tham khảo — Đồ án tốt nghiệp
+% Xây dựng phần mềm điều khiển vận hành ROV - Phân hệ quản lý thông tin nhiệm vụ
+% Lê Minh Thành — MSSV 20225764
+% ============================================================
 
-@book{peterson2007computer,
-  title={Computer networks: a systems approach},
-  author={Peterson, Larry L and Davie, Bruce S},
-  year={2007},
-  publisher={Elsevier}
-}
+% --- Nhóm xử lý nghiệp vụ ---
 
-@book{NguyenThucHai,
-  title={Mạng máy tính và các hệ thống mở},
-  author={Nguyễn Thúc Hải},
-  year={1999},
-  publisher={Nhà xuất bản giáo dục}
-}
-
-@inproceedings{poesio2001discourse,
-  title={Discourse structure and anaphoric accessibility},
-  author={Poesio, Massimo and Di Eugenio, Barbara},
-  booktitle={{ESSLLI} workshop on information structure, discourse structure and discourse semantics, Copenhagen, Denmark},
-  pages={129--143},
-  year={2001}
-}
-
-@phdthesis{knott1996data,
-  author  = {Knott, Alistair},
-  title   = {A data-driven methodology for motivating a set of coherence relations},
-  school  = {The University of Edinburgh, {UK}},
-  year    = {1996}
-}
-
-@misc{BernersTim,
-  author = {Berners-Lee, Tim},
-  title = {Hypertext Transfer Protocol ({HTTP})},
-  url = {ftp:/info.cern.ch/pub/www/doc/http-spec.txt.Z},
-  urldate = {2010-09-30}
-}
-
-
+% LectureA được giữ để tránh lỗi compile — Ch3 cũ dùng \cite{LectureA} cho Node.js
+% Sẽ xóa khi Ch3 được viết lại với citation keys mới
 @misc{LectureA,
-  author = {{Princeton University}},
-  title = {WordNet},
-  urldate = {2010-09-30},
-   url = {http://www.cogsci.princeton.edu/~wn/index.shtml}
+  author = {{OpenJS Foundation}},
+  title  = {{Node.js} — A {JavaScript} Runtime Built on {Chrome}'s {V8 JavaScript} Engine},
+  year   = {2024},
+  url    = {https://nodejs.org},
+  note   = {Accessed: 2026-06-22}
 }
 
+@misc{nodejs,
+  author = {{OpenJS Foundation}},
+  title  = {{Node.js} — A {JavaScript} Runtime Built on {Chrome}'s {V8 JavaScript} Engine},
+  year   = {2024},
+  url    = {https://nodejs.org},
+  note   = {Accessed: 2026-06-22}
+}
+
+@misc{expressjs,
+  author = {{StrongLoop, IBM, and other expressjs.com contributors}},
+  title  = {{Express.js} — Fast, Unopinionated, Minimalist Web Framework for {Node.js}},
+  year   = {2024},
+  url    = {https://expressjs.com},
+  note   = {Accessed: 2026-06-22}
+}
+
+@misc{bullqueue,
+  author = {{OptimalBits}},
+  title  = {{Bull} — Premium Queue Package for Handling Distributed Jobs and Messages in {Node.js}},
+  year   = {2024},
+  url    = {https://github.com/OptimalBits/bull},
+  note   = {Accessed: 2026-06-22}
+}
+
+% --- Nhóm dữ liệu và lưu trữ ---
+
+@misc{mongodb,
+  author = {{MongoDB, Inc.}},
+  title  = {{MongoDB} — The Developer Data Platform},
+  year   = {2024},
+  url    = {https://www.mongodb.com},
+  note   = {Accessed: 2026-06-22}
+}
+
+@misc{mongoose,
+  author = {{Automattic}},
+  title  = {{Mongoose} — Elegant {MongoDB} Object Modeling for {Node.js}},
+  year   = {2024},
+  url    = {https://mongoosejs.com},
+  note   = {Accessed: 2026-06-22}
+}
+
+@misc{redis,
+  author = {{Redis Ltd.}},
+  title  = {{Redis} — The Real-time Data Platform},
+  year   = {2024},
+  url    = {https://redis.io},
+  note   = {Accessed: 2026-06-22}
+}
+
+@misc{awss3,
+  author = {{Amazon Web Services, Inc.}},
+  title  = {{Amazon S3} — Object Storage Built to Retrieve Any Amount of Data from Anywhere},
+  year   = {2024},
+  url    = {https://aws.amazon.com/s3},
+  note   = {Accessed: 2026-06-22}
+}
+
+% --- Giao tiếp thời gian thực và Xác thực ---
+
+@misc{jwtspec,
+  author = {Jones, M. and Bradley, J. and Sakimura, N.},
+  title  = {{JSON Web Token (JWT)}, {RFC} 7519},
+  year   = {2015},
+  url    = {https://datatracker.ietf.org/doc/html/rfc7519},
+  note   = {Internet Engineering Task Force (IETF)}
+}
+
+@misc{passportjs,
+  author = {Hanson, Jared},
+  title  = {{Passport.js} — Simple, Unobtrusive Authentication for {Node.js}},
+  year   = {2024},
+  url    = {https://www.passportjs.org},
+  note   = {Accessed: 2026-06-22}
+}
+
+@misc{googleoauth,
+  author = {{Google LLC}},
+  title  = {{Google Identity}: {OAuth 2.0} for Web Server Applications},
+  year   = {2024},
+  url    = {https://developers.google.com/identity/protocols/oauth2},
+  note   = {Accessed: 2026-06-22}
+}
+
+@misc{sse_mdn,
+  author = {{Mozilla Developer Network}},
+  title  = {Using Server-Sent Events},
+  year   = {2024},
+  url    = {https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events/Using_server-sent_events},
+  note   = {Accessed: 2026-06-22}
+}
+
+% --- Trí tuệ nhân tạo và Xử lý dữ liệu ---
+
+@misc{geminiapi,
+  author = {{Google DeepMind}},
+  title  = {{Gemini API} Documentation},
+  year   = {2024},
+  url    = {https://ai.google.dev/gemini-api/docs},
+  note   = {Accessed: 2026-06-22}
+}
+
+@misc{yolov8,
+  author = {Jocher, Glenn and Chaurasia, Ayush and Qiu, Jing},
+  title  = {{Ultralytics YOLOv8}},
+  year   = {2023},
+  url    = {https://github.com/ultralytics/ultralytics},
+  note   = {Accessed: 2026-06-22}
+}
+
+@misc{fastapi,
+  author = {Ram{\'i}rez, Sebasti{\'a}n},
+  title  = {{FastAPI} — Modern, Fast Web Framework for Building {APIs} with {Python}},
+  year   = {2024},
+  url    = {https://fastapi.tiangolo.com},
+  note   = {Accessed: 2026-06-22}
+}
+
+@article{zscore_grubbs,
+  author  = {Grubbs, Frank E.},
+  title   = {Procedures for Detecting Outlying Observations in Samples},
+  journal = {Technometrics},
+  year    = {1969},
+  volume  = {11},
+  number  = {1},
+  pages   = {1--21}
+}
+
+% --- Nhóm giao diện người dùng ---
+
+@misc{reactjs,
+  author = {{Meta Open Source}},
+  title  = {{React} — A {JavaScript} Library for Building User Interfaces},
+  year   = {2024},
+  url    = {https://react.dev},
+  note   = {Accessed: 2026-06-22}
+}
+
+@misc{vite,
+  author = {You, Evan and others},
+  title  = {{Vite} — Next Generation Frontend Tooling},
+  year   = {2024},
+  url    = {https://vitejs.dev},
+  note   = {Accessed: 2026-06-22}
+}
+
+@misc{reactquery,
+  author = {{TanStack}},
+  title  = {{TanStack Query} ({React Query}) — Asynchronous State Management for {TypeScript/React}},
+  year   = {2024},
+  url    = {https://tanstack.com/query},
+  note   = {Accessed: 2026-06-22}
+}
+
+@misc{zustand,
+  author = {Dai, Daishi and others},
+  title  = {{Zustand} — A Small, Fast and Scalable Bearbones State-Management Solution},
+  year   = {2024},
+  url    = {https://github.com/pmndrs/zustand},
+  note   = {Accessed: 2026-06-22}
+}
+
+@misc{recharts,
+  author = {{Recharts Group}},
+  title  = {{Recharts} — A Composable Charting Library Built on {React} Components},
+  year   = {2024},
+  url    = {https://recharts.org},
+  note   = {Accessed: 2026-06-22}
+}
+
+@misc{leaflet,
+  author = {Agafonkin, Vladimir},
+  title  = {{Leaflet} — An Open-source {JavaScript} Library for Mobile-Friendly Interactive Maps},
+  year   = {2024},
+  url    = {https://leafletjs.com},
+  note   = {Accessed: 2026-06-22}
+}
+
+@misc{tailwindcss,
+  author = {{Tailwind Labs}},
+  title  = {{Tailwind CSS} — A Utility-First {CSS} Framework for Rapid UI Development},
+  year   = {2024},
+  url    = {https://tailwindcss.com},
+  note   = {Accessed: 2026-06-22}
+}
+
+@article{bytetrack,
+  author    = {Zhang, Yifu and Sun, Peize and Jiang, Yi and Yu, Dongdong and Weng, Fucheng and Yuan, Zehuan and Luo, Ping and Liu, Wenyu and Wang, Xinggang},
+  title     = {{ByteTrack}: Multi-Object Tracking by Associating Every Detection Box},
+  booktitle = {European Conference on Computer Vision (ECCV)},
+  year      = {2022},
+  url       = {https://arxiv.org/abs/2110.06864}
+}
+
+@misc{nominatim,
+  author = {{OpenStreetMap Foundation}},
+  title  = {{Nominatim} — Search {OpenStreetMap} Data by Name and Address (Geocoding)},
+  year   = {2024},
+  url    = {https://nominatim.org},
+  note   = {Accessed: 2026-06-22}
+}
+
+% --- Triển khai ---
+
+@misc{docker,
+  author = {{Docker, Inc.}},
+  title  = {{Docker Compose} — Define and Share Multi-Container Applications},
+  year   = {2024},
+  url    = {https://docs.docker.com/compose},
+  note   = {Accessed: 2026-06-22}
+}
+
+@misc{nginx,
+  author = {{F5, Inc.}},
+  title  = {{NGINX} — High Performance Load Balancer, Web Server, and Reverse Proxy},
+  year   = {2024},
+  url    = {https://nginx.org},
+  note   = {Accessed: 2026-06-22}
+}
+
+@misc{vercel,
+  author = {{Vercel, Inc.}},
+  title  = {{Vercel} — Develop, Preview, and Ship},
+  year   = {2024},
+  url    = {https://vercel.com},
+  note   = {Accessed: 2026-06-22}
+}

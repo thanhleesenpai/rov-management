@@ -65,7 +65,7 @@ snapshotAnalysisQueue.process(async (job) => {
       'snapshot_analysis_done',
       'Evidence analysis complete',
       `${labels.length} object${labels.length !== 1 ? 's' : ''} detected in evidence item.`,
-      `/dives/${snap.dive}`
+      `/trips/${snap.trip}`
     ).catch(() => {});
   }
 });

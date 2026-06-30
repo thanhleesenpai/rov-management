@@ -1,53 +1,49 @@
 const mongoose = require('mongoose');
 
 const tripSchema = new mongoose.Schema({
-  name: {
+  title: {
     type: String,
-    required: [true, 'Trip name is required'],
+    required: [true, 'Trip title is required'],
     trim: true
   },
   description: {
     type: String,
     default: ''
   },
-  rov: {
+  project: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'ROV',
-    required: [true, 'ROV is required']
-  },
-  location: {
-    type: String,
-    default: ''
-  },
-  startTime: {
-    type: Date,
-    default: null
-  },
-  endTime: {
-    type: Date,
-    default: null
+    ref: 'Project',
+    required: [true, 'Project is required']
   },
   status: {
     type: String,
-    enum: ['planned', 'ongoing', 'completed', 'cancelled'],
-    default: 'planned'
+    enum: ['pending', 'running', 'done', 'failed'],
+    default: 'pending'
   },
-  createdBy: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  aiSummary: {
-    vi:          { type: String, default: '' },
-    en:          { type: String, default: '' },
-    generatedAt: { type: Date, default: null },
-    status:      { type: String, enum: ['idle', 'pending', 'done', 'failed'], default: 'idle' },
-  },
+  sensorCount: { type: Number, default: 0 },
+  dvlCount:    { type: Number, default: 0 },
+  sonarCount:  { type: Number, default: 0 },
   gpsLocation: {
     lat: { type: Number, default: null },
     lng: { type: Number, default: null },
   },
   locationName: { type: String, default: '' },
+  gcsData: {
+    raw: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null
+    }
+  },
+  createdBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  }
 }, { timestamps: true });
+
+// Indexes cho các query phổ biến
+tripSchema.index({ project: 1, createdAt: -1 });
+tripSchema.index({ status: 1 });
+tripSchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model('Trip', tripSchema);

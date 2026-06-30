@@ -13,9 +13,9 @@ const timeAgo = (date) => {
 }
 
 const TYPE_ICON = {
-  dive_done:        '✅',
-  dive_failed:      '❌',
-  trip_completed:   '🏁',
+  trip_done:        '✅',
+  trip_failed:      '❌',
+  project_completed:   '🏁',
   account_disabled: '🔒',
   ai_summary_done:  '✨',
 }

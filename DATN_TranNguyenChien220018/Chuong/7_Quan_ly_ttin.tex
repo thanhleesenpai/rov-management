@@ -1,0 +1,705 @@
+\documentclass[../DoAn.tex]{subfiles}
+\begin{document}
+
+Như đã trình bày trong Chương~\ref{chapter:Methodology}, hệ thống phần mềm ROV được thiết kế thành ba thành phần độc lập: Firmware nhúng trên ROV, phần mềm điều khiển mặt đất (GCS) và \textbf{Hệ thống lưu trữ và đồng bộ dữ liệu sau nhiệm vụ}. Trong khi các chương trước đã trình bày chi tiết việc xây dựng Firmware nhúng và phần mềm GCS, chương này tập trung vào thành phần thứ ba --- phục vụ giai đoạn hậu kỳ: sau khi ROV trở về bờ, toàn bộ dữ liệu thu thập được tải lên, tổ chức và phân tích tập trung trên nền tảng web đa người dùng.
+
+\section{Tổng quan phân hệ}
+\label{section:7.1}
+
+\subsection{Bài toán đặt ra}
+
+Trong thực tế vận hành ROV, quá trình phân tích dữ liệu sau chuyến đi đang tồn tại nhiều bất cập. Phần cứng trên ROV ghi lại dữ liệu cảm biến (nhiệt độ, áp suất, độ sâu) dưới dạng tệp CSV, đồng thời lưu video vào bộ nhớ cục bộ. Do môi trường thực địa không có kết nối mạng ổn định, toàn bộ quá trình upload diễn ra sau khi đoàn về bờ. Công tác phân tích hậu kỳ hiện tại diễn ra hoàn toàn rời rạc: người phân tích phải mở trình phát video, sau đó đối chiếu thủ công từng dòng trong tệp CSV để xác định trạng thái môi trường tại một khoảnh khắc cụ thể trong video. Quy trình này tốn nhiều thời gian, dễ sai sót, và gây khó khăn khi chia sẻ kết quả giữa nhiều thành viên trong đội.
+
+Khảo sát các phần mềm hiện có cho thấy chưa có giải pháp nào đáp ứng đầy đủ nhu cầu quản lý dữ liệu hậu kỳ cho ROV trên nền tảng web đa người dùng. Bảng~\ref{tab:ch7-compare} tóm tắt so sánh với các giải pháp phổ biến.
+
+\begin{table}[H]
+\centering
+\caption{So sánh các giải pháp quản lý dữ liệu ROV hiện có}
+\label{tab:ch7-compare}
+\small
+\begin{tabular}{|p{5.0cm}|c|c|c|c|}
+\hline
+\textbf{Tiêu chí} & \textbf{QGroundControl} & \textbf{BlueOS} & \textbf{Google Drive} & \textbf{Đề xuất} \\
+\hline
+Phân tích dữ liệu hậu kỳ & Hạn chế & --- & --- & \checkmark \\
+\hline
+Đồng bộ Video -- Cảm biến & --- & --- & --- & \checkmark \\
+\hline
+Nhận diện vật thể AI (YOLO) & --- & --- & --- & \checkmark \\
+\hline
+Tóm tắt nhiệm vụ bằng LLM & --- & --- & --- & \checkmark \\
+\hline
+Nền tảng Web đa người dùng & --- & Hạn chế & \checkmark & \checkmark \\
+\hline
+Phân quyền theo vai trò (RBAC) & --- & --- & --- & \checkmark \\
+\hline
+\end{tabular}
+\end{table}
+
+Từ phân tích trên, phân hệ \textit{``Quản lý Thông tin Nhiệm vụ ROV''} được xây dựng với bốn tính năng cốt lõi: (i)~quản lý tập trung các Chuyến khảo sát (Projects) và Lượt lặn (Trips) theo mô hình phân cấp; (ii)~ánh xạ và đồng bộ thanh thời gian video với biểu đồ dữ liệu cảm biến theo thời gian thực; (iii)~tích hợp học sâu (YOLOv8) để tự động nhận diện vật thể và trích xuất bằng chứng từ video; (iv)~ứng dụng Mô hình ngôn ngữ lớn (Gemini) để tổng hợp báo cáo nhiệm vụ bằng ngôn ngữ tự nhiên.
+
+\subsection{Biểu đồ use case tổng quát}
+
+Biểu đồ Use Case tổng quát (Hình~\ref{fig:ch7-uc-tongquat}) mô tả sự tương tác giữa ba nhóm người dùng (Viewer, Operator, Admin) và hai tác nhân hệ thống bên ngoài (YOLO Service và Gemini AI). Quyền hạn được tổ chức theo mô hình kế thừa tăng dần: Viewer chỉ xem, Operator thêm quyền tải lên và phân tích, Admin có toàn quyền bao gồm xóa tài nguyên và quản lý người dùng.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\linewidth, height=0.88\textheight, keepaspectratio]{uc_tongquat.png}
+\caption{Biểu đồ Use Case tổng quát phân hệ quản lý thông tin ROV}
+\label{fig:ch7-uc-tongquat}
+\end{figure}
+
+Hình~\ref{fig:ch7-uc-data} và Hình~\ref{fig:ch7-uc-ai} làm rõ hai phân hệ quan trọng nhất. Phân hệ Dữ liệu Thực địa mô tả luồng upload đa loại tệp (CSV, DVL, Sonar, Media), quản lý theo tên file nguồn (\texttt{sourceFile}), và kích hoạt chế độ đồng bộ Video--Biểu đồ khi video có trường \texttt{recordedAt}. Phân hệ AI Phân tích cho thấy Operator cấu hình mô hình và ngưỡng confidence trước khi chạy phân tích bất đồng bộ qua Bull Queue, kết quả được đẩy về qua SSE.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\linewidth, height=0.88\textheight, keepaspectratio]{uc_phanra_data.png}
+\caption{Biểu đồ Use Case phân rã -- Phân hệ Upload và Quản lý Dữ liệu Thực địa}
+\label{fig:ch7-uc-data}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\linewidth, height=0.88\textheight, keepaspectratio]{uc_phanra_ai.png}
+\caption{Biểu đồ Use Case phân rã -- Phân hệ AI Phân tích}
+\label{fig:ch7-uc-ai}
+\end{figure}
+
+Hình~\ref{fig:ch7-act-workflow} tóm tắt luồng nghiệp vụ đầu cuối từ khi Operator trở về từ thực địa đến khi có báo cáo tổng kết, gồm năm giai đoạn: đăng nhập và tạo mới Project/Trip; tải lên dữ liệu; xem lại video và trích xuất bằng chứng; đánh dấu hoàn tất Trip; kích hoạt AI tóm tắt.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\linewidth, height=0.88\textheight, keepaspectratio]{act_data_workflow_a.png}
+\caption{Biểu đồ hoạt động -- Quy trình phân tích dữ liệu nhiệm vụ ROV — Giai đoạn a: Thu thập và xử lý dữ liệu}
+\label{fig:ch7-act-workflow-a}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\linewidth, height=0.88\textheight, keepaspectratio]{act_data_workflow_b.png}
+\caption{Biểu đồ hoạt động -- Quy trình phân tích dữ liệu nhiệm vụ ROV — Giai đoạn b: Phân tích và tổng kết}
+\label{fig:ch7-act-workflow-b}
+\end{figure}
+
+\subsection{Yêu cầu phi chức năng}
+
+Để đảm bảo hệ thống hoạt động ổn định và mang lại trải nghiệm tối ưu trong môi trường vận hành thực tế, phân hệ web phải thỏa mãn các yêu cầu phi chức năng sau:
+
+\begin{itemize}[leftmargin=*, topsep=4pt, itemsep=4pt]
+  \item \textbf{Hiệu năng và phản hồi:} Giao diện cockpit theo dõi video và cảm biến không được giật lag. Cơ chế đồng bộ thanh thời gian video--biểu đồ phải duy trì độ trễ dưới 100\,ms. Thông báo SSE phải hiển thị tức thì khi có thay đổi trạng thái.
+
+  \item \textbf{Xử lý bất đồng bộ:} Các tác vụ nặng như phân tích hàng nghìn khung hình video bằng YOLOv8 hoặc truy vấn LLM (Gemini) không được chặn luồng giao diện người dùng. Tất cả tác vụ này phải được xếp vào hàng đợi (Bull Queue) và xử lý ngầm, kết quả trả về qua SSE.
+
+  \item \textbf{Khả năng lưu trữ và mở rộng:} Tệp dữ liệu thực địa (video, ảnh, sonar) thường có kích thước lớn (Gigabytes). Hệ thống không lưu tệp trực tiếp trong cơ sở dữ liệu mà sử dụng nền tảng lưu trữ đám mây (AWS S3) với cơ chế Presigned URL, giảm tải băng thông cho máy chủ chính.
+
+  \item \textbf{Bảo mật và phân quyền:} Hệ thống sử dụng JWT có vòng đời ngắn (15 phút) kết hợp Refresh Token (7 ngày) và danh sách đen (Blacklist) trên Redis để vô hiệu hóa tức thì tài khoản đăng xuất hoặc bị chặn. Mọi truy cập tài nguyên đều kiểm tra quyền tại lớp middleware theo ma trận RBAC ba cấp.
+
+  \item \textbf{Khả năng sử dụng:} Giao diện hỗ trợ cả chế độ sáng và tối, tương thích trên màn hình từ 375\,px (mobile) đến 1440\,px (desktop). Tất cả danh sách có trạng thái trống (empty state) thân thiện; các thao tác tải lên có phản hồi tiến trình rõ ràng.
+\end{itemize}
+
+%-----------------------------------------------------------
+\section{Kiến trúc và hệ sinh thái công nghệ}
+\label{section:7.2}
+
+\subsection{Kiến trúc tổng quan}
+
+Phân hệ được thiết kế theo kiến trúc \textbf{Client-Server đa tầng} kết hợp mô hình \textbf{Microservice thu nhỏ} để tách biệt bộ phận nhận diện hình ảnh nặng nề (YOLOv8) khỏi máy chủ chính. Ba tầng gồm: tầng trình bày (React SPA), tầng nghiệp vụ (Node.js) và tầng dữ liệu (MongoDB Atlas).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{arch_tong_quan.png}
+\caption{Kiến trúc tổng quan phân hệ quản lý thông tin ROV}
+\label{fig:ch7-arch}
+\end{figure}
+
+Như Hình~\ref{fig:ch7-arch}, Frontend được phân phối qua Vercel CDN và giao tiếp với Backend Node.js thông qua REST API. Backend đảm nhận toàn bộ nghiệp vụ: xác thực JWT, quản lý hàng đợi Bull, xử lý file AWS S3 và điều phối các dịch vụ ngoài (Gemini API, YOLOv8 Microservice, Nominatim). Hình~\ref{fig:ch7-module-dep} thể hiện sự phân chia module phía Backend theo nguyên tắc \textit{high cohesion, low coupling}: mỗi thực thể nghiệp vụ (Projects, Trips, Media, Sensor, DVL, Sonar, Snapshots, Notifications, AI, Audit) có bộ tệp độc lập gồm \texttt{routes.js} $\to$ \texttt{controller.js} $\to$ \texttt{service.js} $\to$ \texttt{model.js}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.88\textwidth]{arch_module_dep.png}
+\caption{Sơ đồ phụ thuộc module phía Backend}
+\label{fig:ch7-module-dep}
+\end{figure}
+
+\subsection{Hệ sinh thái công nghệ}
+
+Bảng~\ref{tab:ch7-techstack} trình bày hệ sinh thái công nghệ của phân hệ web, được lựa chọn để đáp ứng các yêu cầu phi chức năng: đồng bộ video--biểu đồ dưới 100ms, xử lý tác vụ AI nặng không block giao diện, và hỗ trợ dark mode từ 375px đến 1440px.
+
+\begin{table}[H]
+\centering
+\caption{Hệ sinh thái công nghệ phân hệ quản lý thông tin}
+\label{tab:ch7-techstack}
+\small
+\begin{tabular}{|p{3.6cm}|p{4.8cm}|p{4.8cm}|}
+\hline
+\textbf{Tầng / Vai trò} & \textbf{Công nghệ} & \textbf{Ghi chú} \\
+\hline
+Giao diện người dùng & React 18.3, Vite 5.3, Tailwind CSS 3.4 & SPA, dark/light mode, 375--1440px \\
+\hline
+Quản lý trạng thái & Zustand 4.5, React Query 5.4 & Client state + server cache \\
+\hline
+Biểu đồ & Recharts 3.8 & AreaChart, LineChart, Brush \\
+\hline
+Bản đồ & Leaflet.js 1.9 (raw API) & OpenStreetMap, không cần API key \\
+\hline
+Máy chủ & Node.js 20 LTS, Express.js 4.19 & REST API, SSE stream \\
+\hline
+ORM & Mongoose 8.4 & Schema, validation, compound index \\
+\hline
+Cơ sở dữ liệu & MongoDB Atlas (M0 Free) & NoSQL document, 512\,MB \\
+\hline
+Cache \& hàng đợi & Redis + Bull 4.16 & JWT blacklist + 4 async job queues \\
+\hline
+Lưu trữ tệp & AWS S3 + Presigned URL & Upload thẳng từ trình duyệt, max 500\,MB/file \\
+\hline
+Xác thực & JWT (HS256) + Passport.js & Access 15 phút, Refresh 7 ngày \\
+\hline
+Giao tiếp realtime & Server-Sent Events (SSE) & Một chiều: server $\to$ client \\
+\hline
+Nhận diện vật thể & YOLOv8n + FastAPI, Python 3.11 & Microservice độc lập, cổng 8000 \\
+\hline
+LLM tóm tắt & Gemini 2.5 Flash & \texttt{@google/generative-ai} \\
+\hline
+Phát hiện bất thường & Z-Score (tự cài đặt) & Ngưỡng $|z| > 2{,}5$ \\
+\hline
+Reverse Geocoding & OpenStreetMap Nominatim & Miễn phí, không cần API key \\
+\hline
+\end{tabular}
+\end{table}
+
+Hai cơ chế kỹ thuật trọng tâm là \textbf{Bull Queue} và \textbf{SSE}. Bull Queue đảm bảo ``at-least-once delivery'' cho các tác vụ nặng (phân tích YOLO, gọi Gemini API) không được phép chặn Event Loop của Node.js. Hệ thống khởi tạo bốn hàng đợi độc lập: \texttt{media-analysis} (timeout 25 phút, 1 lần thử), \texttt{snapshot-analysis} (5 phút, 1 lần thử), \texttt{ai-summary} (60 giây, 3 lần thử backoff) và \texttt{email} (60 giây, 3 lần thử). SSE qua HTTP/1.1 được chọn thay vì WebSocket vì chỉ cần giao tiếp một chiều (server $\to$ client); kết nối SSE được lưu trong cấu trúc \texttt{Map<userId, res>} in-memory, Worker sau khi xử lý xong tìm đúng connection của người dùng và ghi trực tiếp vào response stream.
+
+\subsection{Thiết kế cơ sở dữ liệu}
+
+Hệ thống sử dụng MongoDB với 11 collection chính, có cấu trúc phân cấp trung tâm: \textbf{Users} $\to$ \textbf{Projects} $\to$ \textbf{Trips} $\to$ dữ liệu con (SensorData, DVLData, SonarFile, Media, Snapshots). Hình~\ref{fig:ch7-er} mô tả quan hệ giữa các collection dưới dạng sơ đồ ER.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{er_diagram.png}
+\caption{Sơ đồ ER cơ sở dữ liệu phân hệ quản lý thông tin ROV}
+\label{fig:ch7-er}
+\end{figure}
+
+\begin{table}[H]
+\centering
+\caption{Mô tả các collection chính trong MongoDB}
+\label{tab:ch7-collections}
+\small
+\begin{tabular}{|p{2.7cm}|p{4.2cm}|p{5.5cm}|}
+\hline
+\textbf{Collection} & \textbf{Trường quan trọng} & \textbf{Mô tả} \\
+\hline
+\texttt{users} & email, role, googleId, isActive & Người dùng; role: viewer/operator/admin \\
+\hline
+\texttt{rovs} & name, serialNumber, status & Thiết bị ROV; status: active/maintenance/retired \\
+\hline
+\texttt{projects} & rov, status, aiSummary & Chuyến khảo sát; status: planned/ongoing/completed/cancelled \\
+\hline
+\texttt{trips} & project, status, gpsLocation, sensorCount & Lần lặn; status: pending/running/done/failed \\
+\hline
+\texttt{sensordatas} & trip, timestamp, depth, temp, sourceFile & Chuỗi thời gian cảm biến; index \{trip, timestamp\} \\
+\hline
+\texttt{dvldatas} & trip, ts, x, y, z, sourceFile & Quỹ đạo DVL theo thời gian \\
+\hline
+\texttt{sonarfiles} & trip, filename, frameCount, durationMs & Metadata file sonar nhị phân trên S3 \\
+\hline
+\texttt{media} & trip, type, labels, analysisStatus & Video/ảnh; labels từ YOLO; analysisStatus: idle/pending/done/failed \\
+\hline
+\texttt{snapshots} & trip, type, imageS3Key, aiLabels & Ảnh frame hoặc clip bằng chứng \\
+\hline
+\texttt{notifications} & userId, type, isRead, link & Thông báo in-app qua SSE \\
+\hline
+\texttt{auditlogs} & action, entity, userId, details & Nhật ký hoạt động admin \\
+\hline
+\end{tabular}
+\end{table}
+
+Index phức hợp được đặt tại các collection truy vấn thường xuyên nhằm đảm bảo hiệu năng khi dataset tăng trưởng:
+\begin{itemize}[leftmargin=*, topsep=2pt, itemsep=2pt]
+\item \texttt{SensorData}: \texttt{\{trip:~1, timestamp:~$-1$\}}
+\item \texttt{Media}: \texttt{\{trip:~1, order:~1\}}
+\item \texttt{Notification}: \texttt{\{userId:~1, isRead:~1,\allowbreak{} createdAt:~$-1$\}}
+\end{itemize}
+
+\subsection{Mô hình triển khai đề xuất}
+
+Mô hình triển khai đề xuất (Hình~\ref{fig:ch7-deploy}) sử dụng Docker Compose trên một VPS duy nhất để đóng gói bốn dịch vụ: \texttt{nginx} (reverse proxy + SSL), \texttt{node-backend} (Express API + Bull Workers), \texttt{yolo-service} (FastAPI + YOLOv8n), \texttt{redis} (JWT blacklist + hàng đợi). Frontend triển khai riêng trên Vercel CDN; cơ sở dữ liệu trên MongoDB Atlas; tệp media trên AWS S3. Ước tính chi phí hạ tầng khoảng \$7/tháng (VPS \$6 + S3 $<$\$1, MongoDB Atlas và Gemini API ở mức free tier).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.90\textwidth]{arch_deploy.png}
+\caption{Mô hình triển khai đề xuất trên VPS sử dụng Docker Compose}
+\label{fig:ch7-deploy}
+\end{figure}
+
+%-----------------------------------------------------------
+\section{Phân quyền và xác thực}
+\label{section:7.3}
+
+\subsection{Mô hình phân quyền RBAC}
+
+Hệ thống phục vụ ba nhóm người dùng với quyền hạn phân chia theo cơ chế kiểm soát truy cập dựa trên vai trò (RBAC): \textbf{Viewer} chỉ xem dữ liệu; \textbf{Operator} kế thừa quyền Viewer và thêm quyền tải lên, phân tích, trích xuất bằng chứng; \textbf{Admin} kế thừa toàn bộ quyền Operator và bổ sung đặc quyền xóa tài nguyên và quản lý người dùng. Phân quyền được thực thi tại middleware \texttt{authorize(roles)} trên mọi route Backend; Frontend ẩn các nút không phù hợp với role nhưng Backend vẫn kiểm tra độc lập để tránh bypass qua API trực tiếp.
+
+\begin{table}[H]
+\centering
+\caption{Ma trận phân quyền RBAC của phân hệ quản lý thông tin}
+\label{tab:ch7-rbac}
+\small
+\begin{tabular}{|p{7.0cm}|c|c|c|}
+\hline
+\textbf{Tính năng} & \textbf{Admin} & \textbf{Operator} & \textbf{Viewer} \\
+\hline
+Xem Dashboard, ROV, Project, Trip & \checkmark & \checkmark & \checkmark \\
+\hline
+Nhận thông báo realtime (SSE) & \checkmark & \checkmark & \checkmark \\
+\hline
+Tạo và chỉnh sửa Project / Trip & \checkmark & \checkmark & --- \\
+\hline
+Tạo và chỉnh sửa Thiết bị ROV & \checkmark & \checkmark & --- \\
+\hline
+Tải lên dữ liệu cảm biến (CSV / DVL / Sonar) & \checkmark & \checkmark & --- \\
+\hline
+Xóa dữ liệu cảm biến / DVL / Sonar & \checkmark & \checkmark & --- \\
+\hline
+Tải lên Media (Video / Ảnh) & \checkmark & \checkmark & --- \\
+\hline
+Trích xuất Bằng chứng (Photo / Clip) & \checkmark & \checkmark & --- \\
+\hline
+Xóa Bằng chứng (Photo / Clip) & \checkmark & \checkmark & --- \\
+\hline
+Kích hoạt phân tích YOLO & \checkmark & \checkmark & --- \\
+\hline
+Tạo báo cáo tóm tắt AI & \checkmark & \checkmark & --- \\
+\hline
+Xuất dữ liệu (CSV / PDF) & \checkmark & \checkmark & --- \\
+\hline
+Xóa Media (Ảnh / Video) & \checkmark & --- & --- \\
+\hline
+Xóa Project / Trip & \checkmark & --- & --- \\
+\hline
+Xóa Thiết bị ROV & \checkmark & --- & --- \\
+\hline
+Quản lý và phân quyền Người dùng & \checkmark & --- & --- \\
+\hline
+Xem Nhật ký hoạt động (Audit Log) & \checkmark & --- & --- \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Cơ chế xác thực JWT và Google OAuth}
+
+Hệ thống sử dụng cặp token có vòng đời bất đối xứng: \textbf{Access Token} (HS256, TTL 15 phút) gửi kèm mọi request dưới dạng \texttt{Authorization: Bearer}; \textbf{Refresh Token} (TTL 7 ngày) lưu trong MongoDB. Khi Access Token hết hạn, Axios interceptor tự động gọi \texttt{POST /auth/refresh} và thực hiện lại request ban đầu mà không làm gián đoạn trải nghiệm người dùng. Khi đăng xuất, token được thêm vào Redis Blacklist với key \texttt{blacklist:\{token\}} và TTL bằng thời gian sống còn lại --- middleware \texttt{authenticate} kiểm tra Redis trước khi chấp nhận mọi request, vô hiệu hóa tức thì token bị thu hồi.
+
+Ngoài đăng nhập email/mật khẩu, hệ thống hỗ trợ \textbf{Google OAuth 2.0} thông qua Passport.js: khi người dùng nhấn ``Đăng nhập bằng Google'', Passport GoogleStrategy tra cứu email trong MongoDB --- nếu tài khoản đã tồn tại thì gán thêm \texttt{googleId}; nếu chưa tồn tại thì tạo tài khoản mới với \texttt{authProvider = 'google'} và role mặc định \texttt{viewer}. Màn hình đăng nhập (Hình~\ref{fig:ch7-ui-login}) hỗ trợ đồng thời cả hai phương thức.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.78\textwidth]{ui_login.png}
+\caption{Màn hình đăng nhập -- hỗ trợ cả Email/Password và Google OAuth 2.0}
+\label{fig:ch7-ui-login}
+\end{figure}
+
+\subsection{Vòng đời Project và Trip}
+
+Hệ thống quản lý hai thực thể trung tâm có vòng đời nhiều giai đoạn. \textbf{Chuyến khảo sát (Project)} có bốn trạng thái: \textit{planned} $\to$ \textit{ongoing} $\to$ \textit{completed} / \textit{cancelled}. Hành vi duy nhất ràng buộc theo trạng thái là: chỉ Project ở trạng thái \textit{completed} mới được phép kích hoạt tóm tắt AI (Hình~\ref{fig:ch7-state-project}).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.90\linewidth]{state_project.png}
+\caption{Sơ đồ trạng thái vòng đời Chuyến khảo sát (Project)}
+\label{fig:ch7-state-project}
+\end{figure}
+
+\textbf{Lượt lặn (Trip)} có bốn trạng thái: \textit{pending} $\to$ \textit{running} $\to$ \textit{done} / \textit{failed}. Khi Trip chuyển sang \textit{done} hoặc \textit{failed}, hệ thống tự động đẩy thông báo SSE đến người tạo Trip. Các tính năng phân tích YOLO và đồng bộ video--biểu đồ được Operator kích hoạt thủ công, không ràng buộc theo trạng thái (Hình~\ref{fig:ch7-state-trip}).
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.95\linewidth, height=0.88\textheight, keepaspectratio]{state_trip.png}
+\caption{Sơ đồ trạng thái vòng đời Lượt lặn (Trip)}
+\label{fig:ch7-state-trip}
+\end{figure}
+
+\subsection{Vòng đời phân tích Media}
+
+Mỗi tệp phương tiện (video hoặc ảnh) trong hệ thống có trường \texttt{analysisStatus} riêng, độc lập với trạng thái của Lượt lặn. Vòng đời này phản ánh tiến trình của tác vụ phân tích YOLO bất đồng bộ và được tóm tắt trong Bảng~\ref{tab:ch7-state-media}.
+
+\begin{longtable}{|p{2.5cm}|p{4.5cm}|p{6.0cm}|}
+\caption{Các trạng thái vòng đời phân tích Media (\texttt{analysisStatus})}\label{tab:ch7-state-media}\\
+\hline
+\textbf{Trạng thái} & \textbf{Ý nghĩa} & \textbf{Điều kiện chuyển đổi} \\
+\hline
+\texttt{idle} & Chưa phân tích & Trạng thái mặc định sau khi tệp được xác nhận tải lên thành công (\textit{status = ready}) \\
+\hline
+\texttt{pending} & Đang chờ trong hàng đợi & Operator nhấn \textit{``Chạy phân tích''} → job vào Bull Queue, labels cũ bị xóa \\
+\hline
+\texttt{done} & Phân tích hoàn tất & Worker nhận kết quả từ YOLO Service, lưu labels vào MongoDB, đẩy SSE \\
+\hline
+\texttt{failed} & Phân tích thất bại & YOLO Service timeout (25 phút) hoặc lỗi kết nối; Operator có thể kích hoạt lại \\
+\hline
+\end{longtable}
+
+Thiết kế tách biệt \texttt{analysisStatus} khỏi \texttt{status} tải lên của tệp cho phép Operator xem và sử dụng video/ảnh bình thường trong khi quá trình phân tích AI vẫn đang diễn ra ngầm --- đảm bảo luồng công việc không bị gián đoạn.
+
+%-----------------------------------------------------------
+\section{Hiện thực các chức năng cốt lõi}
+\label{section:7.4}
+
+\subsection{Dashboard và thống kê tổng quan}
+
+Dashboard (Hình~\ref{fig:ch7-ui-dashboard}) hiển thị bức tranh tổng quan hệ thống qua bốn thẻ KPI (tổng số Project, số Trip đang chạy, số ROV hoạt động, tổng người dùng) và ba biểu đồ Recharts, được tải song song qua bảy MongoDB aggregation. Trang có tốc độ tải xuất sắc với điểm Lighthouse Performance 98 (FCP 0,8\,s, LCP 0,9\,s).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{ui_dashboard.png}
+\caption{Dashboard -- KPI cards và biểu đồ thống kê tổng quan (dark mode)}
+\label{fig:ch7-ui-dashboard}
+\end{figure}
+
+\subsection{Quản lý Project và Trip}
+
+Trang Projects (Hình~\ref{fig:ch7-ui-projects}) hỗ trợ tìm kiếm theo tên, lọc theo trạng thái và khoảng thời gian, phân trang và xuất CSV/PDF. ProjectDetailPage (Hình~\ref{fig:ch7-ui-project-detail}) hiển thị toàn bộ thông tin chuyến đi, danh sách Trip, khu vực DATA FILES liệt kê tên file cụ thể (sensor CSV, DVL JSON, sonar) với nút xóa từng file riêng lẻ, và section AI Summary song ngữ. Trang Trips (Hình~\ref{fig:ch7-ui-trips}) cho phép lọc toàn bộ lượt lặn theo trạng thái và ngày, độc lập với Project.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{ui_projects_list.png}
+\caption{Trang danh sách Projects -- filter, search và export}
+\label{fig:ch7-ui-projects}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{ui_project_detail.png}
+\caption{ProjectDetailPage -- TripCard mở rộng với DATA FILES và AI Summary}
+\label{fig:ch7-ui-project-detail}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{ui_trips_list.png}
+\caption{Trang danh sách Trips -- filter theo status và date range}
+\label{fig:ch7-ui-trips}
+\end{figure}
+
+\subsection{Giao diện Cockpit TripDetailPage}
+
+TripDetailPage là tính năng cốt lõi nhất của phân hệ, được thiết kế theo phong cách ``cockpit'' (Hình~\ref{fig:ch7-cockpit}): layout 3 cột không cuộn trang, tối ưu cho màn hình 1080p, hỗ trợ đầy đủ dark mode và responsive từ 375px đến 1440px.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.98\textwidth]{ui_trip_cockpit.png}
+\caption{TripDetailPage Cockpit -- layout 3 cột, đồng bộ video--biểu đồ thời gian thực}
+\label{fig:ch7-cockpit}
+\end{figure}
+
+\textbf{Cột trái} hiển thị bản đồ Leaflet với Marker GPS lần lặn, ba thẻ KPI (độ sâu trung bình, nhiệt độ, áp suất từ thống kê cảm biến) và mục DATA FILES liệt kê từng file dữ liệu kèm nút xóa.
+
+\textbf{Cột giữa} là trình phát video nền đen. Phía trên có thanh gradient với tên file và các nút điều khiển AI: ``Detect/Hide'' bật/tắt bounding box YOLO; ``Analyze'' mở popover chọn model và ngưỡng confidence; ``📷'' chụp frame ảnh; ``🎬'' ghi clip; ``Evidence N'' mở bảng bằng chứng. Khi video có \texttt{recordedAt}, badge ``LIVE SYNC'' xuất hiện và thanh đỏ ReferenceLine trên biểu đồ bên dưới di chuyển theo từng giây phát.
+
+\textbf{Cột phải} có đồng hồ \texttt{ArtificialHorizon} và \texttt{CompassRose} dạng SVG kiểu hàng không, animate theo dữ liệu yaw/pitch/roll từ CSV. Phần Alerts hiển thị card cảnh báo màu hổ phách cho từng điểm bất thường Z-Score.
+
+\textbf{Dưới cùng} là ba tab biểu đồ Recharts: Environment (depth/temp/pressure, Hình~\ref{fig:ch7-chart-anomaly}), Navigation (yaw/pitch/roll), System (voltage/battery/humidity), kèm Brush zoom, legend toggle và nút mở rộng.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{ui_trip_chart_anomaly.png}
+\caption{Tab biểu đồ Environment -- dot đỏ đánh dấu điểm bất thường Z-Score ($|z| > 2{,}5$)}
+\label{fig:ch7-chart-anomaly}
+\end{figure}
+
+\subsection{Upload đa nguồn dữ liệu thực địa}
+
+Hệ thống hỗ trợ bốn loại dữ liệu thực địa: tệp CSV cảm biến (depth, temp, pressure, yaw/pitch/roll, voltage, humidity), tệp JSON quỹ đạo DVL, tệp Sonar nhị phân và Media (video/ảnh) qua cơ chế S3 Presigned URL. Điểm nổi bật là mô hình \textbf{multi-file append}: thay vì overwrite, hệ thống lưu từng tệp theo tên nguồn (\texttt{sourceFile}) và cho phép xóa từng file riêng lẻ. Tên file có định dạng \texttt{\_YYYYMMDD\_HHMMSS} được tự động parse để lấy \texttt{recordedAt}, cho phép đồng bộ Video--Biểu đồ mà không cần nhập tay. Hệ thống tự động phát hiện chồng lấp thời gian và cảnh báo bằng toast màu vàng (\texttt{overlap\_trimmed}) khi phần timestamp của tệp mới trùng với data đã có.
+
+\subsection{Thông báo realtime và Audit Log}
+
+Hệ thống đẩy thông báo realtime qua SSE mỗi khi có sự kiện quan trọng: Trip chuyển sang \texttt{done/failed}, AI Summary hoàn tất, YOLO phân tích xong. Bell icon trên navbar hiển thị badge số chưa đọc; click mở dropdown 15 thông báo gần nhất (Hình~\ref{fig:ch7-notif}).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.72\textwidth]{ui_notification_bell.png}
+\caption{Notification bell dropdown -- thông báo realtime qua SSE}
+\label{fig:ch7-notif}
+\end{figure}
+
+Trang quản lý người dùng (Hình~\ref{fig:ch7-users}, chỉ hiện với Admin) cung cấp tìm kiếm, lọc theo role, đổi role đơn lẻ hoặc bulk, kích hoạt/vô hiệu hóa tài khoản và xuất CSV. Mọi thao tác quan trọng của Admin được ghi vào Audit Log (Hình~\ref{fig:ch7-audit}) với đầy đủ thông tin: người thực hiện, hành động, đối tượng và thời gian.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{ui_users_page.png}
+\caption{Trang quản lý người dùng (Admin) -- bulk operations và role management}
+\label{fig:ch7-users}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{ui_audit_log.png}
+\caption{Audit Log -- nhật ký hoạt động admin theo timeline}
+\label{fig:ch7-audit}
+\end{figure}
+
+\subsection{Sơ đồ tuần tự các luồng nghiệp vụ chính}
+
+Hình~\ref{fig:ch7-seq-sensor} mô tả luồng tải lên dữ liệu cảm biến CSV gồm sáu bước: Frontend parse và validate file phía client; gửi mảng readings kèm \texttt{sourceFile} lên Backend; kiểm tra và xử lý overlap; lưu batch vào MongoDB; gọi Nominatim reverse geocoding nếu có GPS; trả về kết quả kèm cảnh báo.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{seq_sensor_upload.png}
+\caption{Sơ đồ tuần tự -- Luồng tải lên file CSV cảm biến}
+\label{fig:ch7-seq-sensor}
+\end{figure}
+
+Hình~\ref{fig:ch7-seq-ai} mô tả luồng phân tích YOLO bất đồng bộ gồm bảy bước: Operator chọn cấu hình AI; Backend nhận request, cập nhật \code{analysisStatus = 'pending'} và enqueue job; trả về HTTP~202 ngay lập tức; Bull Worker lấy job, gọi YOLO Microservice với presigned URL; YOLO chạy inference và trả labels; Worker lưu kết quả vào MongoDB; đẩy SSE về Frontend để invalidate query và cập nhật giao diện mà không cần tải lại trang.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{seq_ai_analysis.png}
+\caption{Sơ đồ tuần tự -- Luồng phân tích YOLO bất đồng bộ qua Bull Queue}
+\label{fig:ch7-seq-ai}
+\end{figure}
+
+%-----------------------------------------------------------
+\section{Giải pháp đồng bộ hóa Video và Dữ liệu cảm biến}
+\label{section:7.5}
+
+\subsection{Bài toán đặt ra}
+
+Một trong những khó khăn lớn nhất của đội ngũ vận hành ROV là phải đối chiếu thủ công giữa đoạn video ghi hình và tệp nhật ký thông số cảm biến (CSV). Camera ghi hình và bo mạch cảm biến thường hoạt động độc lập với hệ quy chiếu thời gian bị lệch nhau. Bài toán đặt ra là: khi video đang phát, thanh đánh dấu trên biểu đồ cảm biến phải lập tức nhảy đến đúng thời điểm đo đạc tương ứng với khung hình đang phát.
+
+\subsection{Giải pháp hiện thực}
+
+Giải pháp sử dụng thuật toán \textbf{Ánh xạ thời gian dựa trên độ lệch gốc (Time Offset Mapping)} thực hiện qua bốn bước:
+
+\begin{itemize}[leftmargin=*, topsep=4pt, itemsep=4pt]
+  \item \textbf{Bước 1 -- Chuẩn hóa đầu vào:} Video tải lên được gán trường \texttt{recordedAt} (thời điểm bắt đầu ghi hình theo ISO 8601) theo cơ chế ưu tiên ba cấp: (1)~nếu lô tải lên kèm tệp \texttt{trip.json} (manifest xuất tự động từ ROV), hệ thống đọc \texttt{sessionStart +\allowbreak{} asset.start\_ms} để gán \texttt{recordedAt} với độ chính xác mili-giây; (2)~nếu không có manifest, hệ thống tự động parse từ tên file theo mẫu \texttt{\_YYYYMMDD\_HHMMSS}; (3)~nếu cả hai đều không có, \texttt{recordedAt} được đặt là \texttt{null} và Operator có thể nhập thủ công qua giao diện. Tệp CSV bắt buộc có cột \texttt{timestamp} mỗi dòng.
+
+  \item \textbf{Bước 2 -- Tính toán timestamp đồng bộ:} Tại Frontend, sự kiện \texttt{timeupdate} của phần tử HTML5 \texttt{<video>} được lắng nghe liên tục khi video phát. Giá trị \texttt{currentTime} (giây) được chuyển thành timestamp tuyệt đối:
+  \[
+  t_{\text{sync}} = t_{\text{recordedAt}} + t_{\text{video}} \times 1000 \quad \text{(mili-giây UTC)}
+  \]
+
+  \item \textbf{Bước 3 -- Cập nhật ReferenceLine:} Giá trị $t_{\text{sync}}$ được truyền vào thành phần \texttt{<ReferenceLine\allowbreak{} x=\{$t_{\text{sync}}$\}>} của Recharts --- thanh đỏ di chuyển mượt mà trên biểu đồ đồng bộ với video đang phát mà không gây re-render toàn trang nhờ kiến trúc Virtual DOM của React.
+
+  \item \textbf{Bước 4 -- Tự động frame Brush:} Khi người dùng chọn video khác trong playlist, vùng zoom Brush tự động nhảy đến khoảng thời gian tương ứng của video đó (tính từ \texttt{recordedAt} và \texttt{duration}), giúp người dùng quan sát đúng đoạn dữ liệu mà không cần kéo thủ công.
+\end{itemize}
+
+\subsection{Kết quả đạt được}
+
+Giải pháp tạo ra giao diện Cockpit đồng bộ mượt mà theo chiều video $\to$ biểu đồ. Khi video phát, badge ``LIVE SYNC'' xuất hiện tại góc dưới trái và thanh đỏ ReferenceLine di chuyển liên tục trên biểu đồ cảm biến, cho phép Operator quan sát ngay giá trị nhiệt độ, áp suất, độ sâu tại đúng khoảnh khắc đang diễn ra mà không cần đối chiếu thủ công. Cơ chế này loại bỏ hoàn toàn việc tra cứu giữa video và CSV.
+
+%-----------------------------------------------------------
+\section{Kiến trúc xử lý bất đồng bộ tích hợp YOLOv8}
+\label{section:7.6}
+
+\subsection{Bài toán đặt ra}
+
+Nhận diện vật thể trong video ROV (cá, chướng ngại vật, vết nứt đường ống ngầm) đòi hỏi chạy suy luận mô hình học sâu YOLOv8 có thể mất từ vài phút đến hàng giờ tùy độ dài video. Nếu triển khai đồng bộ, vòng lặp sự kiện Node.js sẽ bị chặn và toàn hệ thống web ``đóng băng'' với người dùng khác trong suốt thời gian đó.
+
+\subsection{Giải pháp hiện thực}
+
+Giải pháp xây dựng kiến trúc ba thành phần phối hợp:
+
+\begin{itemize}[leftmargin=*, topsep=4pt, itemsep=4pt]
+  \item \textbf{Node.js HTTP endpoint:} \code{POST /media/:id/analyze} nhận cấu hình \{model, confidence\}, đặt \code{analysisStatus = 'pending'}, enqueue job vào \texttt{mediaAnalysisQueue} (lưu trên Redis), và trả về \textbf{HTTP 202 ngay lập tức} mà không chờ xử lý.
+
+  \item \textbf{Node.js Bull Worker (xử lý ngầm):} Chạy song song với Event Loop chính. Khi có job, Worker tạo presigned GET URL cho file trên S3, gọi \code{POST yolo-service:8000/detect} với tham số model và confidence. Sau khi nhận kết quả, Worker lưu labels vào MongoDB, cập nhật \code{analysisStatus = 'done'} và đẩy SSE thông báo về Frontend.
+
+  \item \textbf{Python FastAPI YOLO Microservice:} Dịch vụ HTTP độc lập, không kết nối Redis hay MongoDB. Nhận \texttt{POST /detect}, tải file từ presigned URL, chạy YOLOv8 với \textbf{chiến lược lấy mẫu thích nghi}: $<30$\,s lấy mẫu 0,2\,s/frame; 30\,s--3\,phút lấy mẫu 0,5\,s/frame; $>3$\,phút lấy mẫu 1,0\,s/frame. Mỗi frame áp dụng ByteTrack để gán \texttt{trackId} ổn định và Cross-class NMS (IoU = 0,3). Trả về mảng \texttt{\{name, confidence, bbox,\allowbreak{} frameTime, trackId\}}.
+\end{itemize}
+
+Khi video đang phát, bounding box SVG cập nhật theo frame hiện tại dựa trên \texttt{frameTime}; Operator nhấp vào nhãn để lọc và chỉ hiển thị bounding box của lớp đó (Hình~\ref{fig:ch7-yolo}).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.92\textwidth]{ui_yolo_detection.png}
+\caption{Bounding box YOLO overlay trên video ROV -- đồng bộ per-frame theo \texttt{frameTime}}
+\label{fig:ch7-yolo}
+\end{figure}
+
+\subsection{AI Analyze Popover -- Cấu hình phân tích}
+
+Trước khi kích hoạt phân tích, Operator có thể tùy chỉnh tham số qua popover nhỏ trực tiếp trên giao diện Cockpit (Hình~\ref{fig:ch7-ai-popover}). Popover cho phép chọn mô hình AI (ví dụ: YOLOv8n General, Fish Detector v1, v2 hay các mô hình tùy chỉnh khác nếu có) và kéo thanh trượt để đặt ngưỡng confidence trong khoảng [0,1\,;\,0,9]. Model nặng hơn (YOLOv8m) hiển thị cảnh báo màu vàng về thời gian xử lý dài hơn. Sau khi nhấn ``Run Analysis'', popover đóng ngay lập tức và hệ thống phản hồi HTTP 202 --- Operator có thể tiếp tục làm việc trong khi phân tích diễn ra ngầm.
+
+Việc cho phép điều chỉnh ngưỡng confidence giải quyết thực tế của video ROV dưới nước: môi trường nước đục hoặc ánh sáng yếu khiến độ tin cậy nhận diện thấp hơn so với điều kiện lý tưởng. Hạ ngưỡng từ 0,3 xuống 0,15--0,2 giúp phát hiện được vật thể trong điều kiện này, trong khi tăng lên 0,5+ giúp loại bỏ false positive khi môi trường tốt.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.55\textwidth]{ui_ai_analyze_popover.png}
+\caption{AI Analyze Popover -- chọn model và điều chỉnh ngưỡng confidence trước khi phân tích}
+\label{fig:ch7-ai-popover}
+\end{figure}
+
+\subsection{Kết quả đạt được}
+
+Kiến trúc này đảm bảo tính khả dụng tuyệt đối cho hệ thống web chính: người dùng có thể đẩy nhiều video vào hàng đợi phân tích ngầm và thoải mái làm việc trên các trang khác. Nếu YOLO Microservice không phản hồi, Worker ghi \code{analysisStatus = 'failed'} mà không crash hàng đợi; Operator có thể kích hoạt lại bất kỳ lúc nào. Kiến trúc microservice tách rời cho phép thay thế hoặc nâng cấp mô hình AI mà không ảnh hưởng đến Backend Node.js.
+
+%-----------------------------------------------------------
+\section{Hệ thống trích xuất bằng chứng (Evidence System)}
+\label{section:7.7}
+
+\subsection{Bài toán đặt ra}
+
+Khi Operator phát hiện vật thể quan trọng trong video, không có công cụ nào cho phép đánh dấu và lưu trữ phát hiện đó ngay lập tức mà không gián đoạn luồng xem. Cách xử lý thủ công là ghi lại dấu thời gian rồi cắt video bằng phần mềm bên ngoài --- tốn thời gian và làm gián đoạn quy trình phân tích.
+
+\subsection{Giải pháp hiện thực}
+
+Hệ thống bằng chứng cung cấp hai loại artefact độc lập:
+
+\begin{itemize}[leftmargin=*, topsep=4pt, itemsep=4pt]
+  \item \textbf{Photo (Ảnh khung hình):} Nhấn ``📷'' trong khi video phát, Canvas API trích xuất khung hình hiện tại thành PNG. Nếu bounding box đang bật, tọa độ được ghi đè trực tiếp vào ảnh (\textit{canvas burn-in}) trước khi tải lên AWS S3, lưu vào trường \texttt{imageS3Key}.
+
+  \item \textbf{Clip (Đoạn video):} Nhấn ``🎬'' bắt đầu $\to$ dừng, hệ thống chỉ ghi \texttt{startTime} và \texttt{endTime} (giây trong video gốc) --- \textbf{không cắt hay sao chép file video vật lý}. Lựa chọn này tiết kiệm hoàn toàn băng thông và dung lượng S3.
+\end{itemize}
+
+Mỗi bằng chứng lưu vào collection \texttt{snapshots} riêng với \texttt{parentMediaId} liên kết đến video gốc, không lẫn vào playlist \texttt{media}. Hệ thống cho phép phân tích YOLO riêng từng bằng chứng qua \code{POST /snapshots/:id/analyze}: với Clip, YOLO Microservice nhận thêm \texttt{startTime/endTime} và chỉ xử lý frames trong khoảng đó, giảm đáng kể thời gian so với phân tích toàn bộ video. EvidenceViewer (Hình~\ref{fig:ch7-evidence}) hiển thị dưới dạng overlay inline --- bảo toàn ngữ cảnh xem của Operator; với Clip, trình phát bị giới hạn trong $[t_{\text{start}}, t_{\text{end}}]$ và tự seek về \texttt{startTime} khi đến \texttt{endTime}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.90\textwidth]{ui_evidence_panel.png}
+\caption{Evidence Panel và EvidenceViewer -- PHOTO/CLIP thumbnails với bounding box overlay}
+\label{fig:ch7-evidence}
+\end{figure}
+
+\subsection{Kết quả đạt được}
+
+Operator ghi lại phát hiện trong thời gian thực mà không rời giao diện xem video. Chi phí lưu trữ S3 chỉ tăng theo số ảnh PNG, không phát sinh từ clip dài. Vòng lặp kiểm tra nhanh được tạo ra: \textit{xem video $\to$ phát hiện $\to$ trích xuất $\to$ phân tích YOLO $\to$ xác nhận} trong một giao diện duy nhất.
+
+%-----------------------------------------------------------
+\section{Phát hiện bất thường cảm biến tự động (Z-Score)}
+\label{section:7.8}
+
+\subsection{Bài toán đặt ra}
+
+Mỗi lượt lặn ROV tạo ra hàng nghìn dòng dữ liệu cảm biến liên tục. Các điểm bất thường (thiết bị lặn quá sâu, rò rỉ điện, va chạm làm thay đổi áp suất đột ngột) bị chôn vùi trong dữ liệu bình thường và không thể tìm kiếm thủ công. Bài toán đặt ra là tự động phát hiện và gắn cờ bất thường ngay tại Backend mà không cần dữ liệu huấn luyện.
+
+\subsection{Giải pháp hiện thực}
+
+Thuật toán \textbf{Z-Score} --- phương pháp thống kê phát hiện outlier không cần nhãn (unsupervised) --- được triển khai. Với mỗi metric, Z-Score của điểm đo $x_i$ tính:
+
+\begin{equation}
+z_i = \left| \frac{x_i - \mu}{\sigma} \right|
+\label{eq:ch7-zscore}
+\end{equation}
+
+trong đó $\mu$ là giá trị trung bình và $\sigma$ là độ lệch chuẩn của toàn chuỗi. Điểm đo được đánh dấu bất thường khi $z_i > 2{,}5$. Ngưỡng 2,5 được chọn thay vì giá trị thông thường 3,0 để tăng độ nhạy phù hợp với đặc thù dữ liệu cảm biến môi trường thay đổi chậm --- ngay cả spike nhỏ về điện áp hay nhiệt độ cũng có thể báo hiệu sự cố thiết bị. Thuật toán áp dụng song song cho 7 metric: \texttt{depth}, \texttt{temp}, \texttt{temperature}, \texttt{pressure}, \texttt{voltage}, \texttt{battery\_percent} và \texttt{humidity}. Kết quả trả về cùng mỗi response sensor data: \texttt{anomalies:\allowbreak{} [\{index, metric, value,\allowbreak{} zScore, timestamp\}]}. So sánh với các lựa chọn thay thế: IQR kém nhạy với spike nhọn ngắn hạn; Isolation Forest đòi hỏi dữ liệu gán nhãn không có sẵn --- Z-Score được chọn vì không cần huấn luyện, tính toán đủ nhanh để chạy inline tại API endpoint.
+
+\subsection{Kết quả đạt được}
+
+Thuật toán phát hiện thành công các spike bất thường trong dữ liệu kiểm thử và hiển thị đúng bằng dot đỏ trên biểu đồ AreaChart kèm panel ``Anomalies Detected'' liệt kê từng điểm cùng giá trị và Z-Score tương ứng. Giải pháp chuyển quy trình từ ``xem toàn bộ $\to$ phát hiện thủ công'' sang ``mở trang $\to$ các điểm nghi vấn đã đánh dấu sẵn'', giúp Operator tập trung ngay vào những khoảnh khắc quan trọng nhất trong hàng giờ dữ liệu.
+
+%-----------------------------------------------------------
+\section{Tóm tắt nhiệm vụ bằng Mô hình ngôn ngữ lớn (Gemini)}
+\label{section:7.9}
+
+\subsection{Bài toán đặt ra}
+
+Kết thúc Project với nhiều Trip, ban quản lý thường yêu cầu báo cáo tóm tắt tình hình tổng thể. Việc thủ công tổng hợp số liệu (số Trip, trạng thái từng Trip, tọa độ địa lý, các điểm bất thường cảm biến) ra văn bản tốn hàng giờ và dễ thiếu sót.
+
+\subsection{Giải pháp hiện thực}
+
+Đồ án ứng dụng \textbf{Gemini 2.5 Flash} (Google AI API) để sinh văn bản tự động qua ba bước:
+
+\begin{itemize}[leftmargin=*, topsep=4pt, itemsep=4pt]
+  \item \textbf{Tổng hợp siêu dữ liệu:} Khi Operator nhấn ``Generate Summary'', Backend gom toàn bộ dữ liệu từ MongoDB: tên Project, địa điểm (\texttt{locationName} từ Nominatim), thời gian, danh sách Trip kèm trạng thái, số lượng media và các điểm bất thường cảm biến (Z-Score $|z| > 2{,}5$).
+
+  \item \textbf{Thiết kế Prompt:} Dữ liệu thô được đưa vào mẫu prompt tiếng Việt chuẩn mực, yêu cầu Gemini sinh báo cáo chuyên nghiệp cho ban quản đốc, bao gồm tóm tắt tình hình, kết quả khảo sát và khuyến nghị an toàn.
+
+  \item \textbf{Xử lý bất đồng bộ:} Yêu cầu được đưa vào hàng đợi \texttt{ai-summary} và trả về HTTP~202 tức thì. Bull Worker gọi Gemini API, nhận phản hồi văn bản song ngữ và lưu vào \texttt{project.aiSummary.vi} và \texttt{project.aiSummary.en}. Khi hoàn tất, SSE đẩy thông báo về Frontend và summary xuất hiện tức thì trên giao diện (Hình~\ref{fig:ch7-ai-summary}).
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\textwidth]{ui_ai_summary.png}
+\caption{AI Summary song ngữ -- được tổng hợp bởi Gemini 2.5 Flash sau khi Project hoàn tất}
+\label{fig:ch7-ai-summary}
+\end{figure}
+
+\subsection{Kết quả đạt được}
+
+Giải pháp biến hàng nghìn dòng dữ liệu thô thành văn bản báo cáo liền mạch chỉ trong 5--15 giây. Kết quả được lưu song ngữ Việt/Anh, phù hợp với yêu cầu báo cáo đa ngôn ngữ trong môi trường vận hành quốc tế. Tính năng khẳng định sự chuyển dịch từ số hóa dữ liệu (\textit{Digitization}) sang thấu hiểu dữ liệu (\textit{Data Insights}) --- giá trị gia tăng lớn cho quy trình nghiệp vụ thực địa.
+
+%-----------------------------------------------------------
+\section{Kiểm thử hệ thống}
+\label{section:7.10}
+
+\subsection{Kiểm thử chức năng (Functional Test)}
+
+Script \texttt{functional-test.js} tự động hóa 37 ca kiểm thử bao phủ sáu nhóm: xác thực (7 ca), phân quyền RBAC (6 ca), validation đầu vào (5 ca), CRUD Project và Trip (11 ca), phân trang (6 ca) và kiểm thử hồi quy (2 ca).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{functional-test.png}
+\caption{Kết quả kiểm thử chức năng -- 37/37 ca đạt (100\%)}
+\label{fig:ch7-functest}
+\end{figure}
+
+Kết quả Hình~\ref{fig:ch7-functest} cho thấy 37/37 ca PASSED (100\%). Trong quá trình viết test, phát hiện và sửa một lỗi thực tế: endpoint \texttt{POST /projects/:id/trips} không kiểm tra project tồn tại, trả về HTTP~201 thay vì HTTP~404 khi \texttt{projectId} không hợp lệ.
+
+\subsection{Kiểm thử tải (Load Test)}
+
+Script \texttt{load-test.js} bắn 20 request đồng thời $\times$ 3 vòng = 60 request/endpoint. Kết quả tổng hợp trong Bảng~\ref{tab:ch7-loadtest}.
+
+\begin{table}[H]
+\centering
+\caption{Kết quả kiểm thử tải -- 20 concurrent $\times$ 3 rounds (60 requests/endpoint)}
+\label{tab:ch7-loadtest}
+\small
+\begin{tabular}{|p{5.0cm}|c|c|c|c|}
+\hline
+\textbf{Endpoint} & \textbf{Avg} & \textbf{P50} & \textbf{P95} & \textbf{Errors} \\
+\hline
+POST /auth/login & 1312\,ms & 8\,ms & 4101\,ms & 41/60 \\
+\hline
+GET /auth/me & 132\,ms & 82\,ms & 492\,ms & 0/60 \\
+\hline
+GET /projects & 474\,ms & 456\,ms & 934\,ms & 0/60 \\
+\hline
+GET /trips & 458\,ms & 252\,ms & 988\,ms & 0/60 \\
+\hline
+GET /rovs & 205\,ms & 168\,ms & 540\,ms & 0/60 \\
+\hline
+GET /stats/overview & 825\,ms & 887\,ms & 1830\,ms & 0/60 \\
+\hline
+GET /trips/:id/sensor-data & 327\,ms & 261\,ms & 523\,ms & 0/60 \\
+\hline
+GET /trips/:id/dvl & 737\,ms & 810\,ms & 885\,ms & 0/60 \\
+\hline
+GET /media/trip/:id & 377\,ms & 241\,ms & 759\,ms & 0/60 \\
+\hline
+GET /notifications & 525\,ms & 645\,ms & 855\,ms & 0/60 \\
+\hline
+\end{tabular}
+\end{table}
+
+41/60 lỗi tại \texttt{POST /auth/login} là hoạt động đúng thiết kế: Redis rate limiter chặn quá 20 request/15 phút để phòng chống brute-force, các request vượt ngưỡng nhận HTTP~429 Too Many Requests. Endpoint \texttt{GET /stats/overview} chậm nhất (avg 825\,ms) do thực hiện 7 aggregation song song trên MongoDB Atlas free tier (độ trễ mạng ~50\,ms Singapore--Việt Nam); trong môi trường production với VPS gần database, thời gian này giảm đáng kể. Tất cả endpoint đọc dữ liệu hoạt động ổn định ở tải 20 concurrent mà không có lỗi.
+
+\subsection{Kiểm thử hiệu năng Lighthouse}
+
+Công cụ Lighthouse (Chrome DevTools, chế độ Desktop) được chạy trên ba trang đại diện (Bảng~\ref{tab:ch7-lighthouse}).
+
+\begin{table}[H]
+\centering
+\caption{Kết quả kiểm thử Lighthouse -- Desktop mode}
+\label{tab:ch7-lighthouse}
+\small
+\begin{tabular}{|p{3.5cm}|c|c|c|c|c|c|}
+\hline
+\textbf{Trang} & \textbf{Perf.} & \textbf{A11y} & \textbf{BP} & \textbf{SEO} & \textbf{FCP} & \textbf{LCP} \\
+\hline
+Dashboard & 98 & 94 & 96 & 100 & 0,8\,s & 0,9\,s \\
+\hline
+ProjectsPage & 95 & 81 & 100 & 100 & 0,7\,s & 1,4\,s \\
+\hline
+TripDetailPage & 88 & 89 & 100 & 100 & 0,7\,s & 1,9\,s \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{itemize}[leftmargin=*, topsep=4pt, itemsep=2pt]
+  \item \textbf{Dashboard} đạt Performance 98 --- xuất sắc. FCP 0,8\,s và LCP 0,9\,s cho thấy trang tải rất nhanh nhờ kiến trúc React SPA với Vite build tối ưu. TBT chỉ 90\,ms chứng tỏ main thread ít bị chặn.
+  \item \textbf{ProjectsPage} đạt Performance 95. Accessibility 81 do một số button thiếu accessible name và input date không có label rõ ràng --- đây là điểm cần cải thiện trong phiên bản tiếp theo.
+  \item \textbf{TripDetailPage} đạt Performance 88 do LCP 1,9\,s: ảnh/video phải tải từ AWS S3 (Singapore) mất thêm 40--50\,ms RTT so với localhost. Đây là giới hạn về hạ tầng, không phải vấn đề tối ưu code. TBT 100\,ms vẫn trong ngưỡng tốt.
+  \item \textbf{Best Practices đạt 100} trên hai trang kỹ thuật phản ánh code không có lỗi console, không dùng API deprecated và không có third-party cookies không kiểm soát.
+  \item \textbf{SEO đạt 100} trên tất cả trang nhờ thẻ \texttt{<title>}, \texttt{<meta description>} hợp lệ và tất cả link có thể crawl được.
+\end{itemize}
+
+\end{document}

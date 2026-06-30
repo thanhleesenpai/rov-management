@@ -1,0 +1,49 @@
+@startuml uc_phanra_ai
+left to right direction
+skinparam packageStyle rectangle
+skinparam usecase {
+  BackgroundColor White
+  BorderColor Black
+  FontSize 10
+}
+skinparam actor {
+  BackgroundColor White
+  BorderColor Black
+  FontSize 11
+  FontStyle bold
+}
+skinparam ArrowColor Black
+
+actor "Operator" as O
+actor "YOLO Service\n(FastAPI/YOLOv8)" as YOLO
+actor "Gemini AI\n(Google)" as Gemini
+
+rectangle "Phân hệ AI Phân tích" {
+  usecase "Cấu hình phân tích AI\n(model + confidence)" as A1
+  usecase "Phân tích Media\n(YOLO toàn bộ video/ảnh)" as A2
+  usecase "Phân tích Bằng chứng\n(YOLO Evidence clip/photo)" as A3
+  usecase "Xem nhãn nhận diện\n& Bounding Box" as A4
+  usecase "Điều hướng theo\nkhung hình (frameTime)" as A5
+  usecase "Hoàn tất Project\n(set Completed)" as A6
+  usecase "Tạo báo cáo\ntóm tắt AI (Gemini)" as A7
+  usecase "Tái tạo báo cáo\n(Regenerate)" as A8
+}
+
+O --> A1
+O --> A2
+O --> A3
+O --> A6
+O --> A7
+
+YOLO --> A2
+YOLO --> A3
+Gemini --> A7
+Gemini --> A8
+
+A2 .> A1 : <<include>>
+A3 .> A2 : <<extend>>
+A4 .> A2 : <<include>>
+A5 .> A4 : <<extend>>
+A8 .> A7 : <<extend>>
+
+@enduml

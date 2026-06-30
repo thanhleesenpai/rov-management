@@ -1,0 +1,111 @@
+\documentclass[../DoAn.tex]{subfiles}
+\begin{document}
+
+Phụ lục này trình bày đặc tả chi tiết bốn Use Case cốt lõi của phân hệ Quản lý Thông tin Nhiệm vụ ROV.
+
+\section{UC-01: Tải lên và đồng bộ dữ liệu cảm biến}
+
+\begin{longtable}{|p{3.5cm}|p{10.0cm}|}
+\caption{Đặc tả Use Case UC-01: Tải lên và đồng bộ dữ liệu cảm biến}\label{tab:b-uc01}\\
+\hline
+\textbf{Mã Use Case} & UC-01 \\
+\hline
+\textbf{Tên} & Tải lên và đồng bộ dữ liệu cảm biến (Sensor Data Sync) \\
+\hline
+\textbf{Tác nhân} & Operator \\
+\hline
+\textbf{Tiền điều kiện} & Tác nhân đã đăng nhập và đang ở trang chi tiết Lượt lặn (TripDetailPage). \\
+\hline
+\textbf{Luồng chính} &
+(1) Tác nhân kéo thả hoặc chọn tệp CSV/DVL/Sonar vào khu vực tải lên. \newline
+(2) Hệ thống xác thực định dạng tệp (CSV phải chứa hai cột bắt buộc: \texttt{timestamp} và \texttt{depth}; các cột còn lại như \texttt{temp}, \texttt{pressure}, \texttt{yaw}, \texttt{voltage},... là tùy chọn). \newline
+(3) Hệ thống bóc tách tọa độ GPS từ dòng đầu tiên, gọi API Nominatim để chuyển thành tên địa danh (\textit{Reverse Geocoding}). \newline
+(4) Hệ thống lưu dữ liệu vào MongoDB, tính toán phát hiện bất thường bằng Z-Score ($|z| > 2{,}5$). \newline
+(5) Giao diện hiển thị biểu đồ môi trường; khi video phát, thanh đánh dấu dọc di chuyển đồng bộ theo dấu thời gian. \\
+\hline
+\textbf{Luồng phát sinh} & Định dạng tệp không hợp lệ $\to$ hệ thống thông báo lỗi chi tiết và yêu cầu tải lại. Tệp trùng phạm vi thời gian $\to$ hệ thống cảnh báo số dòng bị bỏ qua (\texttt{overlap\_trimmed}). \\
+\hline
+\textbf{Hậu điều kiện} & Dữ liệu cảm biến được liên kết thành công vào lượt lặn; biểu đồ và bản đồ GPS cập nhật tức thì. \\
+\hline
+\end{longtable}
+
+\section{UC-02: Kích hoạt phân tích nhận diện vật thể bằng YOLOv8}
+
+\begin{longtable}{|p{3.5cm}|p{10.0cm}|}
+\caption{Đặc tả Use Case UC-02: Phân tích nhận diện vật thể bằng AI}\label{tab:b-uc02}\\
+\hline
+\textbf{Mã Use Case} & UC-02 \\
+\hline
+\textbf{Tên} & Kích hoạt phân tích nhận diện vật thể (AI Object Detection) \\
+\hline
+\textbf{Tác nhân} & Operator; YOLO Service (hệ thống bên ngoài) \\
+\hline
+\textbf{Tiền điều kiện} & Tệp video hoặc ảnh đã được tải lên thành công (trạng thái \textit{Ready}). \\
+\hline
+\textbf{Luồng chính} &
+(1) Tác nhân nhấn nút Cài đặt AI trên thanh công cụ video; cửa sổ thiết lập hiện ra cho phép chọn mô hình (YOLOv8n/tùy chỉnh) và ngưỡng độ tin cậy. \newline
+(2) Tác nhân nhấn \textit{``Chạy phân tích''}; hệ thống đưa tác vụ vào hàng đợi Bull Queue và trả về xác nhận tiếp nhận (HTTP 202). \newline
+(3) Worker nền gọi Python Microservice, truyền URL presigned của tệp phương tiện, mô hình và ngưỡng. \newline
+(4) YOLO Service xử lý từng khung hình (video: lấy mẫu theo tần suất thích nghi), trả về danh sách nhãn kèm tọa độ bounding box và thời điểm khung hình (\texttt{frameTime}). \newline
+(5) Hệ thống lưu kết quả vào MongoDB, đẩy thông báo SSE đến giao diện tác nhân. \newline
+(6) Bounding box xuất hiện trên video đồng bộ theo từng khung hình đang phát. \\
+\hline
+\textbf{Luồng phát sinh} & YOLO Service không phản hồi hoặc quá tải $\to$ job thất bại sau 1 lần thử (timeout 25 phút); Worker ghi \texttt{analysisStatus = 'failed'} và thông báo lỗi qua SSE. \\
+\hline
+\textbf{Hậu điều kiện} & Nhãn nhận diện (Labels, Bbox, FrameTime, TrackId) được lưu và hiển thị theo thời gian thực trên giao diện. \\
+\hline
+\end{longtable}
+
+\section{UC-03: Trích xuất và phân tích bằng chứng}
+
+\begin{longtable}{|p{3.5cm}|p{10.0cm}|}
+\caption{Đặc tả Use Case UC-03: Trích xuất bằng chứng (Evidence System)}\label{tab:b-uc03}\\
+\hline
+\textbf{Mã Use Case} & UC-03 \\
+\hline
+\textbf{Tên} & Trích xuất và phân tích bằng chứng (Evidence System) \\
+\hline
+\textbf{Tác nhân} & Operator \\
+\hline
+\textbf{Tiền điều kiện} & Video của lượt lặn đang được phát trên TripDetailPage. \\
+\hline
+\textbf{Luồng chính} &
+(1) Tác nhân phát hiện vật thể nghi vấn, nhấn \textit{Photo} hoặc \textit{Clip} trên thanh công cụ. \newline
+(2a) \textit{Photo:} Hệ thống trích xuất khung hình hiện tại thành tệp PNG, tải lên AWS S3. Nếu bounding box đang hiển thị, tọa độ được ghi vào ảnh (canvas burn-in). \newline
+(2b) \textit{Clip:} Tác nhân nhấn bắt đầu $\to$ dừng; hệ thống ghi nhận $t_{\text{start}}$ và $t_{\text{end}}$ mà không cắt tệp vật lý. \newline
+(3) Bằng chứng được lưu vào collection \textit{Snapshots}; tác nhân có thể ghi chú thêm. \newline
+(4) Tác nhân tùy chọn kích hoạt YOLO riêng cho bằng chứng này (mở rộng từ UC-02). \\
+\hline
+\textbf{Luồng phát sinh} & Không có video đang active $\to$ nút bị vô hiệu hóa, không thể thao tác. \\
+\hline
+\textbf{Hậu điều kiện} & Bằng chứng được lưu thành công và hiển thị trong bảng Evidence; tệp video gốc không bị thay đổi. \\
+\hline
+\end{longtable}
+
+\section{UC-04: Tạo báo cáo tóm tắt bằng ngôn ngữ tự nhiên}
+
+\begin{longtable}{|p{3.5cm}|p{10.0cm}|}
+\caption{Đặc tả Use Case UC-04: Tóm tắt nhiệm vụ bằng AI (AI Summary)}\label{tab:b-uc04}\\
+\hline
+\textbf{Mã Use Case} & UC-04 \\
+\hline
+\textbf{Tên} & Tạo báo cáo tóm tắt nhiệm vụ bằng AI (AI Summary) \\
+\hline
+\textbf{Tác nhân} & Operator; Gemini AI (hệ thống bên ngoài) \\
+\hline
+\textbf{Tiền điều kiện} & Trạng thái Chuyến khảo sát (Project) đã chuyển sang \textit{Completed}. \\
+\hline
+\textbf{Luồng chính} &
+(1) Tác nhân truy cập trang ProjectDetailPage, nhấn nút \textit{``Tạo Tóm tắt''}. \newline
+(2) Hệ thống thu thập thống kê chuyến đi: địa điểm (\texttt{locationName}), thời gian, số lượt lặn, tổng số ảnh/video, số cảnh báo cảm biến (Z-Score $|z| > 2{,}5$). \newline
+(3) Dữ liệu được đưa vào mẫu câu (Prompt) và gửi tới Gemini API qua Bull Queue. \newline
+(4) Hệ thống nhận phản hồi, lưu văn bản tóm tắt vào trường \texttt{project.aiSummary}. \newline
+(5) Thông báo SSE được đẩy đến người kích hoạt; tóm tắt hiện ra tức thì trên giao diện. \\
+\hline
+\textbf{Luồng phát sinh} & Gemini API không phản hồi $\to$ job thất bại, trạng thái chuyển về \textit{failed}; tác nhân có thể thử lại. \\
+\hline
+\textbf{Hậu điều kiện} & Văn bản tóm tắt xuất hiện trên ProjectDetailPage; ban quản lý nắm bắt nhanh kết quả chuyến đi. \\
+\hline
+\end{longtable}
+
+\end{document}

@@ -10,26 +10,26 @@ const getModel = () => {
   return _model;
 };
 
-const generateTripSummary = async (trip, dives = [], mediaCount = 0) => {
+const generateProjectSummary = async (project, trips = [], mediaCount = 0) => {
   const model = getModel();
 
-  const diveLines = dives.map(d => {
+  const tripLines = trips.map(d => {
     const loc = d.locationName ? ` @ ${d.locationName.split(',')[0].trim()}` : ''
     return `  - ${d.title} [${d.status}]${loc}${d.description ? ': ' + d.description : ''}`
   }).join('\n');
 
-  const prompt = `You are summarizing an underwater ROV (Remotely Operated Vehicle) dive trip for an operations report.
+  const prompt = `You are summarizing an underwater ROV (Remotely Operated Vehicle) trip project for an operations report.
 
-Trip details:
-- Name: ${trip.name}
-- Location: ${trip.locationName || trip.location || 'Not specified'}
-- Start: ${trip.startTime ? new Date(trip.startTime).toLocaleString() : 'Not specified'}
-- End: ${trip.endTime ? new Date(trip.endTime).toLocaleString() : 'Not specified'}
-- Status: ${trip.status}
-${trip.description ? `- Description: ${trip.description}` : ''}
+Project details:
+- Name: ${project.name}
+- Location: ${project.locationName || project.location || 'Not specified'}
+- Start: ${project.startTime ? new Date(project.startTime).toLocaleString() : 'Not specified'}
+- End: ${project.endTime ? new Date(project.endTime).toLocaleString() : 'Not specified'}
+- Status: ${project.status}
+${project.description ? `- Description: ${project.description}` : ''}
 
-Dives completed (${dives.length} total):
-${diveLines || '  No dives recorded'}
+Trips completed (${trips.length} total):
+${tripLines || '  No trips recorded'}
 
 Media recorded: ${mediaCount} file(s)
 
@@ -68,4 +68,4 @@ Use EXACTLY this format (keep the separator lines as-is):
   }
 };
 
-module.exports = { generateTripSummary };
+module.exports = { generateProjectSummary };

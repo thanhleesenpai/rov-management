@@ -2,14 +2,14 @@
 // Centralised here so chart themes stay consistent and easy to update.
 // Palette: cyan/emerald/rose/violet — technical instrument tones, not candy-bright primaries.
 
-export const TRIP_COLORS = {
+export const PROJECT_COLORS = {
   planned:   '#60a5fa', // blue-400  — soft, unstarted
   ongoing:   '#06b6d4', // cyan-500  — active/live (matches MarineTableStatus ping)
   completed: '#6b7280', // gray-500  — neutral done
   cancelled: '#f43f5e', // rose-500  — alert, less harsh than pure red
 }
 
-export const DIVE_COLORS = {
+export const TRIP_COLORS = {
   pending: '#6b7280', // gray-500
   running: '#06b6d4', // cyan-500
   done:    '#10b981', // emerald-500
@@ -28,7 +28,7 @@ export const ROV_PALETTE = [
 ]
 
 export const LINE_COLORS = {
-  trips: '#06b6d4', // cyan-500
-  dives: '#10b981', // emerald-500
+  projects: '#06b6d4', // cyan-500
+  trips: '#10b981', // emerald-500
   media: '#f59e0b', // amber-500
 }

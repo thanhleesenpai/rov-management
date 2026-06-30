@@ -1,0 +1,40 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.3 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated as
+% required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+\datalist[entry]{none/global//global/global/global}
+  \entry{LectureA}{misc}{}{}
+    \name{author}{1}{}{%
+      {{hash=O}{%
+         family={{OpenJS Foundation}},
+         familyi={O\bibinitperiod},
+      }}%
+    }
+    \strng{namehash}{O1}
+    \strng{fullhash}{O1}
+    \field{labelnamesource}{author}
+    \field{labeltitlesource}{title}
+    \field{note}{Accessed: 2026-06-22}
+    \field{title}{{Node.js} — A {JavaScript} Runtime Built on {Chrome}'s {V8
+  JavaScript} Engine}
+    \verb{url}
+    \verb https://nodejs.org
+    \endverb
+    \field{year}{2024}
+  \endentry
+\enddatalist
+\endinput

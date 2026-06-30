@@ -1,7 +1,7 @@
 const { aiSummaryQueue } = require('../../config/queue');
-const { generateTripSummary } = require('./ai.service');
+const { generateProjectSummary } = require('./ai.service');
+const Project = require('../projects/project.model');
 const Trip = require('../trips/trip.model');
-const Dive = require('../dives/dive.model');
 const Media = require('../media/media.model');
 const notifService = require('../notifications/notification.service');
 
@@ -15,20 +15,20 @@ const isNonRetryable = (err) => {
 };
 
 aiSummaryQueue.process(async (job) => {
-  const { tripId, userId } = job.data;
+  const { projectId, userId } = job.data;
 
-  const [trip, dives, mediaCount] = await Promise.all([
-    Trip.findById(tripId).populate('rov', 'name model'),
-    Dive.find({ trip: tripId }),
-    Media.countDocuments({ trip: tripId, status: 'ready' }),
+  const [project, trips, mediaCount] = await Promise.all([
+    Project.findById(projectId).populate('rov', 'name model'),
+    Trip.find({ project: projectId }),
+    Media.countDocuments({ project: projectId, status: 'ready' }),
   ]);
 
-  if (!trip) throw new Error(`Trip ${tripId} not found`);
+  if (!project) throw new Error(`Project ${projectId} not found`);
 
   try {
-    const { vi, en } = await generateTripSummary(trip, dives, mediaCount);
+    const { vi, en } = await generateProjectSummary(project, trips, mediaCount);
 
-    await Trip.findByIdAndUpdate(tripId, {
+    await Project.findByIdAndUpdate(projectId, {
       'aiSummary.vi':          vi,
       'aiSummary.en':          en,
       'aiSummary.generatedAt': new Date(),
@@ -38,14 +38,14 @@ aiSummaryQueue.process(async (job) => {
     notifService.create(
       userId,
       'ai_summary_done',
-      `AI summary ready for "${trip.name}"`,
+      `AI summary ready for "${project.name}"`,
       'Click to view the generated summary.',
-      `/trips/${tripId}`
+      `/projects/${projectId}`
     ).catch(() => {});
 
   } catch (err) {
-    console.error('[AI Worker] generateTripSummary failed:', err.message);
-    await Trip.findByIdAndUpdate(tripId, { 'aiSummary.status': 'failed' });
+    console.error('[AI Worker] generateProjectSummary failed:', err.message);
+    await Project.findByIdAndUpdate(projectId, { 'aiSummary.status': 'failed' });
 
     // Non-retryable errors: mark done so Bull doesn't waste retry attempts
     if (isNonRetryable(err)) {

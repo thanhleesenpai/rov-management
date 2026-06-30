@@ -1,44 +1,33 @@
+const mongoose = require('mongoose');
 const SensorData = require('./sensor.model');
-const Dive = require('../dives/dive.model');
+const DVLData    = require('../dvl/dvl.model');
+const SonarFile  = require('../sonar/sonar.model');
+const Trip = require('../trips/trip.model');
 const { success, error } = require('../../utils/response.util');
 
-const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/reverse?format=json';
-const USER_AGENT    = 'ROV-Management/1.0 (thanhle20072004@gmail.com)';
-
-async function reverseGeocode(lat, lng) {
-  try {
-    const res = await fetch(`${NOMINATIM_URL}&lat=${lat}&lon=${lng}`, {
-      headers: { 'User-Agent': USER_AGENT },
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!res.ok) return '';
-    const geo = await res.json();
-    return geo.display_name || '';
-  } catch { return ''; }
-}
+const { reverseGeocode } = require('../../utils/geocode.util');
 
 const upload = async (req, res, next) => {
   try {
-    const diveId = req.params.id;
-    const { readings } = req.body;
+    const tripId = req.params.id;
+    const { readings, sourceFile } = req.body;
 
     if (!Array.isArray(readings) || readings.length === 0) {
       return error(res, 'readings must be a non-empty array', 400);
     }
 
-    const dive = await Dive.findById(diveId);
-    if (!dive) return error(res, 'Dive not found', 404);
+    const trip = await Trip.findById(tripId);
+    if (!trip) return error(res, 'Trip not found', 404);
 
+    const optNum = (v) => (v != null && v !== '') ? Number(v) : null;
     const docs = [];
     for (const [i, r] of readings.entries()) {
       const ts = new Date(r.timestamp);
       if (isNaN(ts.getTime())) return error(res, `Row ${i + 1}: invalid timestamp "${r.timestamp}"`, 400);
-      if (r.depth == null) {
-        return error(res, `Row ${i + 1}: depth is required`, 400);
-      }
-      const optNum = (v) => (v != null && v !== '') ? Number(v) : null;
+      if (r.depth == null) return error(res, `Row ${i + 1}: depth is required`, 400);
       docs.push({
-        dive:            diveId,
+        trip:            tripId,
+        sourceFile:      sourceFile || null,
         timestamp:       ts,
         depth:           Number(r.depth),
         temp:            optNum(r.temp),
@@ -59,23 +48,57 @@ const upload = async (req, res, next) => {
       });
     }
 
-    await SensorData.deleteMany({ dive: diveId });
-    await SensorData.insertMany(docs, { ordered: false });
+    let insertDocs = docs;
+    let warning = null;
+    let droppedCount = 0;
 
-    // Read GPS from first row → save to dive
+    if (!sourceFile) {
+      // Legacy (no sourceFile) → replace all, backward compat with SensorUpload.jsx
+      await SensorData.deleteMany({ trip: tripId });
+    } else {
+      const existingCount = await SensorData.countDocuments({ trip: tripId, sourceFile });
+      if (existingCount > 0) {
+        // Same filename → replace that file's data
+        await SensorData.deleteMany({ trip: tripId, sourceFile });
+      } else {
+        // New file → trim timestamps that overlap with already-stored data
+        const latest = await SensorData.findOne({ trip: tripId })
+          .sort({ timestamp: -1 }).select('timestamp').lean();
+        const maxTs = latest?.timestamp ?? null;
+        if (maxTs) {
+          insertDocs = docs.filter(d => d.timestamp > maxTs);
+          droppedCount = docs.length - insertDocs.length;
+          if (insertDocs.length === 0) warning = 'file_skipped';
+          else if (droppedCount > 0) warning = 'overlap_trimmed';
+        }
+      }
+    }
+
+    if (insertDocs.length > 0) {
+      await SensorData.insertMany(insertDocs, { ordered: false });
+    }
+
     const first = readings[0];
     const lat = parseFloat(first.lat);
     const lng = parseFloat(first.lng);
     const hasGps = !isNaN(lat) && !isNaN(lng);
 
-    const diveUpdate = { sensorCount: docs.length };
-    if (hasGps) {
-      diveUpdate.gpsLocation = { lat, lng };
-      diveUpdate.locationName = await reverseGeocode(lat, lng);
+    const newCount = await SensorData.countDocuments({ trip: tripId });
+    const tripUpdate = { sensorCount: newCount };
+    // First GPS encountered wins — don't overwrite if trip already has coords
+    if (hasGps && !trip.gpsLocation?.lat) {
+      tripUpdate.gpsLocation = { lat, lng };
+      tripUpdate.locationName = await reverseGeocode(lat, lng);
     }
-    await Dive.findByIdAndUpdate(diveId, diveUpdate);
+    await Trip.findByIdAndUpdate(tripId, tripUpdate);
 
-    success(res, { count: docs.length }, `${docs.length} readings uploaded`);
+    const responseData = { count: insertDocs.length, total: newCount };
+    if (warning) { responseData.warning = warning; responseData.droppedCount = droppedCount; }
+
+    success(res, responseData,
+      warning === 'file_skipped'
+        ? 'File skipped: all timestamps overlap with existing data'
+        : `${insertDocs.length} readings uploaded`);
   } catch (err) {
     next(err);
   }
@@ -83,9 +106,24 @@ const upload = async (req, res, next) => {
 
 const clear = async (req, res, next) => {
   try {
-    const diveId = req.params.id;
-    await SensorData.deleteMany({ dive: diveId });
-    await Dive.findByIdAndUpdate(diveId, { sensorCount: 0, gpsLocation: { lat: null, lng: null }, locationName: '' });
+    const tripId = req.params.id;
+    const { file } = req.query;
+
+    if (file) {
+      // Delete a single source file's readings only
+      await SensorData.deleteMany({ trip: tripId, sourceFile: file });
+      const newCount = await SensorData.countDocuments({ trip: tripId });
+      await Trip.findByIdAndUpdate(tripId, { sensorCount: newCount });
+      return success(res, { count: newCount }, `Removed "${file}"`);
+    }
+
+    // No ?file= → wipe all sensor data for this trip
+    await SensorData.deleteMany({ trip: tripId });
+    await Trip.findByIdAndUpdate(tripId, {
+      sensorCount: 0,
+      gpsLocation: { lat: null, lng: null },
+      locationName: '',
+    });
     success(res, null, 'Sensor data cleared');
   } catch (err) {
     next(err);
@@ -110,11 +148,11 @@ function zScoreAnomalies(readings, metric, threshold = 2.5) {
 
 const getSensorData = async (req, res, next) => {
   try {
-    const diveId = req.params.id;
-    const dive = await Dive.findById(diveId);
-    if (!dive) return error(res, 'Dive not found', 404);
+    const tripId = req.params.id;
+    const trip = await Trip.findById(tripId);
+    if (!trip) return error(res, 'Trip not found', 404);
 
-    const raw = await SensorData.find({ dive: diveId }).sort({ timestamp: 1 }).lean();
+    const raw = await SensorData.find({ trip: tripId }).sort({ timestamp: 1 }).lean();
     if (raw.length === 0) return success(res, { data: [], stats: null, anomalies: [] });
 
     const stats = {};
@@ -139,6 +177,7 @@ const getSensorData = async (req, res, next) => {
     ].sort((a, b) => a.index - b.index);
 
     const data = raw.map(r => ({
+      sourceFile:      r.sourceFile      || null,
       timestamp:       r.timestamp,
       depth:           r.depth,
       temp:            r.temp,
@@ -164,4 +203,43 @@ const getSensorData = async (req, res, next) => {
   }
 };
 
-module.exports = { upload, clear, getSensorData };
+// GET /trips/:id/data-files — aggregate all data files attached to a trip
+const getDataFiles = async (req, res, next) => {
+  try {
+    const tripId = req.params.id;
+    const tripObjId = new mongoose.Types.ObjectId(tripId);
+
+    const [sensorFiles, dvlGroups, sonarFiles] = await Promise.all([
+      SensorData.aggregate([
+        { $match: { trip: tripObjId } },
+        { $group: {
+          _id:   '$sourceFile',
+          count: { $sum: 1 },
+          minTs: { $min: '$timestamp' },
+          maxTs: { $max: '$timestamp' },
+        }},
+        { $sort: { minTs: 1 } },
+      ]),
+      DVLData.aggregate([
+        { $match: { trip: tripObjId } },
+        { $group: { _id: '$sourceFile', count: { $sum: 1 } } },
+      ]),
+      SonarFile.find({ trip: tripId }).sort({ recordedAt: 1, createdAt: 1 }).lean(),
+    ]);
+
+    success(res, {
+      sensor: sensorFiles.map(f => ({
+        sourceFile: f._id,
+        count:      f.count,
+        minTs:      f.minTs,
+        maxTs:      f.maxTs,
+      })),
+      dvl:   dvlGroups.map(f => ({ sourceFile: f._id, count: f.count })),
+      sonar: sonarFiles,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { upload, clear, getSensorData, getDataFiles };

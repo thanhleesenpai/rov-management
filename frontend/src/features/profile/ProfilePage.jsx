@@ -237,7 +237,7 @@ function SettingsTab() {
       <div className="bg-muted rounded-lg p-4 flex items-center justify-between">
         <div>
           <p className="text-sm font-medium text-foreground">Email Notifications</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Receive updates about trips and jobs</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Receive updates about projects and jobs</p>
         </div>
         <label className="relative inline-flex items-center cursor-pointer">
           <input type="checkbox" className="sr-only peer" defaultChecked />

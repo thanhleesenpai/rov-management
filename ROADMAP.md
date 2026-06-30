@@ -20,7 +20,7 @@ Nginx / Vite dev proxy
     │
     ▼
 Node.js + Express (API)
-    ├── MongoDB Atlas      — dữ liệu chính (user, rov, trip, job, media)
+    ├── MongoDB Atlas      — dữ liệu chính (user, rov, project, job, media)
     ├── AWS S3             — lưu file video, ảnh, sensor data raw
     └── Redis              — cache, job queue, token blacklist (giai đoạn 4+)
 ```
@@ -30,7 +30,7 @@ Node.js + Express (API)
 ```
 API Gateway
     ├── Auth Service
-    ├── ROV & Trip Service
+    ├── ROV & Project Service
     ├── Media Service (S3, transcode)
     ├── Telemetry Service (GCS data stream)
     └── Notification Service
@@ -68,10 +68,10 @@ API Gateway
 - Search + filter + **server-side pagination** (`?page&limit&search&status`)
 - Chi tiết ROV: specs, ghi chú
 
-### ✅ Giai đoạn 3: Trip & Job Management
-- Trip CRUD + search/filter/pagination
-- Job nested trong Trip, hiển thị ở cả /trips/:id và /jobs
-- Job CRUD + filter theo trip/status/search
+### ✅ Giai đoạn 3: Project & Job Management
+- Project CRUD + search/filter/pagination
+- Job nested trong Project, hiển thị ở cả /projects/:id và /jobs
+- Job CRUD + filter theo project/status/search
 - Server-side pagination toàn bộ
 
 ### 🔄 Giai đoạn 4: S3 Upload & Media
@@ -100,7 +100,7 @@ API Gateway
 
 **Frontend:**
 - Chart sensor data theo thời gian (thư viện: Recharts hoặc Chart.js)
-- Live telemetry panel trong TripDetailPage
+- Live telemetry panel trong ProjectDetailPage
 
 **Công nghệ thêm:**
 - `socket.io` — realtime push
@@ -109,7 +109,7 @@ API Gateway
 ### ⏳ Giai đoạn 6: Notification
 **Backend:**
 - `Notification` model: `{ user, type, message, read, createdAt }`
-- Trigger: job status thay đổi, trip sắp bắt đầu (cron), upload hoàn tất
+- Trigger: job status thay đổi, project sắp bắt đầu (cron), upload hoàn tất
 - `GET /notifications` + `PATCH /notifications/:id/read`
 - Socket.io push khi có notification mới
 
@@ -120,13 +120,13 @@ API Gateway
 
 ### ⏳ Giai đoạn 7: Dashboard & Reports
 **Backend:**
-- Aggregate API: trip theo tháng, job success rate, ROV utilization
-- `GET /reports/export?type=trip&id=xxx` — xuất PDF
+- Aggregate API: project theo tháng, job success rate, ROV utilization
+- `GET /reports/export?type=project&id=xxx` — xuất PDF
 
 **Frontend:**
-- Dashboard có biểu đồ thực: bar chart trips/tháng, pie chart job status
-- Trip timeline (Gantt đơn giản)
-- Export PDF/CSV báo cáo trip
+- Dashboard có biểu đồ thực: bar chart projects/tháng, pie chart job status
+- Project timeline (Gantt đơn giản)
+- Export PDF/CSV báo cáo project
 
 **Công nghệ thêm:**
 - `recharts` hoặc `chart.js`
@@ -136,12 +136,12 @@ API Gateway
 
 #### Chatbot hỗ trợ vận hành
 - Tích hợp Claude API (hoặc OpenAI)
-- Trả lời câu hỏi về trạng thái ROV, lịch sử trip
+- Trả lời câu hỏi về trạng thái ROV, lịch sử project
 - Tóm tắt báo cáo job bằng ngôn ngữ tự nhiên
 - Stack: `@anthropic-ai/sdk`, streaming response qua SSE
 
 #### Map Tracking
-- Hiển thị vị trí trip trên bản đồ
+- Hiển thị vị trí project trên bản đồ
 - Vẽ route di chuyển của ROV theo GPS log từ GCS
 - Stack: `Leaflet.js` hoặc `MapLibre GL` (free) / `Google Maps API`
 
@@ -151,7 +151,7 @@ API Gateway
 - Trang xem lịch sử (admin only)
 
 #### Email Notification
-- Gửi email khi trip hoàn tất, job failed
+- Gửi email khi project hoàn tất, job failed
 - Stack: `nodemailer` + Gmail SMTP hoặc `SendGrid`
 
 ---
@@ -161,8 +161,8 @@ API Gateway
 ```js
 // Đã cần ngay — ảnh hưởng query hiện tại
 ROV:  { status: 1 }, { createdAt: -1 }
-Trip: { status: 1 }, { createdAt: -1 }, { rov: 1 }
-Job:  { status: 1 }, { trip: 1 }, { createdAt: -1 }
+Project: { status: 1 }, { createdAt: -1 }, { rov: 1 }
+Job:  { status: 1 }, { project: 1 }, { createdAt: -1 }
 User: { email: 1 } (unique — đã có), { role: 1 }
 
 // Cần khi làm giai đoạn 5
@@ -177,7 +177,7 @@ SensorData: { job: 1, timestamp: -1 }
 |---|---|---|
 | Refresh token blacklist (logout) | `blacklist:{token}` | 7 ngày |
 | Cache GET /rovs | `cache:rovs:{query_hash}` | 60s |
-| Cache GET /trips | `cache:trips:{query_hash}` | 30s |
+| Cache GET /projects | `cache:projects:{query_hash}` | 30s |
 | Rate limit (production) | `ratelimit:{ip}` | 15 phút |
 | Bull queue jobs | tự quản lý | — |
 
@@ -189,7 +189,7 @@ SensorData: { job: 1, timestamp: -1 }
 |---|---|---|---|
 | Quản lý user | ✅ | ❌ | ❌ |
 | CRUD ROV | ✅ | Tạo/Sửa | Chỉ xem |
-| CRUD Trip/Job | ✅ | Tạo/Sửa | Chỉ xem |
+| CRUD Project/Job | ✅ | Tạo/Sửa | Chỉ xem |
 | Upload media | ✅ | ✅ | ❌ |
 | Xem media | ✅ | ✅ | ✅ |
 | Ingest GCS data | API key riêng | — | — |
@@ -214,7 +214,7 @@ rov-management/
 │       ├── auth/
 │       ├── users/
 │       ├── rovs/
-│       ├── trips/
+│       ├── projects/
 │       ├── jobs/
 │       ├── media/            # giai đoạn 4
 │       ├── notifications/    # giai đoạn 6
@@ -227,7 +227,7 @@ rov-management/
     │   ├── auth/
     │   ├── dashboard/
     │   ├── rovs/
-    │   ├── trips/
+    │   ├── projects/
     │   ├── jobs/
     │   ├── media/            # giai đoạn 4
     │   ├── notifications/    # giai đoạn 6

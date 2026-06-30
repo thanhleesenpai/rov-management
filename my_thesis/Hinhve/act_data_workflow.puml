@@ -1,0 +1,85 @@
+@startuml act_data_workflow
+skinparam backgroundColor White
+skinparam activity {
+  BackgroundColor White
+  BorderColor #555
+  DiamondBackgroundColor #FFF7E0
+  DiamondBorderColor #888
+  FontSize 11
+}
+skinparam swimlane {
+  BorderColor #888
+  TitleFontStyle bold
+}
+skinparam arrow {
+  Color #555
+  FontSize 10
+}
+
+|Operator|
+start
+:Kết thúc nhiệm vụ thực địa\n(ROV về bờ);
+:Đăng nhập hệ thống;
+:Tạo Chuyến khảo sát (Project)\nvà Lượt lặn (Trip) tương ứng;
+:Upload file CSV cảm biến\n+ Video / Ảnh ROV;
+
+|Backend|
+:Validate file & cột dữ liệu;
+:Parse recordedAt từ tên file\n(e.g. record_20260609_144350.mp4);
+:Lưu SensorData vào MongoDB\n(gán sourceFile);
+:Tính Z-Score phát hiện bất thường\n(|z| > 2.5 → đánh dấu anomaly);
+:Reverse Geocoding GPS → Địa danh\n(Nominatim OSM);
+:Lưu Media lên AWS S3\n(xác nhận Presigned URL);
+
+|Operator|
+:Xem biểu đồ cảm biến đồng bộ\nvới video trong TripDetailPage;
+
+if (Phát hiện vật thể / sự kiện cần ghi lại?) then (Có)
+  :Chụp ảnh frame hoặc\nđánh dấu đoạn clip làm bằng chứng;
+
+  |Backend|
+  :Lưu Evidence (Photo/Clip)\nlên S3 + MongoDB;
+else (Không)
+endif
+
+|Operator|
+if (Muốn phân tích AI nhận diện vật thể?) then (Có)
+  :Mở AI Analyze Popover\n(chọn model, confidence);
+
+  |Backend|
+  :Enqueue job YOLO\n(Bull Queue → bất đồng bộ);
+
+  |AI Services|
+  :YOLOv8n nhận diện vật thể\n(predict / track theo frame);
+  :Trả kết quả: labels, bbox,\nframeTime, trackId;
+
+  |Backend|
+  :Lưu labels vào MongoDB;
+  :Push SSE → Operator\n('media_analysis_done');
+
+  |Operator|
+  :Xem bbox overlay + labels\ntrên video / ảnh;
+else (Không)
+endif
+
+|Operator|
+:Đánh dấu Lượt lặn (Trip)\n"Hoàn thành" (done);
+:Đánh dấu Chuyến khảo sát (Project)\n"Hoàn tất" (completed);
+:Kích hoạt tạo Báo cáo AI;
+
+|Backend|
+:Enqueue job AI Summary\n(Bull Queue);
+
+|AI Services|
+:Gemini AI tổng hợp\n(sensor stats, anomalies,\nmedia count, locationName);
+:Sinh văn bản tóm tắt tiếng Việt;
+
+|Backend|
+:Lưu aiSummary vào Project\n(status: 'done');
+:Push SSE → Operator;
+
+|Operator|
+:Xem Báo cáo AI tóm tắt\ntrong ProjectDetailPage;
+stop
+
+@enduml

@@ -1,8 +1,9 @@
 const mongoose = require('mongoose');
 
 const dvlDataSchema = new mongoose.Schema({
-  dive:   { type: mongoose.Schema.Types.ObjectId, ref: 'Dive', required: true },
-  ts:     { type: Number, required: true },  // Unix seconds (float)
+  trip:       { type: mongoose.Schema.Types.ObjectId, ref: 'Trip', required: true },
+  sourceFile: { type: String, default: null },
+  ts:         { type: Number, required: true },  // Unix seconds (float)
   x:      { type: Number, required: true },  // meters East
   y:      { type: Number, required: true },  // meters North
   z:      { type: Number, default: null },   // meters depth
@@ -13,6 +14,7 @@ const dvlDataSchema = new mongoose.Schema({
   status: { type: Number, default: 0 },
 }, { timestamps: false, versionKey: false });
 
-dvlDataSchema.index({ dive: 1, ts: 1 });
+dvlDataSchema.index({ trip: 1, ts: 1 });
+dvlDataSchema.index({ trip: 1, sourceFile: 1, ts: 1 });
 
 module.exports = mongoose.model('DVLData', dvlDataSchema);

@@ -32,10 +32,10 @@ const FileIcon = ({ type }) => {
 }
 
 // Upload 1 file: presigned URL → PUT S3 → confirm
-const uploadFile = async ({ file, diveId, tripId, recordedAt, onProgress }) => {
+const uploadFile = async ({ file, tripId, projectId, recordedAt, onProgress }) => {
   const mimeType = resolveMime(file)
   const { uploadUrl, media } = await api.post('/media/presigned-url', {
-    diveId, tripId,
+    tripId, projectId,
     fileName: file.name,
     mimeType,
     size: file.size,
@@ -58,7 +58,7 @@ const uploadFile = async ({ file, diveId, tripId, recordedAt, onProgress }) => {
   return media
 }
 
-export default function MediaUpload({ diveId, tripId, onClose }) {
+export default function MediaUpload({ tripId, projectId, onClose }) {
   const queryClient = useQueryClient()
   const [files, setFiles] = useState([]) // [{ file, status, progress, error, recordedAt }]
 
@@ -111,7 +111,7 @@ export default function MediaUpload({ diveId, tripId, onClose }) {
       try {
         await uploadFile({
           file: files[i].file,
-          diveId, tripId,
+          tripId, projectId,
           recordedAt: files[i].recordedAt,
           onProgress: (progress) => {
             setFiles(prev => prev.map((f, idx) => idx === i ? { ...f, progress } : f))
@@ -125,7 +125,7 @@ export default function MediaUpload({ diveId, tripId, onClose }) {
       }
     }
 
-    queryClient.invalidateQueries({ queryKey: ['media', diveId] })
+    queryClient.invalidateQueries({ queryKey: ['media', tripId] })
     const doneCount  = files.filter(f => f.status === 'done').length
     const errorCount = files.filter(f => f.status === 'error').length
     if (doneCount > 0 && errorCount === 0) toast.success(`${doneCount} file(s) uploaded successfully`)
@@ -136,7 +136,7 @@ export default function MediaUpload({ diveId, tripId, onClose }) {
   const isUploading = files.some(f => f.status === 'uploading')
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[10000] p-4">
       <div className="bg-card rounded-xl shadow-xl w-full max-w-lg border border-border">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">

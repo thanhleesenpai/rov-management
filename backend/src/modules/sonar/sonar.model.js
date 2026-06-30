@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const sonarFileSchema = new mongoose.Schema({
-  dive:          { type: mongoose.Schema.Types.ObjectId, ref: 'Dive', required: true },
+  trip:          { type: mongoose.Schema.Types.ObjectId, ref: 'Trip', required: true },
   filename:      { type: String, required: true },
   s3Key:         { type: String, required: true },
   frameCount:    { type: Number, default: 0 },
@@ -10,6 +10,6 @@ const sonarFileSchema = new mongoose.Schema({
   recordedAt:    { type: Date, default: null },
 }, { timestamps: true, versionKey: false });
 
-sonarFileSchema.index({ dive: 1 });
+sonarFileSchema.index({ trip: 1 });
 
 module.exports = mongoose.model('SonarFile', sonarFileSchema);

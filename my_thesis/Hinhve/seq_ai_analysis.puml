@@ -1,0 +1,61 @@
+@startuml seq_ai_analysis
+skinparam backgroundColor White
+skinparam sequenceArrowThickness 1.5
+skinparam sequenceParticipant {
+  BackgroundColor White
+  BorderColor #555
+  FontSize 11
+}
+skinparam sequenceLifeLineBorderColor #888
+skinparam sequenceGroupBorderColor #888
+skinparam note {
+  BackgroundColor #FFFDE7
+  BorderColor #BBB
+}
+
+actor "Operator" as OP
+participant "Frontend\n(React)" as FE
+participant "Backend\n(Express)" as BE
+participant "Bull Queue\n(Redis)" as QUEUE
+participant "Bull Worker" as WORKER
+participant "YOLO Service\n(FastAPI)" as YOLO
+participant "MongoDB" as DB
+participant "SSE Stream" as SSE
+
+OP -> FE : Mở AI Analyze Popover\nChọn model + kéo confidence slider
+FE -> BE : POST /media/:id/analyze\n{model: "yolov8n", confidence: 0.30}
+
+BE -> DB : media.analysisStatus = 'pending'\nmedia.labels = []
+BE -> QUEUE : enqueue job 'media-analysis'\n{mediaId, userId, model, confidence}
+BE --> FE : 202 Accepted
+FE --> OP : Đóng popover\nSpinner xuất hiện trên card media
+
+note over QUEUE, WORKER
+  Xử lý bất đồng bộ (async)
+  Không block HTTP thread
+end note
+
+WORKER -> DB : Truy vấn media.s3Key + mimeType
+WORKER -> WORKER : Tạo Presigned URL (15 phút)
+
+alt media.type là ảnh (image/*)
+  WORKER -> YOLO : POST /detect\n{mediaUrl, mediaType: "image/jpeg",\nmodel: "yolov8n", confidence: 0.30}
+  YOLO -> YOLO : YOLOv8n.predict(url)\n→ 1 frame, ~200ms
+else media.type là video (video/*)
+  WORKER -> YOLO : POST /detect\n{mediaUrl, mediaType: "video/mp4",\nmodel: "yolov8n", confidence: 0.30}
+  YOLO -> YOLO : VideoCapture + frame sampling\n(0.2s–1s interval tùy duration)\ntrack(persist=True, bytetrack)\n→ nhiều frames, 10–300s
+end
+
+YOLO --> WORKER : [{name, confidence,\nbbox: {x,y,w,h},\nframeTime, trackId}, ...]
+
+WORKER -> DB : media.labels = [...]\nmedia.analysisStatus = 'done'\nmedia.updatedAt = now()
+
+WORKER -> SSE : emit 'media_analysis_done'\n{mediaId} đến userId
+
+SSE --> FE : EventSource nhận event
+FE -> FE : queryClient.invalidateQueries\n(['media', tripId])
+FE -> BE : GET /media/trip/:tripId (refetch)
+BE --> FE : Media mới với labels + status='done'
+FE --> OP : Bbox overlay xuất hiện\ntrên video / ảnh
+
+@enduml

@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 import { useAuthStore } from '@/store/auth.store'
 
 const TOAST_TYPES = {
-  dive_failed:             (n) => toast.error(n.title,   { description: n.body }),
+  trip_failed:             (n) => toast.error(n.title,   { description: n.body }),
   account_disabled:        (n) => toast.error(n.title,   { description: n.body }),
   ai_summary_done:         (n) => toast.success(n.title, { description: n.body }),
   media_analysis_done:     (n) => toast.success(n.title, { description: n.body }),
@@ -29,11 +29,11 @@ export function useSSE() {
         if (msg.type === 'notification') {
           queryClient.invalidateQueries({ queryKey: ['notifications'] })
           queryClient.invalidateQueries({ queryKey: ['audit'] })
-          // AI summary done → invalidate trip ngay lập tức, không chờ poll
+          // AI summary done → invalidate project ngay lập tức, không chờ poll
           if (msg.data?.type === 'ai_summary_done') {
-            queryClient.invalidateQueries({ queryKey: ['trips'] })
+            queryClient.invalidateQueries({ queryKey: ['projects'] })
           }
-          // Media analysis done → invalidate all media queries (prefix match covers any diveId)
+          // Media analysis done → invalidate all media queries (prefix match covers any tripId)
           if (msg.data?.type === 'media_analysis_done') {
             queryClient.invalidateQueries({ queryKey: ['media'] })
           }

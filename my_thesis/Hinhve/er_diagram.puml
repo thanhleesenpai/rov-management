@@ -1,0 +1,168 @@
+@startuml er_diagram
+skinparam backgroundColor White
+skinparam class {
+  BackgroundColor White
+  BorderColor #555
+  HeaderBackgroundColor #EEF3FF
+  FontSize 10
+}
+skinparam arrow {
+  Color #555
+  FontSize 9
+}
+skinparam ranksep 60
+skinparam nodesep 30
+hide circle
+hide methods
+
+entity "users" {
+  * _id : ObjectId <<PK>>
+  --
+  email : String <<unique>>
+  fullName : String
+  password : String <<optional>>
+  role : enum [viewer|operator|admin]
+  isActive : Boolean
+  googleId : String <<optional>>
+  authProvider : String
+  lastLoginAt : Date
+}
+
+entity "rovs" {
+  * _id : ObjectId <<PK>>
+  --
+  name : String <<required>>
+  model : String
+  serialNumber : String <<unique>>
+  status : enum [active|maintenance|retired]
+  createdBy : ObjectId <<FK>>
+}
+
+entity "projects" {
+  * _id : ObjectId <<PK>>
+  --
+  name : String <<required>>
+  rov : ObjectId <<FK>>
+  location : String
+  gpsLocation : \{lat, lng\}
+  locationName : String
+  status : enum [planned|ongoing|completed|cancelled]
+  startTime / endTime : Date
+  aiSummary : \{content, status, generatedAt\}
+  createdBy : ObjectId <<FK>>
+}
+
+entity "trips" {
+  * _id : ObjectId <<PK>>
+  --
+  project : ObjectId <<FK>>
+  title : String <<required>>
+  status : enum [pending|running|done|failed]
+  gpsLocation : \{lat, lng\}
+  locationName : String
+  sensorCount : Number
+  sonarCount : Number
+  dvlCount : Number
+  createdBy : ObjectId <<FK>>
+}
+
+entity "sensordatas" {
+  * _id : ObjectId <<PK>>
+  --
+  trip : ObjectId <<FK>>
+  timestamp : Date
+  depth / temp / pressure : Number
+  yaw / pitch / roll : Number
+  voltage / battery_percent : Number
+  humidity : Number
+  sourceFile : String
+}
+
+entity "media" {
+  * _id : ObjectId <<PK>>
+  --
+  trip : ObjectId <<FK>>
+  s3Key : String
+  type : enum [image|video]
+  size / duration / order : Number
+  originalName : String
+  recordedAt : Date
+  status : enum [pending|ready|failed]
+  labels : Array
+  analysisStatus : enum [idle|pending|done|failed]
+}
+
+entity "snapshots" {
+  * _id : ObjectId <<PK>>
+  --
+  type : enum [photo|clip]
+  trip : ObjectId <<FK>>
+  project : ObjectId <<FK>>
+  parentMediaId : ObjectId <<FK>>
+  imageS3Key / thumbnailS3Key : String
+  imageTime / startTime / endTime : Number
+  aiLabels : Array
+  analysisStatus : String
+  note : String
+  createdBy : ObjectId <<FK>>
+}
+
+entity "notifications" {
+  * _id : ObjectId <<PK>>
+  --
+  userId : ObjectId <<FK>>
+  type / title / body : String
+  isRead : Boolean
+  link : String
+}
+
+entity "auditlogs" {
+  * _id : ObjectId <<PK>>
+  --
+  action / entity : String
+  entityId : ObjectId
+  userId : ObjectId <<FK>>
+  details : Mixed
+  createdAt : Date
+}
+
+entity "sonarfiles" {
+  * _id : ObjectId <<PK>>
+  --
+  trip : ObjectId <<FK>>
+  filename : String
+  s3Key : String
+  frameCount / durationMs : Number
+  recordedAt : Date
+}
+
+entity "dvldatas" {
+  * _id : ObjectId <<PK>>
+  --
+  trip : ObjectId <<FK>>
+  ts : Date
+  x / y / z : Number
+  vx / vy / vz : Number
+  sourceFile : String
+}
+
+users ||--o{ rovs : "tạo"
+users ||--o{ projects : "tạo"
+users ||--o{ trips : "tạo"
+users ||--o{ notifications : "nhận"
+users ||--o{ snapshots : "tạo"
+
+rovs ||--o{ projects : "tham gia"
+
+projects ||--o{ trips : "chứa"
+projects ||--o{ snapshots : "có"
+
+trips ||--o{ sensordatas : "có"
+trips ||--o{ media : "có"
+trips ||--o{ snapshots : "có"
+trips ||--o{ sonarfiles : "có"
+trips ||--o{ dvldatas : "có"
+
+media ||--o{ snapshots : "là nguồn của"
+
+@enduml

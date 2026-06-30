@@ -1,8 +1,8 @@
 const mongoose = require('mongoose');
 
 const mediaSchema = new mongoose.Schema({
-  dive: { type: mongoose.Schema.Types.ObjectId, ref: 'Dive', required: true },
   trip: { type: mongoose.Schema.Types.ObjectId, ref: 'Trip', required: true },
+  project: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', required: true },
   uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 
   // File info
@@ -57,7 +57,7 @@ const mediaSchema = new mongoose.Schema({
   },
 }, { timestamps: true });
 
-mediaSchema.index({ dive: 1, createdAt: -1 });
 mediaSchema.index({ trip: 1, createdAt: -1 });
+mediaSchema.index({ project: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Media', mediaSchema);

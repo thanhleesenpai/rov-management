@@ -9,10 +9,10 @@ import AuthCallback from '@/features/auth/AuthCallback'
 import DashboardPage from '@/features/dashboard/DashboardPage'
 import RovsPage from '@/features/rovs/RovsPage'
 import RovDetailPage from '@/features/rovs/RovDetailPage'
+import ProjectsPage from '@/features/projects/ProjectsPage'
+import ProjectDetailPage from '@/features/projects/ProjectDetailPage'
 import TripsPage from '@/features/trips/TripsPage'
 import TripDetailPage from '@/features/trips/TripDetailPage'
-import DivesPage from '@/features/dives/DivesPage'
-import DiveDetailPage from '@/features/dives/DiveDetailPage'
 import UsersPage from '@/features/users/UsersPage'
 import ProfilePage from '@/features/profile/ProfilePage'
 import AuditPage from '@/features/audit/AuditPage'
@@ -56,20 +56,20 @@ export const router = createBrowserRouter([
         element: <RovDetailPage />
       },
       {
+        path: 'projects',
+        element: <ProjectsPage />
+      },
+      {
+        path: 'projects/:id',
+        element: <ProjectDetailPage />
+      },
+      {
         path: 'trips',
         element: <TripsPage />
       },
       {
         path: 'trips/:id',
         element: <TripDetailPage />
-      },
-      {
-        path: 'dives',
-        element: <DivesPage />
-      },
-      {
-        path: 'dives/:id',
-        element: <DiveDetailPage />
       },
       {
         path: 'users',

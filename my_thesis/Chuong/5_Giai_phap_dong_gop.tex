@@ -11,14 +11,14 @@ Như đã trình bày ở phần Khảo sát, một trong những khó khăn l�
 \subsection{Giải pháp hiện thực}
 Để giải quyết vấn đề này, giải pháp đề xuất sử dụng thuật toán ánh xạ thời gian dựa trên độ lệch gốc (Time Offset Mapping). 
 \begin{itemize}
-    \item \textbf{Bước 1: Chuẩn hóa dữ liệu đầu vào.} Hệ thống yêu cầu video tải lên phải chứa thông tin siêu dữ liệu (metadata) về thời điểm bắt đầu ghi hình (\textit{recordedAt}) theo chuẩn ISO 8601. Tương tự, tệp CSV cảm biến bắt buộc phải chứa cột \textit{timestamp} ở mỗi dòng.
+    \item \textbf{Bước 1: Chuẩn hóa dữ liệu đầu vào.} Hệ thống gán trường \texttt{recordedAt} (thời điểm bắt đầu ghi hình theo chuẩn ISO 8601) cho video tải lên theo cơ chế ưu tiên ba cấp: (1)~nếu lô tải lên kèm tệp \texttt{trip.json} (manifest xuất tự động từ ROV), hệ thống đọc \texttt{sessionStart +\allowbreak{} asset.start\_ms} để suy ra \texttt{recordedAt} với độ chính xác mili-giây; (2)~nếu không có manifest, hệ thống tự động parse từ tên file theo mẫu \texttt{\_YYYYMMDD\_HHMMSS}; (3)~nếu cả hai đều không có, \texttt{recordedAt} được đặt là \texttt{null} và Operator có thể nhập thủ công qua giao diện chỉnh sửa. Tệp CSV cảm biến bắt buộc phải chứa cột \textit{timestamp} ở mỗi dòng.
     \item \textbf{Bước 2: Tính toán độ lệch (Offset).} Khi lượt lặn được tải xuống trình duyệt, hệ thống tính toán sự chênh lệch (tính bằng giây) giữa thời điểm ghi dòng dữ liệu cảm biến đầu tiên và thời điểm bắt đầu video.
-    \item \textbf{Bước 3: Cập nhật trạng thái liên tục (Continuous Polling).} Tại Frontend (sử dụng ReactJS), thay vì lạm dụng các sự kiện \texttt{onTimeUpdate} mặc định của HTML5 Video (thường phản hồi chậm và không đều), giải pháp sử dụng hàm \texttt{requestAnimationFrame} để liên tục đọc thuộc tính \texttt{currentTime} của video với độ trễ siêu thấp (60 lần/giây).
-    \item \textbf{Bước 4: Ánh xạ bằng Tìm kiếm nhị phân (Binary Search).} Dữ liệu cảm biến là một mảng thời gian được sắp xếp tăng dần. Để tìm ra dòng dữ liệu ứng với \texttt{currentTime} của video, thuật toán Tìm kiếm nhị phân được áp dụng, giúp giảm độ phức tạp tính toán từ $O(n)$ xuống $O(\log n)$. Nhờ đó, dù tệp cảm biến có chứa hàng trăm nghìn dòng ghi chú, trình duyệt vẫn không bị treo. Trạng thái sau đó được đẩy vào thư viện Recharts để vẽ đường gióng đồng bộ (Synchronized Cursor).
+    \item \textbf{Bước 3: Cập nhật trạng thái liên tục.} Tại Frontend (sử dụng ReactJS), sự kiện \texttt{timeupdate} của phần tử HTML5 \texttt{<video>} được lắng nghe để cập nhật trạng thái \texttt{currentTime} vào React state mỗi khi video phát sang khung hình mới. Giá trị này được kết hợp với \texttt{media.recordedAt} để tính \texttt{chartTimestamp =\allowbreak{} recordedAt + currentTime × 1000} (đổi sang mili-giây UTC).
+    \item \textbf{Bước 4: Ánh xạ sang dữ liệu cảm biến.} Dữ liệu cảm biến là một mảng được sắp xếp tăng dần theo \texttt{timestamp}. Hệ thống tìm điểm gần nhất với \texttt{chartTimestamp} và truyền vào thành phần \texttt{<ReferenceLine\allowbreak{} x=\{chartTimestamp\}>} của thư viện Recharts để vẽ đường gióng đồng bộ (Synchronized Reference Line) di chuyển trên biểu đồ theo thời gian thực.
 \end{itemize}
 
 \subsection{Kết quả đạt được}
-Giải pháp đã tạo ra một giao diện \textit{Cockpit} đồng bộ mượt mà. Người điều khiển chỉ cần nhấp chuột vào một đỉnh bất thường trên biểu đồ (ví dụ: nhiệt độ nước đột ngột giảm sâu), đoạn video sẽ lập tức tua đến chính xác khoảnh khắc đó, giúp nhanh chóng phát hiện nguyên nhân vật lý dưới nước. Cơ chế đồng bộ hai chiều này tiết kiệm tới 80\% thời gian phân tích hậu kỳ so với phương pháp thủ công truyền thống.
+Giải pháp đã tạo ra một giao diện \textit{Cockpit} đồng bộ mượt mà theo chiều video → biểu đồ. Khi video đang phát, thanh đỏ \texttt{ReferenceLine} di chuyển liên tục trên biểu đồ cảm biến, cho phép Operator quan sát ngay giá trị nhiệt độ, áp suất, độ sâu tại đúng khoảnh khắc đang diễn ra trên video mà không cần đối chiếu thủ công. Cơ chế đồng bộ này loại bỏ hoàn toàn việc tra cứu thủ công giữa video và tệp CSV, giúp quá trình phân tích hậu kỳ nhanh hơn đáng kể so với phương pháp truyền thống.
 
 \section{Kiến trúc xử lý bất đồng bộ tích hợp mô hình nhận diện YOLOv8}
 \label{section:5.2}
@@ -26,27 +26,77 @@ Giải pháp đã tạo ra một giao diện \textit{Cockpit} đồng bộ mư�
 Nhận diện vật thể trong video (như cá, chướng ngại vật, hoặc vết nứt đường ống ngầm) là yêu cầu thiết yếu. Tuy nhiên, việc chạy suy luận mô hình học sâu như YOLOv8 trên các tệp video độ phân giải cao tiêu tốn lượng lớn tài nguyên CPU/GPU và mất nhiều thời gian (thường từ vài phút đến hàng giờ tùy độ dài). Nếu triển khai trực tiếp luồng xử lý này trên máy chủ Node.js chính, vòng lặp sự kiện (Event Loop) của Node sẽ bị chặn (block), dẫn đến việc toàn bộ hệ thống web bị "đóng băng" đối với các người dùng khác.
 
 \subsection{Giải pháp hiện thực}
-Giải pháp đề ra là xây dựng một kiến trúc tách rời (Decoupled Architecture) sử dụng hàng đợi Message Queue.
+Giải pháp đề ra là xây dựng một kiến trúc tách rời (Decoupled Architecture) gồm ba thành phần phối hợp:
+
 \begin{itemize}
-    \item \textbf{Khối Máy chủ Web (Node.js):} Khi người dùng nhấn "Phân tích AI", Node.js không trực tiếp chạy mô hình mà đóng gói đường dẫn video, thông số ngưỡng (Confidence Threshold) thành một "Nhiệm vụ" (Job) và đẩy vào hàng đợi Bull Queue (lưu trữ trên Redis in-memory). Sau đó, Node.js trả về phản hồi "Đã tiếp nhận" ngay lập tức cho người dùng.
-    \item \textbf{Khối Microservice AI (Python):} Một dịch vụ độc lập viết bằng FastAPI liên tục lắng nghe các Job mới từ hàng đợi. Khi có Job, dịch vụ này tải video từ AWS S3, dùng thư viện Ultralytics chạy mô hình YOLOv8 qua từng khung hình để trích xuất hộp giới hạn (Bounding boxes). Kết quả phân tích (khung hình thứ mấy, tọa độ vật thể, nhãn) được gộp lại thành tệp JSON và lưu ngược vào MongoDB.
-    \item \textbf{Thông báo thời gian thực (SSE):} Sau khi Microservice hoàn tất, nó đánh dấu Job là \textit{Completed} trên Bull Queue. Máy chủ Node.js phát hiện sự kiện này, liền sử dụng cơ chế Server-Sent Events (SSE) để bắn thông báo trực tiếp đến màn hình trình duyệt của người dùng mà không cần họ tải lại trang.
+    \item \textbf{Node.js Express (HTTP endpoint):} Khi người dùng nhấn ``Phân tích AI'', endpoint \code{POST /media/:id/analyze} đặt \code{analysisStatus = 'pending'} cho media document, đóng gói \texttt{mediaId}, mô hình và ngưỡng confidence thành một Job rồi đẩy vào hàng đợi Bull (\texttt{mediaAnalysisQueue}, lưu trên Redis). Hệ thống trả về HTTP 202 ngay lập tức mà không chờ xử lý.
+
+    \item \textbf{Node.js Bull Worker (xử lý ngầm):} Worker chạy song song với Event Loop chính, lắng nghe hàng đợi. Khi có Job, Worker tạo presigned GET URL (TTL 10 phút) cho file trên S3, sau đó gọi \code{POST yolo-service:8000/detect} với URL đó kèm tham số model và confidence. YOLO Service (Python FastAPI) tải file từ S3, chạy suy luận YOLOv8, trả về mảng labels qua HTTP response thông thường. Worker nhận kết quả, lưu \code{media.labels + analysisStatus = 'done'} vào MongoDB, rồi gọi \code{notificationService.create()} để ghi thông báo vào DB và đẩy SSE.
+
+    \item \textbf{Python FastAPI (YOLO Microservice):} Là dịch vụ HTTP thuần túy, không kết nối Redis hay MongoDB. Chỉ nhận \texttt{POST /detect}, tải file từ presigned URL, chạy YOLOv8 inference, và trả về JSON labels trong một response đồng bộ. Kiến trúc này tách biệt hoàn toàn: Node.js có thể thay thế YOLO bằng mô hình AI khác mà không cần đổi hàng đợi hay schema DB.
 \end{itemize}
 
 \subsection{Kết quả đạt được}
 Kiến trúc này đảm bảo tính khả dụng (High Availability) tuyệt đối cho hệ thống web chính. Người dùng có thể đẩy cùng lúc nhiều video vào hàng đợi để phân tích ngầm và thoải mái chuyển sang các trang khác để làm việc. Kết quả nhận diện sau khi trả về sẽ tự động đính kèm (overlay) lên luồng phát video, khoanh vùng chính xác các vật thể dưới nước một cách tự động.
 
-\section{Ứng dụng LLM tự động hóa báo cáo tổng kết chuyến đi}
+\section{Hệ thống trích xuất bằng chứng (Evidence System)}
 \label{section:5.3}
 \subsection{Bài toán đặt ra}
-Kết thúc một chuyến đi thực địa (Trip) kéo dài nhiều ngày với hàng chục lượt lặn (Dives), ban quản lý thường yêu cầu một báo cáo tóm tắt tình hình tổng thể. Việc thư ký tổng hợp số liệu (số lần lặn, thời gian lặn, các tọa độ địa lý đã đi qua, các sự cố về cảm biến, danh sách vật thể lạ phát hiện được) ra văn bản rất khô khan, dễ thiếu sót và tốn hàng giờ đồng hồ rà soát.
+Khi Operator phát hiện vật thể quan trọng (mảnh vỡ ngầm, sinh vật biển hiếm gặp, vết nứt kết cấu) trong khi xem lại video, không có công cụ nào cho phép đánh dấu và lưu trữ phát hiện đó ngay lập tức. Cách xử lý thủ công thông thường là ghi lại dấu thời gian rồi sau đó cắt video bằng phần mềm bên ngoài — tốn thời gian và làm gián đoạn luồng xem xét. Bài toán đặt ra là xây dựng một cơ chế cho phép Operator trích xuất bằng chứng trực tiếp trong khi xem video mà không làm gián đoạn trải nghiệm xem, đồng thời cho phép phân tích AI riêng lẻ trên từng bằng chứng mà không cần phân tích lại toàn bộ video.
+
+\subsection{Giải pháp hiện thực}
+Giải pháp đề xuất xây dựng hệ thống bằng chứng với hai loại artefact độc lập:
+
+\begin{itemize}[leftmargin=*, topsep=4pt, itemsep=2pt]
+    \item \textbf{Photo (Ảnh khung hình):} Khi Operator nhấn nút chụp ảnh, Canvas API của trình duyệt trích xuất khung hình hiện tại thành tệp PNG. Nếu chế độ hiển thị bounding box đang bật, tọa độ được ghi đè trực tiếp vào ảnh (\textit{canvas burn-in}) trước khi tải lên AWS S3. Tệp PNG được lưu vào trường \texttt{imageS3Key} của document Snapshot.
+
+    \item \textbf{Clip (Đoạn video):} Khi Operator bấm bắt đầu và kết thúc ghi clip, hệ thống chỉ lưu \texttt{startTime} và \texttt{endTime} (tính bằng giây trong video gốc), không cắt hay sao chép tệp video vật lý. Đây là lựa chọn kỹ thuật quan trọng: tránh hoàn toàn chi phí băng thông và không gian lưu trữ phát sinh từ việc tạo bản sao video.
+\end{itemize}
+
+Mỗi bằng chứng được lưu vào collection \texttt{snapshots} riêng biệt (không lẫn vào collection \texttt{media}), với trường \texttt{parentMediaId} liên kết đến video gốc. Để phân tích AI riêng từng bằng chứng, hệ thống cho phép gọi \code{POST /snapshots/:id/analyze}: với Photo, YOLO Service chạy predict trên ảnh PNG; với Clip, YOLO Service nhận thêm \texttt{startTime/endTime} và chỉ xử lý các frame trong khoảng đó, giảm đáng kể thời gian xử lý so với phân tích toàn bộ video.
+
+Giao diện EvidenceViewer (Hình~\ref{fig:ui_evidence_panel}) được hiển thị dưới dạng overlay inline — không phải cửa sổ popup riêng — bảo toàn ngữ cảnh xem của Operator. Với clip, trình phát video bị giới hạn trong khoảng $[t_{\text{start}}, t_{\text{end}}]$: khi phát đến \texttt{endTime}, video tự seek về \texttt{startTime} để phát vòng lặp.
+
+\subsection{Kết quả đạt được}
+Hệ thống bằng chứng cho phép ghi lại phát hiện trong thời gian thực mà không cần rời khỏi giao diện xem video. Đặc biệt, nhờ thiết kế không cắt tệp vật lý đối với Clip, chi phí lưu trữ S3 chỉ tăng theo số lượng ảnh PNG thumbnail — không phát sinh thêm từ các đoạn clip dài. Bằng chứng có thể được phân tích AI độc lập, tạo ra vòng lặp kiểm tra nhanh: \textit{xem video → phát hiện → trích xuất → phân tích → xác nhận} mà không cần phân tích lại toàn bộ file video dài.
+
+\section{Phát hiện bất thường cảm biến tự động (Z-Score)}
+\label{section:5.4}
+\subsection{Bài toán đặt ra}
+Mỗi lượt lặn ROV tạo ra hàng nghìn dòng dữ liệu cảm biến liên tục (nhiệt độ, áp suất, độ sâu, điện áp...). Khi xảy ra sự cố — chẳng hạn thiết bị lặn quá sâu, rò rỉ nước vào khoang điện, hoặc va chạm làm thay đổi đột ngột áp suất — các điểm bất thường này bị chôn vùi trong hàng nghìn dòng dữ liệu bình thường. Việc tìm kiếm thủ công bằng mắt trên biểu đồ là không thực tế, nhất là với các bộ dữ liệu dài. Bài toán đặt ra là tự động phát hiện và gắn cờ các điểm đo bất thường ngay tại backend, không cần dữ liệu huấn luyện từ trước.
+
+\subsection{Giải pháp hiện thực}
+Giải pháp triển khai thuật toán Z-Score, một phương pháp thống kê kinh điển để phát hiện outlier không cần nhãn (unsupervised). Với mỗi metric trong bộ dữ liệu cảm biến, Z-Score của từng điểm đo được tính theo công thức:
+\begin{equation}
+z_i = \frac{x_i - \mu}{\sigma}
+\label{eq:zscore}
+\end{equation}
+trong đó $x_i$ là giá trị đo tại thời điểm $i$, $\mu$ là giá trị trung bình và $\sigma$ là độ lệch chuẩn của toàn bộ chuỗi. Điểm đo được đánh dấu là bất thường khi $|z_i| > 2{,}5$ — tức là vượt quá 2,5 lần độ lệch chuẩn so với giá trị trung bình. Ngưỡng 2,5 được chọn thay vì giá trị thông thường 2,0 hoặc 3,0 nhằm cân bằng giữa độ nhạy (sensitivity) và tỉ lệ cảnh báo nhầm (false positive rate) phù hợp với đặc thù dữ liệu cảm biến môi trường thay đổi chậm.
+
+Thuật toán được áp dụng song song cho 7 metric: \texttt{depth}, \texttt{temp}, \texttt{temperature}, \texttt{pressure}, \texttt{voltage}, \texttt{battery\_percent} và \texttt{humidity}. Kết quả trả về cùng với dữ liệu cảm biến:
+\begin{itemize}[leftmargin=*, topsep=2pt, itemsep=1pt]
+    \item \texttt{stats}: \{min, max, avg\} cho mỗi metric
+    \item \texttt{anomalies}: mảng các điểm bất thường, mỗi phần tử gồm \{index, metric, value, zScore, timestamp\}
+\end{itemize}
+
+So sánh với các giải pháp thay thế: phương pháp IQR (Interquartile Range) kém nhạy với spike nhọn ngắn hạn — đặc trưng của sự cố kỹ thuật; Isolation Forest đòi hỏi dữ liệu huấn luyện được gán nhãn, không khả thi trong bối cảnh hệ thống chưa có dataset lịch sử. Z-Score được chọn vì không cần dữ liệu huấn luyện, tính toán đơn giản, đủ nhanh để chạy inline tại endpoint API.
+
+Tại giao diện, các điểm bất thường được hiển thị bằng dot đỏ kích thước lớn hơn trên AreaChart (Hình~\ref{fig:ui_trip_chart_anomaly}), kèm theo một panel "Anomalies Detected" liệt kê từng điểm cùng giá trị đo và chỉ số Z-Score tương ứng.
+
+\subsection{Kết quả đạt được}
+Thuật toán phát hiện thành công các spike bất thường trong dữ liệu kiểm thử (file sensor-sample-full.csv có 2 điểm bất thường được thiết kế sẵn), hiển thị đúng trên biểu đồ mà không ảnh hưởng đến hiệu năng API. Giải pháp này loại bỏ hoàn toàn gánh nặng tìm kiếm thủ công, chuyển từ quy trình \textit{``xem toàn bộ → phát hiện thủ công''} sang \textit{``mở trang → các điểm nghi vấn đã được đánh dấu sẵn''}, giúp Operator tập trung ngay vào những khoảnh khắc quan trọng nhất trong hàng giờ dữ liệu.
+
+\section{Ứng dụng LLM tự động hóa báo cáo tổng kết nhiệm vụ}
+\label{section:5.5}
+\subsection{Bài toán đặt ra}
+Kết thúc một Project khảo sát với nhiều Trip (lần lặn), ban quản lý thường yêu cầu một báo cáo tóm tắt tình hình tổng thể. Việc thủ công tổng hợp số liệu (số Trip, trạng thái từng Trip, tọa độ địa lý ghi nhận, các điểm cảm biến bất thường, danh sách vật thể phát hiện) ra văn bản rất khô khan, dễ thiếu sót và tốn hàng giờ đồng hồ rà soát.
 
 \subsection{Giải pháp hiện thực}
 Đồ án ứng dụng Mô hình ngôn ngữ lớn (Large Language Model) - cụ thể là Gemini 2.5 Flash thông qua API của Google - để sinh văn bản tự động (Natural Language Generation). Giải pháp được thực hiện qua các bước:
 \begin{itemize}
-    \item \textbf{Tổng hợp siêu dữ liệu:} Khi người dùng bấm "Tạo Tóm tắt", Backend sẽ gom toàn bộ dữ liệu thống kê của chuyến đi từ MongoDB. Để làm nổi bật sự cố, một thuật toán tính Z-Score được chạy lướt qua tệp cảm biến để đếm số lần thông số vượt quá 2 độ lệch chuẩn (Anomaly Detection).
+    \item \textbf{Tổng hợp siêu dữ liệu:} Khi người dùng bấm "Generate Summary", Backend gom toàn bộ dữ liệu Project từ MongoDB: tên, địa điểm, thời gian, danh sách Trip kèm trạng thái, số lượng media và các điểm bất thường cảm biến (đã phát hiện bởi Z-Score, ngưỡng $|z|>2{,}5$). Nếu Trip có GPS, \texttt{locationName} từ Nominatim được đưa vào prompt thay cho tọa độ số.
     \item \textbf{Thiết kế Mẫu nhắc (Prompt Engineering):} Dữ liệu thô (JSON) sẽ được "bơm" vào một cấu trúc Prompt tiếng Việt chuẩn mực. Ví dụ: \textit{"Dựa trên dữ liệu hệ thống đo đạc từ ROV: Chuyến đi tên là [X], diễn ra từ [Ngày A] đến [Ngày B], thực hiện [Y] lượt lặn. Đã phát hiện [Z] vật thể (chủ yếu là cá, san hô) và có 3 lần cảnh báo áp suất bất thường. Hãy viết một báo cáo chuyên nghiệp dành cho ban quản đốc, tóm tắt tình hình chuyến đi, kết quả khảo sát và khuyến nghị an toàn."}
-    \item \textbf{Gọi API và Lưu trữ:} Lời nhắc được gửi đến Gemini API. Trọng tâm cấu hình tham số \textit{temperature = 0.3} để đảm bảo văn phong nghiêm túc, không bịa đặt dữ liệu (hallucination). Phản hồi nhận được sẽ được lưu vào cơ sở dữ liệu làm báo cáo chính thức.
+    \item \textbf{Gọi API và Lưu trữ bất đồng bộ:} Yêu cầu sinh tóm tắt được đưa vào hàng đợi Bull (\texttt{ai-summary}) và trả về HTTP~202 tức thì — không block giao diện. Bull Worker gọi Gemini 2.5 Flash API với prompt đã soạn, nhận phản hồi văn bản song ngữ (Việt/Anh), lưu vào \texttt{project.aiSummary.vi} và \texttt{project.aiSummary.en}, rồi đẩy SSE thông báo đến frontend khi hoàn tất.
 \end{itemize}
 
 \subsection{Kết quả đạt được}

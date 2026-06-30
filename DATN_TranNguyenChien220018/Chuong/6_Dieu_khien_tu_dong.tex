@@ -1,0 +1,1368 @@
+\documentclass[../DoAn.tex]{subfiles}
+\begin{document}
+
+\section{Cơ sở lý thuyết}
+\label{section:5.1}
+\subsection{Cơ sở lý thuyết điều khiển chuyển động ROV}
+\label{subsection:5.1.1}
+
+Trong hệ thống ROV, bộ điều khiển không tác động trực tiếp tới từng động cơ đẩy mà thay vào đó, hệ thống sinh ra một vector lệnh điều khiển biểu diễn chuyển động của ROV. Ma trận trộn (mixing matrix) được sử dụng để phân bổ lệnh này xuống từng động cơ đẩy. Cách tiếp cận này giúp tách biệt giữa bài toán điều khiển chuyển động ở mức logic và bài toán điều khiển phần cứng ở mức cơ cấu chấp hành.
+
+Đối với ROV trong đồ án này, chuyển động chính được xét trên bốn trục điều khiển gồm: tiến/lùi, dịch ngang trái/phải, lên/xuống và quay quanh trục đứng. Do đó, vector điều khiển cấp cao được biểu diễn dưới dạng:
+
+\begin{equation}
+\mathbf{u}
+=
+\begin{bmatrix}
+u_f \\
+u_l \\
+u_z \\
+u_{\psi}
+\end{bmatrix}
+\end{equation}
+
+Trong đó:
+\begin{itemize}
+    \item $u_f$ là lệnh điều khiển chuyển động tiến/lùi theo phương dọc thân ROV;
+    \item $u_l$ là lệnh điều khiển chuyển động dịch ngang trái/phải;
+    \item $u_z$ là lệnh điều khiển chuyển động lên/xuống theo phương thẳng đứng;
+    \item $u_{\psi}$ là lệnh điều khiển quay quanh trục đứng, hay còn gọi là điều khiển yaw.
+\end{itemize}
+
+Trong chương trình điều khiển, vector này tương ứng với bốn thành phần:
+
+\begin{equation}
+\mathbf{u}
+=
+\begin{bmatrix}
+forward \\
+lateral \\
+ascend \\
+yaw
+\end{bmatrix}
+\end{equation}
+
+Các giá trị trong vector điều khiển được chuẩn hóa trong khoảng xấp xỉ $[-1,1]$. Giá trị dương và âm thể hiện hai chiều chuyển động ngược nhau trên cùng một trục. Ví dụ, $u_f > 0$ và $u_f < 0$ lần lượt biểu diễn hai hướng chuyển động ngược nhau trên phương tiến/lùi; tương tự, $u_l$, $u_z$ và $u_{\psi}$ cũng biểu diễn hai chiều điều khiển tương ứng trên các trục dịch ngang, lên/xuống và quay yaw.
+
+\subsubsection{Nguyên lý phân bổ lực đẩy bằng ma trận trộn}
+
+ROV sử dụng 4 động cơ đẩy ngang tại 4 góc trên để điều khiển độ sâu, 4 động cơ dưới xoay góc $45^{o}$ để di chuyển tiến/lùi/trái/phải. Mỗi động cơ khi hoạt động sẽ tạo ra một lực đẩy theo hướng lắp đặt của nó. Tổng hợp lực và mô-men từ tất cả các động cơ sẽ tạo ra chuyển động thực tế của ROV.
+
+Vì người điều khiển chỉ đưa ra lệnh ở mức chuyển động tổng quát, hệ thống cần một cơ chế để chuyển đổi lệnh điều khiển cấp cao thành lệnh cho từng động cơ. Cơ chế này được gọi là phân bổ lực đẩy, hay control allocation. Trong đồ án, việc phân bổ lực đẩy được thực hiện bằng ma trận trộn.
+
+Quan hệ giữa vector lệnh điều khiển cấp cao và vector lệnh động cơ được biểu diễn như sau:
+
+\begin{equation}
+\mathbf{t} = M\mathbf{u}
+\end{equation}
+
+Trong đó:
+\begin{itemize}
+    \item $\mathbf{u}$ là vector lệnh điều khiển cấp cao;
+    \item $M$ là ma trận trộn;
+    \item $\mathbf{t}$ là vector lệnh lực đẩy chuẩn hóa của các động cơ.
+\end{itemize}
+
+Với ROV sử dụng 8 động cơ đẩy, vector lệnh động cơ có dạng:
+
+\begin{equation}
+\mathbf{t}
+=
+\begin{bmatrix}
+t_1 \\
+t_2 \\
+t_3 \\
+t_4 \\
+t_5 \\
+t_6 \\
+t_7 \\
+t_8
+\end{bmatrix}
+\end{equation}
+
+Trong đó $t_i$ là lệnh điều khiển chuẩn hóa gửi tới động cơ đẩy thứ $i$. Mỗi giá trị $t_i$ thể hiện mức công suất và chiều quay tương ứng của động cơ. Giá trị $t_i = 0$ tương ứng với trạng thái trung tính, $t_i > 0$ và $t_i < 0$ tương ứng với hai chiều tạo lực ngược nhau.
+
+Ma trận trộn có kích thước $8 \times 4$, vì hệ thống có 8 động cơ đẩy và 4 trục điều khiển cấp cao. Mỗi hàng của ma trận tương ứng với một động cơ, còn mỗi cột tương ứng với một trục chuyển động. Với cấu hình trong đồ án, ma trận trộn được biểu diễn như sau:
+
+\begin{equation}
+M =
+\begin{bmatrix}
+1 & -1 & 0 & -0.7071 \\
+-1 & -1 & 0 & -0.7071 \\
+1 & 1 & 0 & -0.7071 \\
+1 & -1 & 0 & 0.7071 \\
+0 & 0 & 1 & 0 \\
+0 & 0 & -1 & 0 \\
+0 & 0 & -1 & 0 \\
+0 & 0 & 1 & 0
+\end{bmatrix}
+\end{equation}
+
+Do đó:
+
+\begin{equation}
+\begin{bmatrix}
+t_1 \\
+t_2 \\
+t_3 \\
+t_4 \\
+t_5 \\
+t_6 \\
+t_7 \\
+t_8
+\end{bmatrix}
+=
+\begin{bmatrix}
+1 & -1 & 0 & -0.7071 \\
+-1 & -1 & 0 & -0.7071 \\
+1 & 1 & 0 & -0.7071 \\
+1 & -1 & 0 & 0.7071 \\
+0 & 0 & 1 & 0 \\
+0 & 0 & -1 & 0 \\
+0 & 0 & -1 & 0 \\
+0 & 0 & 1 & 0
+\end{bmatrix}
+\begin{bmatrix}
+u_f \\
+u_l \\
+u_z \\
+u_{\psi}
+\end{bmatrix}
+\end{equation}
+
+Từ phép nhân ma trận trên, lệnh của từng động cơ được tính như sau:
+
+\begin{equation}
+t_1 = u_f - u_l - 0.7071u_{\psi}
+\end{equation}
+
+\begin{equation}
+t_2 = -u_f - u_l - 0.7071u_{\psi}
+\end{equation}
+
+\begin{equation}
+t_3 = u_f + u_l - 0.7071u_{\psi}
+\end{equation}
+
+\begin{equation}
+t_4 = u_f - u_l + 0.7071u_{\psi}
+\end{equation}
+
+\begin{equation}
+t_5 = u_z
+\end{equation}
+
+\begin{equation}
+t_6 = -u_z
+\end{equation}
+
+\begin{equation}
+t_7 = -u_z
+\end{equation}
+
+\begin{equation}
+t_8 = u_z
+\end{equation}
+
+Các phương trình trên cho thấy lệnh của từng động cơ là tổ hợp tuyến tính của các thành phần điều khiển cấp cao. Điều này có nghĩa là một động cơ có thể đồng thời tham gia tạo ra nhiều loại chuyển động khác nhau. Chẳng hạn, các động cơ ngang vừa có thể tham gia tạo chuyển động tiến/lùi, vừa tạo chuyển động dịch ngang, vừa tạo mô-men quay yaw.
+
+\subsubsection{Ý nghĩa vật lý của các cột trong ma trận trộn}
+
+Mỗi cột trong ma trận trộn biểu diễn mức đóng góp của các động cơ đối với một trục chuyển động cụ thể.
+
+Cột thứ nhất tương ứng với lệnh tiến/lùi $u_f$:
+
+\begin{equation}
+M_f =
+\begin{bmatrix}
+1 \\
+-1 \\
+1 \\
+1 \\
+0 \\
+0 \\
+0 \\
+0
+\end{bmatrix}
+\end{equation}
+
+Cột này cho thấy chuyển động tiến/lùi được tạo ra bởi nhóm động cơ ngang. Các động cơ thẳng đứng không tham gia vào chuyển động tiến/lùi nên hệ số của chúng bằng 0.
+
+Cột thứ hai tương ứng với lệnh dịch ngang $u_l$:
+
+\begin{equation}
+M_l =
+\begin{bmatrix}
+-1 \\
+-1 \\
+1 \\
+-1 \\
+0 \\
+0 \\
+0 \\
+0
+\end{bmatrix}
+\end{equation}
+
+Tương tự như chuyển động tiến/lùi, chuyển động dịch ngang cũng được tạo bởi các động cơ ngang. Tổ hợp dấu khác nhau giữa các động cơ giúp tạo ra lực tổng theo phương ngang thân ROV.
+
+Cột thứ ba tương ứng với lệnh lên/xuống $u_z$:
+
+\begin{equation}
+M_z =
+\begin{bmatrix}
+0 \\
+0 \\
+0 \\
+0 \\
+1 \\
+-1 \\
+-1 \\
+1
+\end{bmatrix}
+\end{equation}
+
+Cột này cho thấy chuyển động thẳng đứng chỉ được tạo bởi các động cơ thẳng đứng. Các động cơ ngang không tham gia vào chuyển động lên/xuống nên hệ số của chúng bằng 0.
+
+Cột thứ tư tương ứng với lệnh quay yaw $u_{\psi}$:
+
+\begin{equation}
+M_{\psi} =
+\begin{bmatrix}
+-0.7071 \\
+-0.7071 \\
+-0.7071 \\
+0.7071 \\
+0 \\
+0 \\
+0 \\
+0
+\end{bmatrix}
+\end{equation}
+
+Chuyển động yaw được tạo bởi mô-men xoắn quanh trục đứng. Các động cơ ngang tạo ra các lực có phương và vị trí phù hợp để sinh mô-men quay cho ROV. Hệ số $0.7071$ xấp xỉ $sin(45^{o})$, thường xuất hiện trong các cấu hình động cơ đặt chéo góc $45^\circ$. Khi động cơ được đặt chéo, lực đẩy của nó có thể được phân rã thành các thành phần theo phương dọc và phương ngang. Với góc $45^\circ$, hai thành phần này có độ lớn bằng nhau và bằng $\frac{\sqrt{2}}{2}$ lần lực tổng.
+
+\subsubsection{Tổng hợp nhiều lệnh chuyển động}
+
+Ma trận trộn cho phép ROV tổng hợp nhiều lệnh chuyển động cùng lúc. Do quan hệ giữa vector điều khiển và lệnh động cơ là tuyến tính, lệnh cuối cùng của mỗi động cơ là tổng đóng góp từ nhiều thành phần điều khiển.
+
+Ví dụ, khi ROV vừa tiến vừa quay yaw, vector điều khiển có dạng:
+
+\begin{equation}
+\mathbf{u}
+=
+\begin{bmatrix}
+u_f \\
+0 \\
+0 \\
+u_{\psi}
+\end{bmatrix}
+\end{equation}
+
+Khi đó:
+
+\begin{equation}
+\mathbf{t}
+=
+M
+\begin{bmatrix}
+u_f \\
+0 \\
+0 \\
+u_{\psi}
+\end{bmatrix}
+=
+u_f M_f + u_{\psi}M_{\psi}
+\end{equation}
+
+Điều này có nghĩa là mỗi động cơ ngang sẽ nhận một lệnh tổng hợp từ yêu cầu tiến/lùi và yêu cầu quay yaw. Chẳng hạn, với động cơ thứ nhất:
+
+\begin{equation}
+t_1 = u_f - 0.7071u_{\psi}
+\end{equation}
+
+Nếu vừa có lệnh tiến, vừa có lệnh quay, động cơ thứ nhất sẽ nhận giá trị là tổng đại số của hai thành phần này. Nhờ đó, ROV có thể thực hiện các chuyển động phức hợp như vừa tiến vừa quay, vừa dịch ngang vừa giữ độ sâu, hoặc vừa bám mục tiêu vừa ổn định hướng.
+
+\subsubsection{Chuẩn hóa và giới hạn lệnh động cơ}
+
+Sau khi tính được vector lệnh động cơ $\mathbf{t}$, mỗi giá trị $t_i$ cần được giới hạn trong khoảng cho phép trước khi chuyển thành tín hiệu điều khiển thực tế. Trong hệ thống này, lệnh động cơ được chuẩn hóa trong khoảng $[-1,1]$:
+
+\begin{equation}
+t_i^{clip} = clip(t_i, -1, 1)
+\end{equation}
+
+Trong đó hàm $clip$ được định nghĩa như sau:
+
+\begin{equation}
+clip(t_i, -1, 1)
+=
+\begin{cases}
+-1, & t_i < -1 \\
+t_i, & -1 \leq t_i \leq 1 \\
+1, & t_i > 1
+\end{cases}
+\end{equation}
+
+Việc giới hạn này giúp tránh trường hợp lệnh điều khiển vượt quá khả năng đáp ứng của động cơ hoặc ESC. Nếu không có bước giới hạn, khi nhiều lệnh chuyển động được cộng lại, một số giá trị $t_i$ có thể vượt quá biên cho phép, gây ra lệnh điều khiển không hợp lệ hoặc làm hệ thống hoạt động không ổn định.
+
+\subsubsection{Chuyển đổi lệnh động cơ sang tín hiệu PWM}
+
+Các động cơ đẩy của ROV được điều khiển thông qua ESC. ESC nhận tín hiệu PWM để xác định chiều quay và mức công suất của động cơ. Sau khi có lệnh động cơ chuẩn hóa $t_i^{clip}$, hệ thống chuyển đổi lệnh này sang xung PWM theo công thức:
+
+\begin{equation}
+PWM_i = PWM_{neutral} + t_i^{clip} \cdot G_{ESC} \cdot P_{max}
+\end{equation}
+
+Trong đó:
+\begin{itemize}
+    \item $PWM_i$ là giá trị xung PWM gửi tới ESC của động cơ thứ $i$;
+    \item $PWM_{neutral}$ là giá trị PWM trung tính, tại đó động cơ không tạo lực đẩy;
+    \item $G_{ESC}$ là hệ số khuếch đại giới hạn biên điều khiển của ESC;
+    \item $P_{max}$ là biên độ PWM tối đa được sử dụng trong điều khiển;
+    \item $t_i^{clip}$ là lệnh động cơ đã được giới hạn trong khoảng $[-1,1]$.
+\end{itemize}
+
+Trong hệ thống, giá trị trung tính của PWM là:
+
+\begin{equation}
+PWM_{neutral} = 1500
+\end{equation}
+
+Khi $t_i^{clip} = 0$, ta có:
+
+\begin{equation}
+PWM_i = 1500
+\end{equation}
+
+Khi đó động cơ ở trạng thái trung tính. Nếu $t_i^{clip} > 0$, PWM lớn hơn 1500 và động cơ quay theo một chiều. Nếu $t_i^{clip} < 0$, PWM nhỏ hơn 1500 và động cơ quay theo chiều ngược lại.
+
+Với hệ số khuếch đại ESC là $G_{ESC}$ và biên PWM cực đại $P_{max}$, khoảng PWM thực tế được xác định bởi:
+
+\begin{equation}
+PWM_i \in 
+\left[
+PWM_{neutral} - G_{ESC}P_{max},
+PWM_{neutral} + G_{ESC}P_{max}
+\right]
+\end{equation}
+
+Ví dụ, nếu $PWM_{neutral}=1500$, $G_{ESC}=0.5$ và $P_{max}=400$, ta có:
+
+\begin{equation}
+PWM_i \in [1300, 1700]
+\end{equation}
+
+Khoảng này đảm bảo động cơ có thể tạo lực theo cả hai chiều nhưng vẫn được giới hạn trong biên điều khiển an toàn.
+
+\subsection{Ánh xạ động cơ logic sang kênh PWM thực tế}
+
+Trong phần mềm điều khiển, các động cơ được đánh số logic từ $T_1$ đến $T_8$. Tuy nhiên, các động cơ này không nhất thiết được nối với các kênh PWM có cùng thứ tự trên mạch điều khiển. Vì vậy, hệ thống cần một bảng ánh xạ giữa thứ tự động cơ trong mô hình điều khiển và kênh PWM thực tế.
+
+Bảng ánh xạ có dạng:
+
+\begin{equation}
+\begin{bmatrix}
+T_1 & T_2 & T_3 & T_4 & T_5 & T_6 & T_7 & T_8
+\end{bmatrix}
+\rightarrow
+\begin{bmatrix}
+9 & 10 & 4 & 6 & 7 & 8 & 5 & 11
+\end{bmatrix}
+\end{equation}
+
+Điều này có nghĩa là lệnh của động cơ logic $T_1$ được gửi tới kênh PWM số 9, lệnh của $T_2$ được gửi tới kênh PWM số 10, lệnh của $T_3$ được gửi tới kênh PWM số 4, và tương tự cho các động cơ còn lại. Việc sử dụng bảng ánh xạ giúp phần mềm điều khiển không phụ thuộc trực tiếp vào cách đi dây phần cứng, đồng thời giúp dễ hiệu chỉnh khi thay đổi kết nối động cơ.
+
+\subsubsection{Mối quan hệ giữa bộ điều khiển PID và ma trận trộn}
+
+Bộ điều khiển PID không trực tiếp điều khiển từng động cơ riêng lẻ. Thay vào đó, PID được sử dụng để sinh ra các thành phần trong vector điều khiển cấp cao $\mathbf{u}$. Ví dụ, một bộ điều khiển giữ hướng có thể sinh ra thành phần $u_{\psi}$, một bộ điều khiển giữ độ sâu có thể sinh ra thành phần $u_z$, còn một bộ điều khiển bám mục tiêu bằng thị giác có thể sinh ra các thành phần $u_f$ và $u_l$.
+
+Sau khi các thành phần điều khiển cấp cao được xác định, chúng đều được đưa qua cùng một ma trận trộn để tạo ra lệnh cho từng động cơ:
+
+\begin{equation}
+\mathbf{u}
+=
+\begin{bmatrix}
+u_f \\
+u_l \\
+u_z \\
+u_{\psi}
+\end{bmatrix}
+\quad
+\Rightarrow
+\quad
+\mathbf{t} = M\mathbf{u}
+\quad
+\Rightarrow
+\quad
+PWM_i = PWM_{neutral} + clip(t_i,-1,1)G_{ESC}P_{max}
+\end{equation}
+
+Như vậy, có thể xem bộ điều khiển PID là khối tạo lệnh chuyển động, còn ma trận trộn là khối phân bổ lệnh chuyển động xuống các cơ cấu chấp hành. Sự tách biệt này giúp hệ thống có cấu trúc rõ ràng: các thuật toán điều khiển chỉ cần quan tâm đến việc ROV cần di chuyển theo hướng nào, trong khi ma trận trộn chịu trách nhiệm xác định từng động cơ phải hoạt động ra sao để tạo ra chuyển động đó.
+
+\subsubsection{Ý nghĩa đối với bài toán điều khiển ROV trong đồ án}
+
+Trong bài toán của đồ án, ROV cần thực hiện các chuyển động ổn định và có khả năng phối hợp nhiều trục điều khiển cùng lúc. Ví dụ, khi bám theo mục tiêu, ROV có thể cần tiến/lùi để giữ khoảng cách, dịch ngang để đưa mục tiêu về vị trí mong muốn trong khung hình, đồng thời giữ độ sâu và hướng quay ổn định. Nếu điều khiển trực tiếp từng động cơ, việc phối hợp các chuyển động này sẽ phức tạp và khó mở rộng.
+
+Việc sử dụng vector điều khiển cấp cao kết hợp với ma trận trộn giải quyết vấn đề này bằng cách chuẩn hóa giao diện giữa thuật toán điều khiển và phần cứng động cơ. Mọi thuật toán điều khiển đều chỉ cần sinh ra lệnh theo bốn trục cơ bản gồm tiến/lùi, dịch ngang, lên/xuống và yaw. Sau đó, ma trận trộn tự động chuyển đổi các lệnh này thành lệnh tương ứng cho 8 động cơ đẩy.
+
+Cách tiếp cận này có ba ưu điểm chính. Thứ nhất, nó giúp đơn giản hóa quá trình thiết kế thuật toán điều khiển, vì bộ điều khiển không cần trực tiếp tính toán lệnh cho từng động cơ. Thứ hai, nó cho phép kết hợp nhiều chế độ điều khiển khác nhau trong cùng một hệ thống, chẳng hạn điều khiển thủ công, giữ hướng, giữ độ sâu và bám mục tiêu bằng thị giác. Thứ ba, nó giúp hệ thống dễ bảo trì và hiệu chỉnh, vì khi thay đổi cấu hình động cơ hoặc thứ tự kết nối phần cứng, có thể chỉ cần điều chỉnh ma trận trộn hoặc bảng ánh xạ kênh PWM mà không cần thay đổi toàn bộ thuật toán điều khiển cấp cao.
+
+Tóm lại, cơ sở lý thuyết của khối điều khiển chuyển động ROV trong đồ án dựa trên ba bước chính: biểu diễn lệnh chuyển động bằng vector điều khiển cấp cao, phân bổ lệnh xuống từng động cơ bằng ma trận trộn, và chuyển đổi lệnh động cơ chuẩn hóa thành tín hiệu PWM gửi tới ESC. Chuỗi xử lý này có thể được tóm tắt như sau:
+
+\begin{equation}
+\boxed{
+\mathbf{u}
+=
+\begin{bmatrix}
+u_f \\
+u_l \\
+u_z \\
+u_{\psi}
+\end{bmatrix}
+}
+\end{equation}
+
+\begin{equation}
+\boxed{
+\mathbf{t} = M\mathbf{u}
+}
+\end{equation}
+
+\begin{equation}
+\boxed{
+PWM_i = PWM_{neutral} + clip(t_i,-1,1)G_{ESC}P_{max}
+}
+\end{equation}
+
+Đây là nền tảng để triển khai các chế độ điều khiển cao hơn của ROV, bao gồm điều khiển thủ công, ổn định tư thế, giữ độ sâu và bám mục tiêu tự động.
+
+
+\subsection{Thuật toán Optical Flow}
+\label{subsection:5.1.2}
+
+Trong bài toán bám mục tiêu của ROV, hệ thống cần xác định sự thay đổi vị trí của đối tượng trong chuỗi ảnh thu được từ camera. Sau khi người vận hành chọn một mục tiêu trên khung hình, thuật toán thị giác cần tiếp tục theo dõi mục tiêu đó trong các frame kế tiếp và ước lượng sự dịch chuyển của mục tiêu trong ảnh. Thông tin dịch chuyển này sau đó được chuyển thành sai số thị giác, làm đầu vào cho bộ điều khiển chuyển động của ROV.
+
+Optical Flow là một phương pháp thị giác máy tính dùng để ước lượng chuyển động biểu kiến của các điểm ảnh giữa hai frame liên tiếp trong một chuỗi ảnh. Chuyển động biểu kiến ở đây là chuyển động quan sát được trên mặt phẳng ảnh, không nhất thiết là chuyển động thật trong không gian ba chiều. Nguyên nhân tạo ra Optical Flow có thể đến từ chuyển động của vật thể, chuyển động của camera, hoặc đồng thời cả hai. Đối với hệ thống ROV, camera được gắn trên phương tiện, vì vậy chuyển động trong ảnh có thể phản ánh cả chuyển động của mục tiêu và chuyển động tương đối giữa ROV với mục tiêu.
+
+Trong đồ án này, Optical Flow được sử dụng nhằm giải quyết yêu cầu theo dõi mục tiêu đã chọn trong luồng hình ảnh thời gian thực. Thay vì nhận dạng lại vật thể ở mỗi frame bằng một mô hình học sâu, thuật toán theo dõi sự dịch chuyển của các điểm đặc trưng thuộc vùng mục tiêu giữa các frame liên tiếp. Cách tiếp cận này phù hợp với hệ thống nhúng và xử lý thời gian thực vì không yêu cầu tập dữ liệu huấn luyện lớn, chi phí tính toán tương đối thấp và có thể áp dụng cho mục tiêu do người dùng chọn tùy ý.
+
+\subsubsection{Khái niệm chuyển động biểu kiến trong ảnh}
+
+Một camera ghi lại cảnh ba chiều của môi trường dưới dạng ảnh hai chiều. Khi vật thể trong môi trường chuyển động hoặc khi camera chuyển động, vị trí chiếu của các điểm vật lý lên mặt phẳng ảnh cũng thay đổi. Sự thay đổi vị trí này tạo thành trường chuyển động trong ảnh.
+
+Giả sử một điểm vật lý $P$ trên mục tiêu được camera quan sát tại thời điểm $t$. Điểm này được chiếu lên ảnh tại vị trí:
+
+\begin{equation}
+\mathbf{p}(t) =
+\begin{bmatrix}
+x(t) \\
+y(t)
+\end{bmatrix}
+\end{equation}
+
+Tại thời điểm kế tiếp $t + \Delta t$, do chuyển động tương đối giữa camera và mục tiêu, điểm $P$ có thể xuất hiện tại vị trí mới:
+
+\begin{equation}
+\mathbf{p}(t+\Delta t) =
+\begin{bmatrix}
+x(t+\Delta t) \\
+y(t+\Delta t)
+\end{bmatrix}
+\end{equation}
+
+Vector dịch chuyển của điểm ảnh giữa hai frame là:
+
+\begin{equation}
+\Delta \mathbf{p}
+=
+\mathbf{p}(t+\Delta t) - \mathbf{p}(t)
+=
+\begin{bmatrix}
+\Delta x \\
+\Delta y
+\end{bmatrix}
+\end{equation}
+
+Trong đó:
+
+\begin{equation}
+\Delta x = x(t+\Delta t) - x(t)
+\end{equation}
+
+\begin{equation}
+\Delta y = y(t+\Delta t) - y(t)
+\end{equation}
+
+Nếu chia độ dịch chuyển cho khoảng thời gian giữa hai frame, ta thu được vận tốc biểu kiến của điểm ảnh:
+
+\begin{equation}
+\mathbf{v}
+=
+\frac{\Delta \mathbf{p}}{\Delta t}
+=
+\begin{bmatrix}
+u \\
+v
+\end{bmatrix}
+\end{equation}
+
+Trong đó $u$ là thành phần vận tốc theo phương ngang của ảnh và $v$ là thành phần vận tốc theo phương dọc của ảnh. Tập hợp các vector vận tốc của các điểm ảnh trong toàn bộ ảnh được gọi là trường Optical Flow.
+
+\subsubsection{Phân biệt chuyển động thật và Optical Flow}
+
+Cần phân biệt giữa chuyển động thật trong không gian ba chiều và Optical Flow trong ảnh. Chuyển động thật của vật thể diễn ra trong hệ tọa độ không gian, có thể được biểu diễn bằng các đại lượng như vị trí, vận tốc và gia tốc trong hệ tọa độ 3D. Trong khi đó, Optical Flow chỉ mô tả sự thay đổi vị trí của các điểm ảnh trên mặt phẳng ảnh 2D.
+
+Một điểm quan trọng là cùng một chuyển động trên ảnh có thể được tạo ra bởi nhiều nguyên nhân khác nhau. Ví dụ, nếu mục tiêu dịch sang phải trong ảnh, nguyên nhân có thể là:
+\begin{itemize}
+    \item mục tiêu thật sự di chuyển sang phải so với camera;
+    \item ROV hoặc camera di chuyển sang trái;
+    \item ROV quay yaw làm toàn bộ cảnh dịch chuyển trong ảnh;
+    \item kết hợp của nhiều nguyên nhân trên.
+\end{itemize}
+
+Vì vậy, Optical Flow không trực tiếp cung cấp tọa độ 3D hay vận tốc thật của mục tiêu. Tuy nhiên, trong bài toán điều khiển bám mục tiêu, hệ thống không nhất thiết cần khôi phục đầy đủ chuyển động 3D. Mục tiêu điều khiển là làm cho đối tượng đã chọn duy trì vị trí mong muốn trong ảnh và duy trì kích thước tương đối phù hợp. Do đó, sai lệch ảnh do Optical Flow cung cấp là đủ để tạo phản hồi điều khiển cho ROV.
+
+\subsubsection{Giả thiết bảo toàn độ sáng}
+
+Cơ sở quan trọng nhất của Optical Flow là giả thiết bảo toàn độ sáng. Giả thiết này cho rằng cường độ sáng của cùng một điểm vật lý gần như không đổi giữa hai frame liên tiếp trong một khoảng thời gian rất ngắn.
+
+Gọi cường độ sáng tại vị trí ảnh $(x,y)$ và thời điểm $t$ là:
+
+\begin{equation}
+I(x,y,t)
+\end{equation}
+
+Nếu điểm ảnh tại $(x,y)$ ở thời điểm $t$ dịch chuyển đến vị trí $(x+\Delta x, y+\Delta y)$ ở thời điểm $t+\Delta t$, giả thiết bảo toàn độ sáng được viết như sau:
+
+\begin{equation}
+I(x,y,t)
+=
+I(x+\Delta x, y+\Delta y, t+\Delta t)
+\end{equation}
+
+Ý nghĩa của phương trình này là: mặc dù vị trí của điểm ảnh thay đổi, giá trị cường độ sáng của điểm vật lý tương ứng được xem là gần như không đổi.
+
+Giả thiết này thường hợp lý khi:
+\begin{itemize}
+    \item khoảng thời gian giữa hai frame nhỏ;
+    \item vật thể không thay đổi màu sắc đột ngột;
+    \item điều kiện chiếu sáng không thay đổi quá nhanh;
+    \item camera không bị rung hoặc mờ quá mạnh.
+\end{itemize}
+
+Tuy nhiên, trong môi trường dưới nước, giả thiết này có thể bị ảnh hưởng bởi ánh sáng yếu, nhiễu, phản xạ, tán xạ ánh sáng và độ đục của nước. Vì vậy, hệ thống cần kết hợp Optical Flow với các cơ chế kiểm tra độ tin cậy để tránh sử dụng các kết quả theo dõi sai.
+
+\subsubsection{Khai triển Taylor và phương trình ràng buộc Optical Flow}
+
+Để xây dựng phương trình cơ bản của Optical Flow, xét biểu thức:
+
+\begin{equation}
+I(x+\Delta x, y+\Delta y, t+\Delta t)
+\end{equation}
+
+Khai triển Taylor bậc nhất quanh điểm $(x,y,t)$:
+
+\begin{equation}
+I(x+\Delta x, y+\Delta y, t+\Delta t)
+\approx
+I(x,y,t)
++
+I_x\Delta x
++
+I_y\Delta y
++
+I_t\Delta t
+\end{equation}
+
+Trong đó:
+\begin{itemize}
+    \item $I_x = \frac{\partial I}{\partial x}$ là đạo hàm riêng của cường độ ảnh theo phương ngang;
+    \item $I_y = \frac{\partial I}{\partial y}$ là đạo hàm riêng của cường độ ảnh theo phương dọc;
+    \item $I_t = \frac{\partial I}{\partial t}$ là đạo hàm riêng của cường độ ảnh theo thời gian.
+\end{itemize}
+
+Từ giả thiết bảo toàn độ sáng:
+
+\begin{equation}
+I(x,y,t)
+=
+I(x+\Delta x, y+\Delta y, t+\Delta t)
+\end{equation}
+
+Thay khai triển Taylor vào, ta có:
+
+\begin{equation}
+I(x,y,t)
+=
+I(x,y,t)
++
+I_x\Delta x
++
+I_y\Delta y
++
+I_t\Delta t
+\end{equation}
+
+Rút gọn hai vế:
+
+\begin{equation}
+I_x\Delta x + I_y\Delta y + I_t\Delta t = 0
+\end{equation}
+
+Chia cả hai vế cho $\Delta t$:
+
+\begin{equation}
+I_x\frac{\Delta x}{\Delta t}
++
+I_y\frac{\Delta y}{\Delta t}
++
+I_t
+=
+0
+\end{equation}
+
+Đặt:
+
+\begin{equation}
+u = \frac{\Delta x}{\Delta t}
+\end{equation}
+
+\begin{equation}
+v = \frac{\Delta y}{\Delta t}
+\end{equation}
+
+Ta thu được phương trình ràng buộc Optical Flow:
+
+\begin{equation}
+I_xu + I_yv + I_t = 0
+\end{equation}
+
+Phương trình này mô tả quan hệ giữa gradient không gian của ảnh, biến thiên thời gian của ảnh và vận tốc biểu kiến của điểm ảnh. Đây là phương trình nền tảng của nhiều thuật toán Optical Flow.
+
+\subsubsection{Ý nghĩa của các thành phần $I_x$, $I_y$, $I_t$}
+
+Trong phương trình:
+
+\begin{equation}
+I_xu + I_yv + I_t = 0
+\end{equation}
+
+mỗi thành phần có một ý nghĩa riêng.
+
+Thành phần $I_x$ cho biết cường độ ảnh thay đổi nhanh hay chậm theo phương ngang. Nếu ảnh có biên dọc rõ ràng, giá trị $I_x$ thường lớn. Thành phần $I_y$ cho biết cường độ ảnh thay đổi theo phương dọc. Nếu ảnh có biên ngang rõ ràng, giá trị $I_y$ thường lớn. Thành phần $I_t$ cho biết sự thay đổi cường độ ảnh giữa hai frame liên tiếp.
+
+Nếu một vùng ảnh hoàn toàn phẳng, tức là cường độ gần như không đổi theo cả phương ngang và phương dọc, ta có:
+
+\begin{equation}
+I_x \approx 0, \quad I_y \approx 0
+\end{equation}
+
+Khi đó, rất khó xác định chuyển động của vùng ảnh vì không có đủ thông tin đặc trưng để theo dõi. Đây là lý do Optical Flow thường hoạt động tốt hơn trên các vùng có texture, góc, cạnh hoặc hoa văn rõ ràng.
+
+\subsubsection{Vấn đề aperture problem}
+
+Phương trình ràng buộc Optical Flow có dạng:
+
+\begin{equation}
+I_xu + I_yv + I_t = 0
+\end{equation}
+
+Trong phương trình này, hai ẩn số cần tìm là $u$ và $v$, nhưng chỉ có một phương trình. Do đó, nếu chỉ xét một điểm ảnh riêng lẻ, không thể xác định duy nhất vector chuyển động hai chiều của điểm ảnh đó. Đây được gọi là vấn đề thiếu ràng buộc trong Optical Flow, hay aperture problem.
+
+Aperture problem có thể hiểu trực quan như sau: nếu chỉ quan sát một đoạn cạnh thẳng thông qua một cửa sổ nhỏ, ta chỉ thấy rõ chuyển động vuông góc với cạnh, còn chuyển động dọc theo cạnh rất khó xác định. Vì vậy, để ước lượng chuyển động ổn định, thuật toán cần xét thêm thông tin từ các điểm ảnh lân cận hoặc áp dụng thêm giả thiết về tính trơn của trường chuyển động.
+
+Các phương pháp Optical Flow thường giải quyết vấn đề này bằng một trong hai hướng:
+\begin{itemize}
+    \item giả định các điểm lân cận có chuyển động giống nhau trong một cửa sổ nhỏ;
+    \item giả định trường chuyển động thay đổi trơn trong toàn ảnh.
+\end{itemize}
+
+Phương pháp Lucas--Kanade thuộc nhóm thứ nhất, trong khi các phương pháp dense Optical Flow toàn cục như Horn--Schunck thuộc nhóm thứ hai.
+
+\subsubsection{Sparse Optical Flow và Dense Optical Flow}
+
+Optical Flow có thể được chia thành hai nhóm chính: sparse Optical Flow và dense Optical Flow.
+
+Dense Optical Flow ước lượng vector chuyển động cho hầu hết hoặc toàn bộ các điểm ảnh trong ảnh. Kết quả là một trường vector dày đặc biểu diễn chuyển động tại mỗi pixel. Cách tiếp cận này cung cấp thông tin chuyển động chi tiết, nhưng thường có chi phí tính toán cao hơn.
+
+Sparse Optical Flow chỉ ước lượng chuyển động cho một tập điểm đặc trưng được chọn trước. Các điểm này thường là góc, cạnh hoặc vùng có texture rõ ràng. Vì chỉ theo dõi một số lượng điểm nhất định, sparse Optical Flow có chi phí tính toán thấp hơn và phù hợp với các hệ thống cần xử lý thời gian thực.
+
+Trong bài toán bám mục tiêu của ROV, sparse Optical Flow là lựa chọn phù hợp vì hệ thống chỉ cần theo dõi vùng mục tiêu đã chọn, không cần tính trường chuyển động cho toàn bộ ảnh. Việc tập trung vào các điểm đặc trưng trong bounding box giúp giảm tải tính toán và tăng khả năng chạy thời gian thực trên phần cứng nhúng.
+
+\subsubsection{Phương pháp Lucas--Kanade}
+
+Phương pháp Lucas--Kanade là một phương pháp phổ biến để tính sparse Optical Flow. Ý tưởng chính của phương pháp này là trong một vùng ảnh nhỏ, các điểm ảnh lân cận được giả định có cùng vector chuyển động. Nhờ đó, từ nhiều phương trình ràng buộc Optical Flow của các điểm trong vùng lân cận, ta có thể tìm được vector chuyển động chung theo nghĩa bình phương tối thiểu.
+
+Giả sử xét một cửa sổ nhỏ gồm $n$ điểm ảnh quanh điểm cần theo dõi. Với điểm ảnh thứ $i$, phương trình Optical Flow là:
+
+\begin{equation}
+I_{x_i}u + I_{y_i}v + I_{t_i} = 0
+\end{equation}
+
+Hay:
+
+\begin{equation}
+I_{x_i}u + I_{y_i}v = -I_{t_i}
+\end{equation}
+
+Với $n$ điểm ảnh, ta thu được hệ phương trình:
+
+\begin{equation}
+\begin{cases}
+I_{x_1}u + I_{y_1}v = -I_{t_1} \\
+I_{x_2}u + I_{y_2}v = -I_{t_2} \\
+\cdots \\
+I_{x_n}u + I_{y_n}v = -I_{t_n}
+\end{cases}
+\end{equation}
+
+Viết dưới dạng ma trận:
+
+\begin{equation}
+A\mathbf{d} = \mathbf{b}
+\end{equation}
+
+Trong đó:
+
+\begin{equation}
+A =
+\begin{bmatrix}
+I_{x_1} & I_{y_1} \\
+I_{x_2} & I_{y_2} \\
+\vdots & \vdots \\
+I_{x_n} & I_{y_n}
+\end{bmatrix}
+\end{equation}
+
+\begin{equation}
+\mathbf{d}
+=
+\begin{bmatrix}
+u \\
+v
+\end{bmatrix}
+\end{equation}
+
+\begin{equation}
+\mathbf{b}
+=
+-
+\begin{bmatrix}
+I_{t_1} \\
+I_{t_2} \\
+\vdots \\
+I_{t_n}
+\end{bmatrix}
+\end{equation}
+
+Vì số phương trình thường lớn hơn số ẩn, hệ được giải theo nghĩa bình phương tối thiểu:
+
+\begin{equation}
+\mathbf{d}
+=
+(A^TA)^{-1}A^T\mathbf{b}
+\end{equation}
+
+Trong đó:
+
+\begin{equation}
+A^TA =
+\begin{bmatrix}
+\sum I_{x_i}^2 & \sum I_{x_i}I_{y_i} \\
+\sum I_{x_i}I_{y_i} & \sum I_{y_i}^2
+\end{bmatrix}
+\end{equation}
+
+Ma trận $A^TA$ còn được gọi là ma trận cấu trúc cục bộ của vùng ảnh. Để điểm đặc trưng có thể theo dõi tốt, ma trận này cần khả nghịch và có hai trị riêng đủ lớn. Điều đó có nghĩa là vùng ảnh cần có biến thiên cường độ theo cả hai phương, chẳng hạn như các điểm góc. Nếu vùng ảnh chỉ có một cạnh thẳng, một trị riêng có thể nhỏ, khiến việc ước lượng chuyển động theo một hướng trở nên không ổn định. Nếu vùng ảnh phẳng, cả hai trị riêng đều nhỏ và điểm đó không phù hợp để theo dõi.
+
+\subsubsection{Lựa chọn điểm đặc trưng}
+
+Trước khi áp dụng Lucas--Kanade, hệ thống cần chọn các điểm đặc trưng phù hợp trong vùng mục tiêu. Điểm đặc trưng tốt là điểm có thể được nhận ra và theo dõi ổn định qua các frame liên tiếp. Trong thực tế, các điểm góc thường được ưu tiên vì chúng có sự thay đổi cường độ rõ ràng theo cả hai phương ngang và dọc.
+
+Một tiêu chí thường được sử dụng để đánh giá điểm đặc trưng là dựa trên ma trận cấu trúc:
+
+\begin{equation}
+G =
+\sum_{(x,y)\in W}
+\begin{bmatrix}
+I_x^2 & I_xI_y \\
+I_xI_y & I_y^2
+\end{bmatrix}
+\end{equation}
+
+Trong đó $W$ là cửa sổ lân cận quanh điểm đang xét. Gọi $\lambda_1$ và $\lambda_2$ là hai trị riêng của ma trận $G$. Một điểm được coi là dễ theo dõi nếu cả hai trị riêng đều đủ lớn:
+
+\begin{equation}
+\lambda_1 > \lambda_{min}, \quad \lambda_2 > \lambda_{min}
+\end{equation}
+
+Nếu một trong hai trị riêng quá nhỏ, điểm đó có thể nằm trên một cạnh đơn hướng và dễ gặp aperture problem. Nếu cả hai trị riêng đều nhỏ, vùng ảnh gần như phẳng và không cung cấp đủ thông tin để theo dõi.
+
+Trong bài toán ROV, điểm đặc trưng được chọn trong bounding box của mục tiêu. Việc chọn điểm bên trong vùng mục tiêu giúp thuật toán tập trung theo dõi đối tượng quan tâm, tránh bị ảnh hưởng bởi chuyển động nền hoặc các vật thể không liên quan.
+
+\subsubsection{Pyramidal Lucas--Kanade}
+
+Lucas--Kanade cơ bản giả định chuyển động giữa hai frame là nhỏ. Giả định này phù hợp khi tốc độ frame cao và chuyển động của đối tượng không quá nhanh. Tuy nhiên, trong thực tế, ROV và mục tiêu có thể chuyển động nhanh hơn, hoặc camera có thể rung, khiến độ dịch chuyển giữa hai frame khá lớn. Khi đó, Lucas--Kanade ở một độ phân giải duy nhất có thể không theo dõi ổn định.
+
+Để xử lý chuyển động lớn hơn, phương pháp Pyramidal Lucas--Kanade sử dụng tháp ảnh đa tỉ lệ. Ý tưởng là xây dựng nhiều phiên bản của ảnh ở các độ phân giải khác nhau:
+
+\begin{equation}
+I^0, I^1, I^2, \ldots, I^L
+\end{equation}
+
+Trong đó:
+\begin{itemize}
+    \item $I^0$ là ảnh gốc;
+    \item $I^1$ là ảnh giảm kích thước từ $I^0$;
+    \item $I^2$ là ảnh tiếp tục giảm kích thước từ $I^1$;
+    \item $I^L$ là mức ảnh có độ phân giải thấp nhất.
+\end{itemize}
+
+Ở mức ảnh thấp, chuyển động lớn trong ảnh gốc trở thành chuyển động nhỏ hơn tính theo số pixel. Thuật toán bắt đầu ước lượng chuyển động ở mức thô nhất, sau đó lan truyền kết quả xuống các mức ảnh có độ phân giải cao hơn để tinh chỉnh.
+
+Quy trình tổng quát như sau:
+
+\begin{enumerate}
+    \item Xây dựng tháp ảnh cho frame trước và frame hiện tại.
+    \item Bắt đầu từ mức ảnh có độ phân giải thấp nhất.
+    \item Ước lượng chuyển động của điểm đặc trưng ở mức này.
+    \item Phóng đại vector chuyển động lên mức ảnh cao hơn.
+    \item Dùng vector đã phóng đại làm khởi tạo để tinh chỉnh ở mức tiếp theo.
+    \item Lặp lại cho tới ảnh gốc.
+\end{enumerate}
+
+Nhờ cơ chế coarse-to-fine này, Pyramidal Lucas--Kanade có thể theo dõi chuyển động lớn hơn so với Lucas--Kanade một mức ảnh. Đây là lý do phương pháp này thường được dùng trong các hệ thống tracking thời gian thực.
+
+\subsubsection{Theo dõi bounding box mục tiêu}
+
+Trong bài toán bám mục tiêu, người dùng thường chọn mục tiêu bằng một bounding box trên khung hình. Bounding box có thể được biểu diễn bởi tọa độ góc trái trên và kích thước:
+
+\begin{equation}
+B_t = (x_t, y_t, w_t, h_t)
+\end{equation}
+
+Trong đó:
+\begin{itemize}
+    \item $(x_t, y_t)$ là tọa độ góc trái trên của bounding box tại thời điểm $t$;
+    \item $w_t$ là chiều rộng bounding box;
+    \item $h_t$ là chiều cao bounding box.
+\end{itemize}
+
+Tâm của bounding box là:
+
+\begin{equation}
+c_t =
+\begin{bmatrix}
+x_t + \frac{w_t}{2} \\
+y_t + \frac{h_t}{2}
+\end{bmatrix}
+\end{equation}
+
+Khi người dùng chọn mục tiêu ban đầu, hệ thống lưu bounding box tham chiếu:
+
+\begin{equation}
+B_0 = (x_0, y_0, w_0, h_0)
+\end{equation}
+
+và tâm ban đầu:
+
+\begin{equation}
+c_0 =
+\begin{bmatrix}
+x_0 + \frac{w_0}{2} \\
+y_0 + \frac{h_0}{2}
+\end{bmatrix}
+\end{equation}
+
+Trong vùng bounding box ban đầu, hệ thống chọn một tập các điểm đặc trưng:
+
+\begin{equation}
+P_0 = \{p_1^0, p_2^0, \ldots, p_N^0\}
+\end{equation}
+
+Với mỗi frame mới, Optical Flow ước lượng vị trí mới của các điểm này:
+
+\begin{equation}
+P_t = \{p_1^t, p_2^t, \ldots, p_N^t\}
+\end{equation}
+
+Độ dịch chuyển của từng điểm là:
+
+\begin{equation}
+\Delta p_i = p_i^t - p_i^{t-1}
+\end{equation}
+
+Từ các vector dịch chuyển của nhiều điểm, hệ thống có thể ước lượng độ dịch chuyển tổng thể của mục tiêu. Một cách đơn giản là lấy trung bình:
+
+\begin{equation}
+\Delta c =
+\frac{1}{N}
+\sum_{i=1}^{N}
+\Delta p_i
+\end{equation}
+
+Tuy nhiên, trung bình có thể bị ảnh hưởng bởi các điểm theo dõi sai. Do đó, trong thực tế thường dùng trung vị để tăng tính bền vững:
+
+\begin{equation}
+\Delta x = median(\Delta x_1, \Delta x_2, \ldots, \Delta x_N)
+\end{equation}
+
+\begin{equation}
+\Delta y = median(\Delta y_1, \Delta y_2, \ldots, \Delta y_N)
+\end{equation}
+
+Sau khi có độ dịch chuyển tổng thể, tâm bounding box được cập nhật:
+
+\begin{equation}
+c_t = c_{t-1} + 
+\begin{bmatrix}
+\Delta x \\
+\Delta y
+\end{bmatrix}
+\end{equation}
+
+Từ tâm mới và kích thước hiện tại của bounding box, hệ thống suy ra vị trí bounding box mới. Như vậy, Optical Flow không nhất thiết cần nhận dạng lại toàn bộ vật thể, mà chỉ cần theo dõi sự dịch chuyển của các điểm đặc trưng đại diện cho vật thể.
+
+\subsubsection{Ước lượng thay đổi tỉ lệ mục tiêu}
+
+Ngoài vị trí tâm, kích thước của mục tiêu trong ảnh cũng là thông tin quan trọng. Khi ROV tiến lại gần mục tiêu, mục tiêu thường xuất hiện lớn hơn trong ảnh. Khi ROV lùi xa, mục tiêu thường nhỏ hơn. Vì vậy, sự thay đổi diện tích bounding box có thể được sử dụng như một tín hiệu tương đối về khoảng cách.
+
+Diện tích bounding box tại thời điểm $t$ là:
+
+\begin{equation}
+A_t = w_t h_t
+\end{equation}
+
+Diện tích ban đầu là:
+
+\begin{equation}
+A_0 = w_0 h_0
+\end{equation}
+
+Tỉ lệ thay đổi diện tích có thể được tính bằng:
+
+\begin{equation}
+r_A = \frac{A_t}{A_0}
+\end{equation}
+
+Sai lệch diện tích so với ban đầu:
+
+\begin{equation}
+e_A = \frac{A_t - A_0}{A_0}
+\end{equation}
+
+Nếu $e_A > 0$, mục tiêu đang lớn hơn so với lúc chọn ban đầu. Điều này thường tương ứng với việc ROV đang gần mục tiêu hơn. Nếu $e_A < 0$, mục tiêu nhỏ hơn so với ban đầu, thường tương ứng với việc ROV đang xa mục tiêu hơn. Nếu $e_A \approx 0$, kích thước mục tiêu gần với kích thước tham chiếu.
+
+Trong một số trường hợp, thay vì dùng trực tiếp diện tích, có thể dùng căn bậc hai của tỉ lệ diện tích để biểu diễn thay đổi tỉ lệ tuyến tính của kích thước:
+
+\begin{equation}
+s = \sqrt{\frac{A_t}{A_0}}
+\end{equation}
+
+Sai lệch tỉ lệ khi đó có thể viết:
+
+\begin{equation}
+e_s = s - 1
+\end{equation}
+
+Cách biểu diễn này hợp lý vì diện tích tỉ lệ với bình phương kích thước tuyến tính. Nếu chiều rộng và chiều cao của mục tiêu cùng tăng theo một hệ số $s$, diện tích sẽ tăng theo $s^2$.
+
+\subsubsection{Chuẩn hóa sai lệch ảnh}
+
+Sai lệch tính bằng pixel phụ thuộc vào độ phân giải ảnh. Một sai lệch 40 pixel trên ảnh rộng 320 pixel có ý nghĩa lớn hơn nhiều so với sai lệch 40 pixel trên ảnh rộng 1920 pixel. Vì vậy, để bộ điều khiển không phụ thuộc quá mạnh vào độ phân giải camera, sai lệch ảnh thường được chuẩn hóa.
+
+Giả sử ảnh có chiều rộng $W$ và chiều cao $H$. Nếu tâm ảnh là:
+
+\begin{equation}
+c_{img} =
+\begin{bmatrix}
+\frac{W}{2} \\
+\frac{H}{2}
+\end{bmatrix}
+\end{equation}
+
+và tâm mục tiêu hiện tại là:
+
+\begin{equation}
+c_t =
+\begin{bmatrix}
+x_c \\
+y_c
+\end{bmatrix}
+\end{equation}
+
+thì sai lệch so với tâm ảnh là:
+
+\begin{equation}
+\Delta x_c = x_c - \frac{W}{2}
+\end{equation}
+
+\begin{equation}
+\Delta y_c = y_c - \frac{H}{2}
+\end{equation}
+
+Sai lệch chuẩn hóa có thể được tính:
+
+\begin{equation}
+e_x = \frac{\Delta x_c}{W/2}
+\end{equation}
+
+\begin{equation}
+e_y = \frac{\Delta y_c}{H/2}
+\end{equation}
+
+Khi đó, nếu mục tiêu nằm gần biên phải của ảnh, $e_x$ gần $1$. Nếu mục tiêu nằm gần biên trái, $e_x$ gần $-1$. Nếu mục tiêu ở gần tâm ảnh, $e_x$ gần $0$. Tương tự, $e_y$ biểu diễn sai lệch theo phương dọc.
+
+Trong một số thiết kế, sai lệch không được tính so với tâm ảnh mà tính so với vị trí mục tiêu tại thời điểm người dùng chọn. Khi đó, hệ thống sẽ cố giữ mục tiêu tại vị trí được chọn ban đầu thay vì đưa mục tiêu về đúng tâm ảnh. Cách chọn điểm tham chiếu phụ thuộc vào yêu cầu điều khiển của hệ thống.
+
+\subsubsection{Sai lệch frame-to-frame và sai lệch so với điểm tham chiếu}
+
+Khi dùng Optical Flow cho tracking, cần phân biệt hai loại sai lệch:
+
+\begin{itemize}
+    \item sai lệch giữa hai frame liên tiếp;
+    \item sai lệch giữa trạng thái hiện tại và trạng thái tham chiếu.
+\end{itemize}
+
+Sai lệch giữa hai frame liên tiếp mô tả mục tiêu vừa dịch chuyển bao nhiêu trong khoảng thời gian rất ngắn:
+
+\begin{equation}
+\Delta p_{t,t-1} = p_t - p_{t-1}
+\end{equation}
+
+Sai lệch này phù hợp để cập nhật vị trí tracker theo thời gian. Tuy nhiên, nếu chỉ dùng sai lệch frame-to-frame làm đầu vào điều khiển, bộ điều khiển có thể chỉ phản ứng với vận tốc tương đối trong ảnh, không phản ánh trực tiếp việc mục tiêu đang lệch bao xa so với vị trí mong muốn.
+
+Trong khi đó, sai lệch so với điểm tham chiếu được tính:
+
+\begin{equation}
+\Delta p_{t,ref} = p_t - p_{ref}
+\end{equation}
+
+Trong đó $p_{ref}$ có thể là tâm ảnh hoặc vị trí mục tiêu tại thời điểm người dùng chọn. Sai lệch này phản ánh trực tiếp mục tiêu đang nằm lệch bao nhiêu so với vị trí mong muốn. Đối với điều khiển phản hồi, sai lệch so với điểm tham chiếu thường phù hợp hơn vì mục tiêu của bộ điều khiển là đưa sai lệch về 0.
+
+Trong bài toán ROV, nếu yêu cầu là giữ mục tiêu tại đúng vị trí ban đầu khi người dùng chọn, điểm tham chiếu nên là vị trí mục tiêu lúc khởi tạo tracking. Nếu yêu cầu là luôn đưa mục tiêu vào tâm ảnh, điểm tham chiếu nên là tâm khung hình. Việc xác định rõ điểm tham chiếu rất quan trọng vì nó quyết định ý nghĩa của tín hiệu sai số gửi cho bộ điều khiển.
+
+\subsubsection{Đánh giá độ tin cậy của tracking}
+
+Optical Flow có thể bị sai khi ảnh bị mờ, thiếu texture, mục tiêu bị che khuất, ánh sáng thay đổi hoặc camera rung mạnh. Do đó, hệ thống cần đánh giá độ tin cậy của kết quả tracking trước khi sử dụng nó cho điều khiển ROV.
+
+Một số tiêu chí đánh giá độ tin cậy gồm:
+
+\begin{itemize}
+    \item số lượng điểm đặc trưng còn theo dõi được;
+    \item tỉ lệ điểm theo dõi hợp lệ so với số điểm ban đầu;
+    \item sai số theo dõi thuận--ngược;
+    \item mức phân tán của các vector dịch chuyển;
+    \item diện tích bounding box có nằm trong khoảng hợp lý hay không;
+    \item tốc độ thay đổi vị trí hoặc kích thước bounding box có bất thường hay không.
+\end{itemize}
+
+Giả sử ban đầu có $N_0$ điểm đặc trưng và tại frame hiện tại còn $N_t$ điểm theo dõi hợp lệ. Một chỉ số đơn giản về độ tin cậy là:
+
+\begin{equation}
+c_N = \frac{N_t}{N_0}
+\end{equation}
+
+Nếu $c_N$ thấp, điều đó cho thấy nhiều điểm đặc trưng đã bị mất và kết quả tracking có thể không đáng tin cậy.
+
+Một cách khác là dùng sai số forward--backward. Thuật toán trước hết theo dõi điểm từ frame $t-1$ sang frame $t$, sau đó theo dõi ngược từ frame $t$ về frame $t-1$. Nếu điểm được theo dõi chính xác, vị trí quay ngược lại phải gần với vị trí ban đầu. Sai số forward--backward của điểm thứ $i$ là:
+
+\begin{equation}
+e_i^{fb} = \left\|p_i^{t-1} - \hat{p}_i^{t-1}\right\|
+\end{equation}
+
+Trong đó $p_i^{t-1}$ là vị trí ban đầu của điểm ở frame trước, còn $\hat{p}_i^{t-1}$ là vị trí thu được khi tracking ngược lại. Nếu $e_i^{fb}$ vượt quá một ngưỡng, điểm đó có thể bị loại bỏ.
+
+Độ tin cậy tổng thể có thể được biểu diễn bằng một giá trị:
+
+\begin{equation}
+0 \leq c \leq 1
+\end{equation}
+
+Trong đó $c$ càng gần 1 thì kết quả tracking càng đáng tin cậy. Bộ điều khiển chỉ nên sử dụng dữ liệu Optical Flow khi $c$ lớn hơn một ngưỡng nhất định:
+
+\begin{equation}
+c \geq c_{min}
+\end{equation}
+
+Nếu $c < c_{min}$, hệ thống nên coi mục tiêu là mất hoặc chưa đủ tin cậy, từ đó không gửi lệnh điều khiển tự động dựa trên vision.
+
+\subsubsection{Kiểm tra diện tích bounding box}
+
+Ngoài confidence, diện tích bounding box cũng là một tiêu chí quan trọng để kiểm tra tính hợp lệ của mục tiêu. Nếu bounding box quá nhỏ, mục tiêu có thể đang ở quá xa, bị mất hoặc không còn đủ thông tin ảnh để tracking ổn định. Nếu bounding box quá lớn, mục tiêu có thể quá gần camera, bị cắt khỏi khung hình hoặc tracker đã bị trôi sang vùng nền.
+
+Diện tích bounding box chuẩn hóa theo diện tích ảnh được tính:
+
+\begin{equation}
+\rho_A = \frac{A_t}{WH}
+\end{equation}
+
+Trong đó:
+\begin{itemize}
+    \item $A_t = w_t h_t$ là diện tích bounding box;
+    \item $W$ và $H$ là chiều rộng và chiều cao ảnh.
+\end{itemize}
+
+Bounding box được xem là hợp lệ nếu:
+
+\begin{equation}
+\rho_{min} \leq \rho_A \leq \rho_{max}
+\end{equation}
+
+Việc đặt ngưỡng dưới và ngưỡng trên giúp hệ thống loại bỏ các trường hợp tracking không đáng tin cậy. Trong môi trường dưới nước, kiểm tra này đặc biệt cần thiết vì nhiễu, bọt nước, phản xạ ánh sáng hoặc các vật thể nền có thể làm tracker bị trôi.
+
+\subsubsection{Quy trình Optical Flow trong hệ thống bám mục tiêu}
+
+Quy trình sử dụng Optical Flow cho bám mục tiêu trong hệ thống ROV có thể được mô tả như sau:
+
+\begin{enumerate}
+    \item Camera thu luồng ảnh liên tục từ môi trường phía trước ROV.
+    \item Người vận hành chọn mục tiêu cần bám trên giao diện, thường bằng một bounding box hoặc một điểm chọn trong ảnh.
+    \item Hệ thống lưu trạng thái tham chiếu ban đầu của mục tiêu, bao gồm vị trí, kích thước bounding box và tập điểm đặc trưng.
+    \item Tại mỗi frame mới, thuật toán Optical Flow ước lượng vị trí mới của các điểm đặc trưng.
+    \item Các điểm theo dõi không hợp lệ được loại bỏ dựa trên trạng thái tracking, sai số forward--backward hoặc các tiêu chí chất lượng khác.
+    \item Từ các điểm còn hợp lệ, hệ thống ước lượng độ dịch chuyển tổng thể của mục tiêu.
+    \item Bounding box được cập nhật theo độ dịch chuyển và thay đổi tỉ lệ ước lượng.
+    \item Hệ thống tính sai lệch vị trí mục tiêu và sai lệch kích thước so với trạng thái tham chiếu.
+    \item Các giá trị sai lệch, độ tin cậy và trạng thái tracking được gửi tới bộ điều khiển ROV.
+\end{enumerate}
+
+Có thể tóm tắt pipeline như sau:
+
+\begin{equation}
+Frame_{t-1}, Frame_t
+\rightarrow
+OpticalFlow
+\rightarrow
+\Delta x, \Delta y, e_s, c
+\rightarrow
+Bộ\ điều\ khiển\ ROV
+\end{equation}
+
+Trong đó $\Delta x$ và $\Delta y$ mô tả sai lệch vị trí của mục tiêu trong ảnh, $e_s$ mô tả sai lệch tỉ lệ kích thước, còn $c$ là độ tin cậy của quá trình theo dõi.
+
+\subsubsection{Biến đổi sai lệch ảnh thành sai số điều khiển}
+
+Optical Flow không trực tiếp sinh lệnh cho động cơ đẩy. Thay vào đó, nó cung cấp các đại lượng mô tả trạng thái mục tiêu trong ảnh. Các đại lượng này được chuyển thành sai số điều khiển cho ROV.
+
+Giả sử sai lệch ngang của mục tiêu trong ảnh là $\Delta x$. Sai số điều khiển theo phương ngang có thể được viết:
+
+\begin{equation}
+e_{lat} = k_x \Delta x
+\end{equation}
+
+Trong đó $k_x$ là hệ số chuyển đổi từ pixel sang sai số điều khiển. Nếu dùng sai lệch chuẩn hóa, có thể viết:
+
+\begin{equation}
+e_{lat} = k_x \frac{\Delta x}{W/2}
+\end{equation}
+
+Sai số này được dùng để sinh lệnh dịch ngang cho ROV. Nếu mục tiêu lệch sang phải, ROV cần dịch theo chiều làm giảm sai lệch đó. Dấu của lệnh điều khiển phụ thuộc vào quy ước hệ tọa độ ảnh, hướng lắp camera và quy ước chiều dương của trục lateral.
+
+Tương tự, sai lệch tỉ lệ kích thước $e_s$ có thể được dùng để tạo sai số điều khiển tiến/lùi:
+
+\begin{equation}
+e_{range} = k_s e_s
+\end{equation}
+
+Nếu mục tiêu nhỏ hơn kích thước tham chiếu, ROV có thể cần tiến lại gần. Nếu mục tiêu lớn hơn kích thước tham chiếu, ROV có thể cần lùi ra xa. Dấu của lệnh tiến/lùi cần được chọn sao cho bộ điều khiển làm giảm sai lệch kích thước về 0.
+
+Như vậy, đầu ra của Optical Flow có thể được ánh xạ sang vector sai số điều khiển:
+
+\begin{equation}
+\mathbf{e}_{vision}
+=
+\begin{bmatrix}
+e_{range} \\
+e_{lat}
+\end{bmatrix}
+\end{equation}
+
+Trong đó:
+\begin{itemize}
+    \item $e_{range}$ liên quan đến chuyển động tiến/lùi;
+    \item $e_{lat}$ liên quan đến chuyển động dịch ngang.
+\end{itemize}
+
+Sau đó, bộ điều khiển sẽ biến sai số này thành lệnh chuyển động cấp cao của ROV.
+
+\subsubsection{Liên hệ với điều khiển phản hồi}
+
+Trong hệ thống điều khiển phản hồi, mục tiêu là làm cho sai số giữa trạng thái hiện tại và trạng thái mong muốn tiến về 0. Với bám mục tiêu bằng camera, trạng thái mong muốn không nhất thiết là tọa độ 3D của mục tiêu, mà có thể là vị trí và kích thước mong muốn của mục tiêu trong ảnh.
+
+Có thể định nghĩa vector trạng thái ảnh của mục tiêu:
+
+\begin{equation}
+\mathbf{s}_t =
+\begin{bmatrix}
+x_c \\
+y_c \\
+A_t
+\end{bmatrix}
+\end{equation}
+
+Trong đó:
+\begin{itemize}
+    \item $x_c$ là tọa độ ngang của tâm mục tiêu;
+    \item $y_c$ là tọa độ dọc của tâm mục tiêu;
+    \item $A_t$ là diện tích bounding box hiện tại.
+\end{itemize}
+
+Trạng thái mong muốn:
+
+\begin{equation}
+\mathbf{s}^* =
+\begin{bmatrix}
+x_c^* \\
+y_c^* \\
+A^*
+\end{bmatrix}
+\end{equation}
+
+Sai số thị giác:
+
+\begin{equation}
+\mathbf{e}_t =
+\mathbf{s}_t - \mathbf{s}^*
+=
+\begin{bmatrix}
+x_c - x_c^* \\
+y_c - y_c^* \\
+A_t - A^*
+\end{bmatrix}
+\end{equation}
+
+Trong bài toán điều khiển ROV, có thể chỉ sử dụng một số thành phần của vector sai số này. Ví dụ, sai lệch ngang $x_c - x_c^*$ dùng cho điều khiển lateral, còn sai lệch diện tích $A_t - A^*$ dùng cho điều khiển tiến/lùi. Thành phần sai lệch dọc $y_c - y_c^*$ có thể dùng cho điều khiển lên/xuống nếu hệ thống muốn bám mục tiêu theo cả phương dọc ảnh, hoặc có thể không dùng nếu độ sâu được giữ bởi một bộ điều khiển riêng.
+
+\subsubsection{Ưu điểm của Optical Flow trong hệ thống ROV}
+
+Optical Flow có một số ưu điểm phù hợp với bài toán Track and Catch ROV.
+
+Thứ nhất, Optical Flow không yêu cầu mô hình nhận dạng vật thể được huấn luyện trước. Người vận hành có thể chọn bất kỳ mục tiêu nào trong khung hình, miễn là mục tiêu có đủ đặc trưng ảnh để theo dõi. Điều này giúp hệ thống linh hoạt hơn so với các phương pháp chỉ nhận diện được một số lớp vật thể cố định.
+
+Thứ hai, Optical Flow có chi phí tính toán tương đối thấp nếu sử dụng dạng sparse. Hệ thống chỉ cần theo dõi một số điểm đặc trưng trong vùng mục tiêu, thay vì xử lý toàn bộ ảnh bằng mạng neural lớn. Điều này phù hợp với các nền tảng tính toán hạn chế trên ROV.
+
+Thứ ba, Optical Flow tận dụng tính liên tục thời gian của video. Vì camera cung cấp chuỗi frame liên tiếp, vị trí mục tiêu ở frame hiện tại thường gần với vị trí ở frame trước. Thuật toán có thể khai thác đặc điểm này để tracking thời gian thực.
+
+Thứ tư, đầu ra của Optical Flow có dạng sai lệch pixel và sai lệch kích thước, rất phù hợp để đưa vào bộ điều khiển phản hồi. Bộ điều khiển không cần biết mục tiêu là loại vật thể gì, mà chỉ cần biết mục tiêu đang lệch bao nhiêu so với vị trí mong muốn trong ảnh.
+
+\subsubsection{Giới hạn của Optical Flow trong môi trường dưới nước}
+
+Mặc dù phù hợp với bài toán bám mục tiêu thời gian thực, Optical Flow cũng có các giới hạn cần được phân tích trong đồ án.
+
+Thứ nhất, Optical Flow phụ thuộc mạnh vào texture của mục tiêu. Nếu mục tiêu có bề mặt trơn, ít chi tiết hoặc màu sắc đồng nhất, thuật toán khó chọn được các điểm đặc trưng ổn định.
+
+Thứ hai, Optical Flow nhạy với thay đổi ánh sáng. Trong môi trường dưới nước, ánh sáng có thể thay đổi do phản xạ, tán xạ, đèn chiếu của ROV hoặc sự thay đổi hướng camera. Những thay đổi này có thể làm giả thiết bảo toàn độ sáng không còn đúng.
+
+Thứ ba, ảnh dưới nước thường bị nhiễu, mờ và giảm tương phản. Điều này làm giảm chất lượng gradient ảnh, khiến việc tính $I_x$, $I_y$ và $I_t$ kém ổn định hơn.
+
+Thứ tư, Optical Flow có thể mất mục tiêu khi vật thể chuyển động quá nhanh giữa hai frame. Nếu độ dịch chuyển quá lớn, điểm đặc trưng ở frame trước có thể không còn nằm gần vị trí tìm kiếm ở frame sau.
+
+Thứ năm, thuật toán có thể bị drift. Drift là hiện tượng tracker dần dần trôi khỏi mục tiêu ban đầu do tích lũy sai số qua nhiều frame. Khi drift xảy ra, bounding box có thể bám sang nền hoặc vật thể khác.
+
+Thứ sáu, Optical Flow chỉ cung cấp chuyển động biểu kiến trong ảnh, không trực tiếp cung cấp khoảng cách thật đến mục tiêu. Việc suy luận khoảng cách từ kích thước bounding box chỉ mang tính tương đối và phụ thuộc vào hình dạng, hướng nhìn và kích thước thật của vật thể.
+
+Vì các lý do trên, hệ thống cần kết hợp Optical Flow với các cơ chế kiểm tra độ tin cậy, ngưỡng diện tích bounding box, giới hạn tốc độ thay đổi và cơ chế mất mục tiêu để đảm bảo an toàn khi đưa dữ liệu vision vào điều khiển ROV.
+
+\subsubsection{Các trường hợp lỗi thường gặp}
+
+Trong quá trình vận hành, một hệ thống tracking dựa trên Optical Flow có thể gặp một số trường hợp lỗi sau.
+
+Trường hợp thứ nhất là mất đặc trưng. Khi số điểm đặc trưng còn lại quá ít, hệ thống không còn đủ thông tin để ước lượng chuyển động của mục tiêu. Khi đó, confidence cần giảm xuống và bộ điều khiển không nên tiếp tục dùng dữ liệu vision.
+
+Trường hợp thứ hai là tracking nhầm nền. Điều này xảy ra khi các điểm đặc trưng ban đầu không nằm hoàn toàn trên mục tiêu, hoặc khi mục tiêu rời khỏi vùng ảnh nhưng các điểm trên nền vẫn được theo dõi. Kết quả là tracker vẫn báo có chuyển động, nhưng chuyển động đó không còn đại diện cho mục tiêu.
+
+Trường hợp thứ ba là biến dạng bounding box. Nếu một số điểm theo dõi sai lệch quá lớn, kích thước bounding box có thể tăng hoặc giảm bất thường. Kiểm tra diện tích bounding box và giới hạn tỉ lệ thay đổi giúp phát hiện trường hợp này.
+
+Trường hợp thứ tư là sai lệch do camera rung. Khi toàn bộ ảnh dịch chuyển vì camera rung hoặc ROV quay nhanh, Optical Flow có thể ghi nhận chuyển động lớn dù mục tiêu không thật sự di chuyển tương đối theo cách mong muốn. Trong trường hợp này, cần phối hợp với dữ liệu IMU hoặc giới hạn tốc độ lệnh điều khiển để tránh phản ứng quá mạnh.
+
+Trường hợp thứ năm là thay đổi ánh sáng đột ngột. Khi đèn ROV thay đổi công suất, hoặc mục tiêu đi qua vùng phản xạ mạnh, cường độ ảnh thay đổi làm vi phạm giả thiết bảo toàn độ sáng. Điều này có thể làm tracker mất ổn định.
+
+\subsubsection{Vai trò của tiền xử lý ảnh}
+
+Để Optical Flow hoạt động ổn định hơn, ảnh đầu vào thường được tiền xử lý trước khi tracking. Các bước tiền xử lý có thể gồm:
+
+\begin{itemize}
+    \item chuyển ảnh màu sang ảnh xám;
+    \item giảm nhiễu bằng bộ lọc làm mượt nhẹ;
+    \item cân bằng sáng hoặc tăng tương phản;
+    \item giới hạn vùng xử lý trong bounding box;
+    \item loại bỏ các frame lỗi hoặc quá mờ.
+\end{itemize}
+
+Việc chuyển sang ảnh xám giúp giảm số kênh xử lý và phù hợp với công thức Optical Flow dựa trên cường độ ảnh $I(x,y,t)$. Làm mượt nhẹ giúp giảm nhiễu cao tần, từ đó làm gradient ảnh ổn định hơn. Tuy nhiên, nếu làm mượt quá mạnh, các chi tiết và góc quan trọng có thể bị mất, làm giảm số điểm đặc trưng tốt.
+
+Trong môi trường dưới nước, tăng tương phản có thể cải thiện khả năng phát hiện đặc trưng, nhưng cũng cần tránh khuếch đại nhiễu quá mức. Do đó, tiền xử lý ảnh cần được lựa chọn cân bằng giữa giảm nhiễu và giữ lại chi tiết mục tiêu.
+
+\subsubsection{Tái khởi tạo điểm đặc trưng}
+
+Trong quá trình tracking dài, số lượng điểm đặc trưng có thể giảm dần do mất tracking, che khuất hoặc mục tiêu thay đổi hình dạng. Nếu không bổ sung điểm mới, hệ thống có thể mất khả năng theo dõi sau một thời gian.
+
+Do đó, một cơ chế thường được sử dụng là tái khởi tạo điểm đặc trưng trong bounding box hiện tại. Khi số điểm hợp lệ giảm dưới một ngưỡng:
+
+\begin{equation}
+N_t < N_{min}
+\end{equation}
+
+hệ thống có thể phát hiện lại các điểm đặc trưng mới trong vùng bounding box hiện tại. Điều này giúp duy trì đủ số điểm để tracking. Tuy nhiên, cần cẩn thận vì nếu bounding box đã bị drift sang nền, việc tái khởi tạo sẽ củng cố lỗi tracking. Vì vậy, tái khởi tạo nên được thực hiện khi confidence vẫn đủ cao hoặc khi có thêm tiêu chí xác nhận mục tiêu.
+
+\subsubsection{Sử dụng thống kê bền vững để giảm ảnh hưởng của outlier}
+
+Không phải mọi điểm được Optical Flow theo dõi đều chính xác. Một số điểm có thể trôi sang nền, bị nhiễu hoặc bị che khuất. Những điểm này được gọi là outlier. Nếu dùng trung bình cộng đơn giản để tính độ dịch chuyển tổng thể, outlier có thể làm kết quả sai lệch.
+
+Để giảm ảnh hưởng của outlier, hệ thống có thể dùng các thống kê bền vững như trung vị:
+
+\begin{equation}
+\Delta x = median(\Delta x_1, \Delta x_2, \ldots, \Delta x_N)
+\end{equation}
+
+\begin{equation}
+\Delta y = median(\Delta y_1, \Delta y_2, \ldots, \Delta y_N)
+\end{equation}
+
+Ngoài ra, có thể loại bỏ các điểm có vector dịch chuyển quá khác biệt so với phần lớn các điểm còn lại. Ví dụ, tính độ lệch của từng vector so với vector trung vị:
+
+\begin{equation}
+r_i =
+\left\|
+\Delta p_i - median(\Delta p)
+\right\|
+\end{equation}
+
+Nếu:
+
+\begin{equation}
+r_i > r_{max}
+\end{equation}
+
+điểm thứ $i$ có thể được xem là outlier và bị loại bỏ.
+
+Cách xử lý này giúp bounding box cập nhật ổn định hơn, đặc biệt trong trường hợp một phần mục tiêu bị che khuất hoặc một số điểm đặc trưng chuyển sang nền.
+
+\subsubsection{Mối quan hệ giữa Optical Flow và điều khiển Track and Catch}
+
+Mục tiêu của bài toán Track and Catch không chỉ là phát hiện mục tiêu trong ảnh, mà còn điều khiển ROV di chuyển để tiếp cận và duy trì mục tiêu ở vị trí phù hợp. Vì vậy, Optical Flow là khối cảm nhận, còn bộ điều khiển ROV là khối hành động.
+
+Có thể mô tả quan hệ này như sau:
+
+\begin{equation}
+Camera
+\rightarrow
+Optical\ Flow
+\rightarrow
+Sai\ số\ thị\ giác
+\rightarrow
+Bộ\ điều\ khiển
+\rightarrow
+Thruster
+\rightarrow
+Chuyển\ động\ ROV
+\end{equation}
+
+Trong chuỗi này, Optical Flow cung cấp phản hồi thị giác. Nếu mục tiêu lệch sang phải trong ảnh, sai số ngang sẽ khác 0. Bộ điều khiển dùng sai số này để tạo lệnh dịch ngang làm giảm sai lệch. Nếu mục tiêu nhỏ hơn kích thước mong muốn, sai số tỉ lệ cho biết ROV cần tiến lại gần. Khi ROV di chuyển, hình ảnh camera thay đổi, Optical Flow tiếp tục cập nhật sai số mới. Đây là một vòng điều khiển kín dựa trên thị giác.
+
+Về bản chất, hệ thống đang thực hiện điều khiển servo thị giác đơn giản, trong đó đặc trưng ảnh của mục tiêu được dùng làm tín hiệu phản hồi. Trạng thái cần điều khiển không phải là vị trí 3D tuyệt đối của mục tiêu, mà là vị trí và kích thước của mục tiêu trong mặt phẳng ảnh.
+
+
+
+\end{document}

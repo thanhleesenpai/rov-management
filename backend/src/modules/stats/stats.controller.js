@@ -1,5 +1,5 @@
+const Project = require('../projects/project.model');
 const Trip = require('../trips/trip.model');
-const Dive = require('../dives/dive.model');
 const ROV = require('../rovs/rov.model');
 const Media = require('../media/media.model');
 const { success } = require('../../utils/response.util');
@@ -9,10 +9,17 @@ const getOverview = async (req, res, next) => {
     const now = new Date();
     const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
-    const [tripByStatus, diveByStatus, rovByStatus, tripsPerMonth, divesPerMonth, rovUtilization, mediaPerMonth] = await Promise.all([
+    const [projectByStatus, tripByStatus, rovByStatus, projectsPerMonth, tripsPerMonth, rovUtilization, mediaPerMonth] = await Promise.all([
+      Project.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
       Trip.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
-      Dive.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
       ROV.aggregate([{ $group: { _id: '$status', count: { $sum: 1 } } }]),
+
+      // Projects per month (6 tháng)
+      Project.aggregate([
+        { $match: { createdAt: { $gte: sixMonthsAgo } } },
+        { $group: { _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } }, count: { $sum: 1 } } },
+        { $sort: { '_id.year': 1, '_id.month': 1 } }
+      ]),
 
       // Trips per month (6 tháng)
       Trip.aggregate([
@@ -21,15 +28,8 @@ const getOverview = async (req, res, next) => {
         { $sort: { '_id.year': 1, '_id.month': 1 } }
       ]),
 
-      // Dives per month (6 tháng)
-      Dive.aggregate([
-        { $match: { createdAt: { $gte: sixMonthsAgo } } },
-        { $group: { _id: { year: { $year: '$createdAt' }, month: { $month: '$createdAt' } }, count: { $sum: 1 } } },
-        { $sort: { '_id.year': 1, '_id.month': 1 } }
-      ]),
-
-      // ROV utilization — số trip mỗi ROV
-      Trip.aggregate([
+      // ROV utilization — số project mỗi ROV
+      Project.aggregate([
         { $group: { _id: '$rov', count: { $sum: 1 } } },
         { $sort: { count: -1 } },
         { $limit: 8 },
@@ -62,8 +62,8 @@ const getOverview = async (req, res, next) => {
       const key = `${year}-${month}`
       return {
         name: label,
+        projects: (projectsPerMonth.find(r => `${r._id.year}-${r._id.month}` === key)?.count) || 0,
         trips: (tripsPerMonth.find(r => `${r._id.year}-${r._id.month}` === key)?.count) || 0,
-        dives: (divesPerMonth.find(r => `${r._id.year}-${r._id.month}` === key)?.count) || 0,
         media: (mediaPerMonth.find(r => `${r._id.year}-${r._id.month}` === key)?.count) || 0,
       }
     });
@@ -71,11 +71,11 @@ const getOverview = async (req, res, next) => {
     const toMap = (arr) => Object.fromEntries(arr.map(({ _id, count }) => [_id, count]));
 
     return success(res, {
+      projectByStatus:   toMap(projectByStatus),
       tripByStatus:   toMap(tripByStatus),
-      diveByStatus:   toMap(diveByStatus),
       rovByStatus:    toMap(rovByStatus),
       activityTimeline,
-      rovUtilization: rovUtilization.map(r => ({ name: r.name, trips: r.count })),
+      rovUtilization: rovUtilization.map(r => ({ name: r.name, projects: r.count })),
     });
   } catch (err) {
     next(err);
