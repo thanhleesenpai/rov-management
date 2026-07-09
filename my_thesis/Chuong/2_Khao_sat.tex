@@ -110,7 +110,7 @@ Xem Nhật ký hoạt động (Audit Log) & \checkmark & --- & --- \\
 
 Biểu đồ Use Case tổng quát (Hình~\ref{fig:uc_tongquat}) mô tả bức tranh toàn cảnh về sự tương tác giữa các tác nhân và hệ thống. Hệ thống có năm tác nhân: ba tác nhân người dùng (Viewer, Operator, Admin) kế thừa quyền theo chiều tăng dần, và hai tác nhân hệ thống bên ngoài là YOLO Service (FastAPI/YOLOv8) và Gemini AI (Google) tham gia vào các tác vụ phân tích. Các nhóm chức năng chính bao gồm: Quản lý danh mục ROV, Quản lý chuyến khảo sát và lượt lặn, Quản lý dữ liệu thực địa và phương tiện, và Tương tác với trí tuệ nhân tạo.
 
-\begin{figure}[htbp]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.95\linewidth, height=0.88\textheight, keepaspectratio]{Hinhve/uc_tongquat.png}
 \caption{Biểu đồ Use Case tổng quát của hệ thống}
@@ -122,7 +122,7 @@ Biểu đồ Use Case tổng quát (Hình~\ref{fig:uc_tongquat}) mô tả bức 
 
 Phân hệ upload và quản lý dữ liệu thực địa là lõi nghiệp vụ của hệ thống. Hình~\ref{fig:uc_phanra_data} làm rõ các thao tác chi tiết của Operator sau khi một lượt lặn được khởi tạo. Operator tải lên nhiều loại tệp dữ liệu: CSV cảm biến (hỗ trợ nhiều file, tự động phát hiện chồng lấp thời gian), JSON DVL và tệp Sonar. Hệ thống lưu từng tệp theo tên nguồn (\texttt{sourceFile}), cho phép xóa từng file riêng lẻ mà không ảnh hưởng đến các file còn lại. Nếu video có trường \textit{recordedAt} (thời điểm bắt đầu quay), chế độ đồng bộ Video--Biểu đồ được kích hoạt tự động. Trong khi xem, Operator có thể trích xuất bằng chứng (Photo/Clip) từ video đang đồng bộ.
 
-\begin{figure}[htbp]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.95\linewidth, height=0.88\textheight, keepaspectratio]{Hinhve/uc_phanra_data.png}
 \caption{Biểu đồ Use Case phân rã Phân hệ Upload và Quản lý Dữ liệu Thực địa}
@@ -134,7 +134,7 @@ Phân hệ upload và quản lý dữ liệu thực địa là lõi nghiệp v�
 
 Phân hệ AI Phân tích là điểm khác biệt lớn nhất của hệ thống so với các giải pháp truyền thống. Hình~\ref{fig:uc_phanra_ai} thể hiện sự tham gia của hai tác nhân hệ thống bên ngoài: YOLO Service (Python FastAPI) và Gemini AI (Google). Operator cấu hình tham số trước khi chạy phân tích (lựa chọn mô hình và ngưỡng confidence), sau đó kích hoạt phân tích cho toàn bộ tệp phương tiện hoặc riêng từng bằng chứng đã trích xuất. Kết quả nhận diện hiển thị dưới dạng bounding box đồng bộ theo từng khung hình; Operator có thể nhấp vào nhãn để lọc và chỉ hiển thị bounding box của lớp đó. Khi Project hoàn tất, Operator kích hoạt Gemini AI để sinh báo cáo tóm tắt bằng ngôn ngữ tự nhiên và có thể tái tạo nếu cần.
 
-\begin{figure}[htbp]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.95\linewidth, height=0.88\textheight, keepaspectratio]{Hinhve/uc_phanra_ai.png}
 \caption{Biểu đồ Use Case phân rã Phân hệ AI Phân tích}

@@ -88,7 +88,10 @@
       "Bash(grep -v '\\\\\\\\_')",
       "Bash(grep -v '\\\\\\\\\\\\[')",
       "Bash(grep -rn 'texttt{[^}]\\\\{30,\\\\}}' \"d:/Code/rov-management/DATN_TranNguyenChien220018/Chuong/\" --include=\"*.tex\")",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(node --check src/modules/ai/ai.service.js)",
+      "Bash(node --check src/modules/ai/ai.worker.js)",
+      "Bash(node --check src/modules/sensor/sensor.controller.js)"
     ]
   }
 }

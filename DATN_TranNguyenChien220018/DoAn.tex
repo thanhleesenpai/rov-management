@@ -11,11 +11,15 @@
 \usepackage{latexsym} % Các kí hiệu toán học
 \usepackage{amsmath} % Hỗ trợ một số biểu thức toán học
 \usepackage{amssymb} % Bổ sung thêm kí hiệu về toán học
+\usepackage{seqsplit} % Cho phép sử dụng \seqsplit
 \usepackage{amsbsy} % Hỗ trợ các kí hiệu in đậm
 \usepackage{times} % Chọn font Time New Romans
+\usepackage{tikz}
+\usetikzlibrary{positioning, arrows.meta, calc}
 \usepackage{array} % Tạo bảng array
 \usepackage{enumitem} % Cho phép thay đổi kí hiệu của list
 \usepackage{subfiles} % Chèn các file nhỏ, giúp chia các chapter ra nhiều file hơn
+
 \usepackage{titlesec} % Giúp chỉnh sửa các tiêu đề, đề mục như chương, phần,..
 \usepackage{titletoc}
 \usepackage{chngcntr} % Dùng để thiết lập lại cách đánh số caption,..
@@ -35,17 +39,24 @@
 \usepackage{subcaption}
 \usepackage{xurl}
 
-\usepackage[nonumberlist, nopostdot, nogroupskip, acronym]{glossaries}
-\usepackage{glossary-superragged}
-\setglossarystyle{superraggedheaderborder}
-\usepackage{setspace}
-\usepackage{parskip}
+% ===== Gói glossaries: BẮT BUỘC phải có trước khi dùng \newacronym / \makenoidxglossaries =====
+\usepackage[acronym,nomain]{glossaries}
 
-% package content table
-\usepackage{tocbasic}
-
-\usepackage{blindtext}
-
+\lstset{
+    backgroundcolor=\color{gray!5},   
+    basicstyle=\ttfamily\small,       
+    breakatwhitespace=false,         
+    breaklines=true,                  
+    captionpos=b,                     
+    commentstyle=\color{green!60!black}, 
+    keywordstyle=\color{blue},        
+    stringstyle=\color{purple},       
+    numbers=left,                     
+    numberstyle=\tiny\color{gray},    
+    frame=single,                     
+    tabsize=2,
+    escapeinside={(*}{*)} % Sử dụng lại cặp (* *) để bọc văn bản tiếng Việt
+}
 
 % ===================================================
 
@@ -62,7 +73,9 @@
 
 \include{lstlisting} % Phần này cho phép chèn code và formatting code như C, C++, Python
 
-\input{Tu_viet_tat}
+% ===== SỬA: makenoidxglossaries phải được gọi TRƯỚC khi input file định nghĩa thuật ngữ =====
+\makenoidxglossaries
+\input{Chuong/Tu_viet_tat}
 
 % ===================================================
 
@@ -141,7 +154,7 @@
 	pdfauthor={\AUTHOR}}
 	
 \usepackage[all]{hypcap} % Cho phép tham chiếu chính xác đến hình ảnh và bảng biểu
-
+\usepackage{array} % thêm ở phần preamble
 \graphicspath{{figures/}{../figures/}} % Thư mục chứa các hình ảnh
 
 \counterwithin{figure}{chapter} % Đánh số hình ảnh kèm theo chapter. Ví dụ: Hình 1.1, 1.2,..
@@ -157,13 +170,10 @@
 
 \onehalfspacing
 \raggedbottom
-\setlength{\emergencystretch}{3em} % Cho phép giãn tối đa 3em/dòng để tránh chữ tràn lề
-% \code{...} dùng cho inline code dài: \path{} cho phép ngắt dòng tại . / = ( ) - _ v.v.
+\setlength{\emergencystretch}{3em}
 \newcommand{\code}[1]{\path{#1}}
-% Tắt tự động ngắt từ (hyphenation) trong \texttt{} để tránh ngắt giữa chữ kiểu "analy-\ntis"
 \DeclareRobustCommand\texttt[1]{{\ttfamily\hyphenchar\font=-1 #1}}
-% Ngăn LaTeX ngắt các từ kỹ thuật tiếng Anh ở giữa từ trong văn bản thường
-\hyphenation{Compose MongoDB YOLOv8 YOLOv8n FastAPI microservice frontend backend QGroundControl BlueOS ByteTrack Recharts Leaflet Zustand Passport Nominatim OpenStreetMap presigned middleware MJPEG thruster OpenCV PID}
+%\hyphenation{Compose MongoDB YOLOv8 YOLOv8n FastAPI microservice frontend backend QGroundControl BlueOS ByteTrack MJPEG}
 %Khoảng cách xuống dòng
 \setlength{\parskip}{6pt}
 %Lùi đầu dòng
@@ -249,16 +259,24 @@
 \listoftables}
 % \phantomsection\addcontentsline{toc}{section}{\numberline {} DANH MỤC BẢNG BIỂU}
 
-\glsaddall 
- \renewcommand*{\glossaryname}{Danh sách thuật ngữ}
-\renewcommand*{\acronymname}{DANH MỤC THUẬT NGỮ VÀ TỪ VIẾT TẮT}
-\renewcommand*{\entryname}{Thuật ngữ}
-\renewcommand*{\descriptionname}{Ý nghĩa}
-\printglossaries
- %\phantomsection\addcontentsline{toc}{section}{\numberline {} DANH MỤC THUẬT NGỮ VÀ TỪ VIẾT TẮT}
+\newpage
+\begin{center}
+    \Large{\textbf{DANH MỤC TỪ VIẾT TẮT}}
+\end{center}
+\subfile{Chuong/0_5_Danh_muc_viet_tat}
+\phantomsection
+\addcontentsline{toc}{section}{\numberline{} DANH MỤC TỪ VIẾT TẮT}
 
-% \newpage
- %\subfile{chapters/0_5_Danh_muc_viet_tat.tex}
+\newpage
+\begin{center}
+    \Large{\textbf{DANH MỤC THUẬT NGỮ}}
+\end{center}
+\subfile{Chuong/0_6_Thuat_ngu}
+\phantomsection
+\addcontentsline{toc}{section}{\numberline{} DANH MỤC THUẬT NGỮ}
+
+
+\newpage
 
 % \newpage
 % \subfile{chapters/0_6_Thuat_ngu.tex}
@@ -306,44 +324,31 @@
 
 \newpage
 %\pagestyle{fancy} % Áp dụng header và footer
-\chapter{ĐIỀU KHIỂN TỰ ĐỘNG} %Kết luận và hướng phát triển}
-\label{chapter:conclusion}
+\chapter{THIẾT KẾ VÀ TRIỂN KHAI CHỨC NĂNG ĐIỀU KHIỂN TỰ ĐỘNG BÁM GIỮ MỤC TIÊU DỰA TRÊN THỊ GIÁC}
+\label{chapter:auto_control}
 \subfile{Chuong/6_Dieu_khien_tu_dong}
 
 \newpage
 %\pagestyle{fancy} % Áp dụng header và footer
-\chapter{QUẢN LÝ THÔNG TIN VÀ PHÂN TÍCH DỮ LIỆU} %Kết luận và hướng phát triển}
-\label{chapter:conclusion}
+\chapter{QUẢN LÝ THÔNG TIN VÀ PHÂN TÍCH DỮ LIỆU}
+\label{chapter:web_platform}
 \subfile{Chuong/7_Quan_ly_ttin}
 
 \newpage
 %\pagestyle{fancy} % Áp dụng header và footer
-\chapter{KẾT QUẢ THỰC NGHIỆM} %Kết luận và hướng phát triển}
-\label{chapter:conclusion}
+\chapter{KẾT QUẢ THỰC NGHIỆM VÀ KIỂM THỬ HỆ THỐNG}
+\label{chapter:results}
 \subfile{Chuong/8_Ket_qua_thuc_nghiem}
 
 \newpage
 %\pagestyle{fancy} % Áp dụng header và footer
-\chapter{KẾT LUẬN} %Kết luận và hướng phát triển}
+\chapter{KẾT LUẬN}
 \label{chapter:conclusion}
 \subfile{Chuong/9_Ket_luan}
 
-\newpage
-%\pagestyle{fancy} % Áp dụng header và footer
-\chapter*{MỘT SỐ LƯU Ý VỀ TÀI LIỆU THAM KHẢO} %Kết luận và hướng phát triển}
-\label{chapter:reference}
-\subfile{Chuong/10_Luu_y_tai_lieu_tham_khao}
-
 
 % ===================================================
-\newpage
-\renewcommand\bibname{TÀI LIỆU THAM KHẢO}
-\printbibliography
-\phantomsection\addcontentsline{toc}{chapter}{TÀI LIỆU THAM KHẢO}
 
-\appendixpage
-\appendices
-\addappheadtotoc
 
 % \chapter*{PHỤ LỤC} %Kết luận và hướng phát triển}
 
@@ -357,9 +362,4 @@
     {{\bfseries{\scshape} \thecontentslabel.\ }} % numbered format
     {}         % unnumbered format
     {\titlerule*[0.3pc]{.}\contentspage}         % filler-page-format, e.g dots
-\chapter{HƯỚNG DẪN VIẾT ĐỒ ÁN TỐT NGHIỆP}
-\subfile{Chuong/Phu_luc_A}
-\newpage
-\chapter{ĐẶC TẢ USE CASE}
-\subfile{Chuong/Phu_luc_B}
 \end{document}

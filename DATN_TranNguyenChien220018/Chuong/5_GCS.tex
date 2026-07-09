@@ -1,59 +1,1914 @@
 \documentclass[../DoAn.tex]{subfiles}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\lstset{
+    backgroundcolor=\color{gray!5},   
+    basicstyle=\ttfamily\small,       
+    breakatwhitespace=false,         
+    breaklines=true,                  
+    captionpos=b,                     
+    commentstyle=\color{green!60!black}, 
+    keywordstyle=\color{blue},        
+    stringstyle=\color{purple},       
+    numbers=left,                     
+    numberstyle=\tiny\color{gray},    
+    frame=single,                     
+    tabsize=2,
+    escapeinside={(*}{*)} % Sử dụng lại cặp (* *) để bọc văn bản tiếng Việt
+}
 \begin{document}
+\section{Kiến trúc tổng thể}
+Phần mềm GCS được xây dựng bằng C\# trên nền tảng WPF, áp dụng
+mô hình kiến trúc MVVM (Model--View--ViewModel) — mô hình chuẩn
+cho ứng dụng WPF. MVVM tách biệt ba tầng trách nhiệm: View chịu
+trách nhiệm hiển thị, ViewModel xử lý logic giao diện và trạng
+thái, Service thực hiện nghiệp vụ và giao tiếp ngoại vi. Các
+tầng liên kết với nhau qua Data Binding và Event của WPF.
 
-\section{Cơ sở lý thuyết}
-\subsection{Tổng quan chức năng Track and Catch trong hệ thống ROV}
-- Vị trí của module trong hệ thống lớn
-- Luồng Camera -> Tracker -> Vision Packet -> Controller -> Thruster
+Luồng dữ liệu diễn ra như sau: Service nhận dữ liệu từ ROV qua
+MAVLink, kích hoạt Event thông báo cho ViewModel. ViewModel cập
+nhật thuộc tính và thông báo cho View qua
+\texttt{INotifyPropertyChanged}. View tự động render lại nhờ
+Data Binding. Theo chiều ngược lại, khi người vận hành tương
+tác trên View, Command trong ViewModel được kích hoạt và gọi
+Service gửi lệnh tới ROV.
 
-\subsection{Cơ sở về truyền luồng hình ảnh MJPEG}
-- HTTP multipart MJPEG
-- Camera server trên ROV
-- Agent đọc stream, tách JPEG frame, decode bằng OpenCV
-- Ưu/nhược điểm: đơn giản, dễ tích hợp, nhưng có độ trễ và không đảm bảo đồng bộ tuyệt đối
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{Hinhve/gcs_img.png}
+    \caption{Sơ đồ kiến trúc MVVM của phần mềm GCS}
+    \label{fig:usecase}
+\end{figure}
+\section{Module truyền thông}
 
-\subsection{Cơ sở về theo dõi mục tiêu bằng Optical Flow}
-- Bài toán tracking mục tiêu do người dùng chọn
-- Feature detection
-- Lucas-Kanade Optical Flow
-- Pyramidal LK
-- Lọc outlier và ước lượng chuyển động robust
-- Ước lượng scale và confidence
-- Reacquire khi tracking yếu
+\subsection{MavlinkService}
 
-\subsection{Chuẩn hóa sai lệch ảnh cho điều khiển}
-- $dx_normalized$\\
-- $dy_normalized$\\
-- $scale_error_normalized$\\
-- Vì sao scale có thể dùng làm xấp xỉ khoảng cách tương đối
-- Phân biệt: đưa mục tiêu về vị trí lúc chọn, không nhất thiết về tâm ảnh
+\texttt{MavlinkService} là thành phần trung tâm của toàn bộ phần mềm
+GCS, đóng vai trò cầu nối duy nhất giữa giao diện điều khiển và
+firmware nhúng trên ROV. Toàn bộ các service khác trong hệ thống GCS
+không giao tiếp trực tiếp với ROV mà bắt buộc phải thông qua service
+này, đảm bảo logic mạng được tập trung tại một điểm duy nhất.
 
-\subsection{Cơ sở điều khiển PID cho Track and Catch}
-- PID rời rạc
-- PID lateral
-- PID forward/range
-- Deadband, saturation, slew-rate limit, derivative filtering, anti-windup
-- Reset PID khi mất target/manual override
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{Hinhve/MavlinkService.drawio.png}
+    \caption{Sơ đồ luồng hoạt động mavlinkServie}
+    \label{fig:usecase}
+\end{figure}
 
-\subsection{Cơ sở điều khiển ROV và mixing matrix}
-- Vector điều khiển [forward, lateral, ascend, yaw]
-- Ma trận mixing 8x4
-- Chuyển thrust sang PWM
-- Vai trò PCA9685, ESC, neutral PWM
+\textbf{Kiến trúc đa socket.}
+Khi người vận hành bấm nút Connect trên giao diện, \texttt{MavlinkService}
+khởi tạo đồng thời 7 socket UDP độc lập chia thành hai nhóm:
 
-\subsection{Cơ sở truyền thông và tích hợp hệ thống}
-- HTTP giữa host và agent
-- UDP vision packet giữa agent và controller
-- MAVLink/$SET_MODE$ để bật/tắt mode
-- Đa luồng và shared state
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|l|p{5cm}|}
+\hline
+\textbf{Socket} & \textbf{Loại} & \textbf{Cổng} & \textbf{Mục đích} \\
+\hline
+\texttt{UdpClient\_hbt} & Lắng nghe & 16001 & Nhận Heartbeat từ ROV \\
+\hline
+\texttt{UdpClient\_sta} & Lắng nghe & 16002 & Nhận Status, NamedValueFloat \\
+\hline
+\texttt{UdpClient\_pos} & Lắng nghe & 16003 & Nhận Global Position \\
+\hline
+\texttt{UdpClient\_imu} & Lắng nghe & 16004 & Nhận IMU thô \\
+\hline
+\texttt{UdpClient\_att} & Lắng nghe & 16005 & Nhận Attitude \\
+\hline
+\texttt{client\_mav}    & Gửi       & 16001 & Gửi lệnh MAVLink đến ROV \\
+\hline
+\texttt{thrusterClient} & Gửi       & 12345 & Gửi lệnh cấu hình động cơ \\
+\hline
+\end{tabular}
+\caption{Phân bổ socket UDP trong MavlinkService}
+\label{tab:mavlink_sockets}
+\end{table}
 
-\subsection{Cơ chế an toàn khi vận hành}
-- Confidence threshold
-- Vision timeout
-- Manual override
-- Hold heading khi hold vision
-- Disarm/neutral thrust
-- Giới hạn lệnh điều khiển
+Lý do tách 5 cổng lắng nghe thay vì dùng chung một cổng là để mỗi
+luồng nền có thể chặn (\texttt{Receive}) trên socket riêng mà không
+ảnh hưởng đến các luồng còn lại. Nếu dùng chung một cổng, một gói
+tin kích thước lớn (ví dụ IMU) sẽ làm chậm toàn bộ vòng nhận kể cả
+heartbeat --- ảnh hưởng đến độ chính xác giám sát kết nối.
 
+\textbf{Đa luồng nhận dữ liệu.}
+Ngay sau khi khởi tạo socket, 5 luồng nền (\texttt{Thread}) được khởi
+động tương ứng với 5 cổng lắng nghe. Mỗi luồng chạy vòng lặp vô hạn,
+chặn tại lệnh \texttt{Receive()} cho đến khi có gói tin mới, giải mã
+và phát sự kiện tương ứng:
+
+
+\textbf{Cơ chế kết nối ban đầu.}
+Hàm \texttt{SendPing()} gửi một byte dữ liệu đến cổng UDP 15000 của
+ROV. Phía ROV, \texttt{ping\_server()} nhận gói này, trích xuất địa
+chỉ IP nguồn và khởi tạo 5 kênh gửi ngược về GCS (chi tiết ở Chương
+4). Đây là cơ chế handshake không đối xứng --- GCS chủ động thông báo
+địa chỉ IP của mình, ROV không cần cấu hình IP GCS cứng trong firmware.
+
+Hàm \texttt{SendStreamRequest()} gửi gói \texttt{REQUEST\_DATA\_STREAM}
+từ cả 5 socket lắng nghe đến cổng 15000 của ROV. Mục đích là mở NAT
+traversal cho từng cổng --- mỗi socket tự gửi một gói ra ngoài trước,
+đảm bảo router/firewall mở cổng tương ứng để nhận gói phản hồi từ ROV
+vào đúng cổng đó.
+
+\textbf{Giám sát kết nối.}
+Một \texttt{Timer} kiểm tra mỗi giây, so sánh thời gian từ lần cuối
+nhận heartbeat (\texttt{\_heartbeatStopwatch}) với ngưỡng $5\,s$. Nếu
+vượt ngưỡng, service phát sự kiện \texttt{OnConnectionStatusChanged(false)}
+để giao diện hiển thị cảnh báo mất kết nối. Khi heartbeat được nhận
+lại, \texttt{IsConnected} được khôi phục và sự kiện
+\texttt{OnConnectionStatusChanged(true)} được phát để giao diện cập
+nhật trạng thái.
+
+Đồng thời, một \texttt{Task} nền gửi \texttt{GcsHeartbeat} định kỳ
+mỗi $1\,s$ về ROV --- phía ROV dùng heartbeat này để phát hiện GCS
+mất kết nối và tự động chuyển về manual mode (cơ chế an toàn đã trình
+bày ở Chương 4).
+
+\textbf{Cơ chế sự kiện.}
+Mỗi luồng nhận sau khi giải mã gói MAVLink thành công sẽ phát một
+sự kiện tương ứng:
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Luồng} & \textbf{Gói tin} & \textbf{Sự kiện phát ra} \\
+\hline
+\texttt{HBT\_Thread} & \texttt{HEARTBEAT}           & \texttt{OnHeartbeat} \\
+\hline
+\texttt{STA\_Thread} & \texttt{SYS\_STATUS}          & \texttt{OnStatus} \\
+\hline
+\texttt{STA\_Thread} & \texttt{NAMED\_VALUE\_FLOAT}  & \texttt{OnNamedValueFloat} \\
+\hline
+\texttt{IMU\_Thread} & \texttt{HIGH\_RES\_IMU}       & \texttt{OnImu} \\
+\hline
+\texttt{ATT\_Thread} & \texttt{ATTITUDE}             & \texttt{OnAttitude} \\
+\hline
+\texttt{POS\_Thread} & \texttt{GLOBAL\_POSITION\_INT}& \texttt{OnPosition} \\
+\hline
+\end{tabular}
+\caption{Ánh xạ luồng nhận - gói tin - sự kiện trong MavlinkService}
+\label{tab:mavlink_events}
+\end{table}
+
+Các service khác (\texttt{TelemetryService}, giao diện) đăng ký xử lý
+các sự kiện này thông qua cơ chế delegate của C\#, hoàn toàn tách biệt
+khỏi tầng mạng.
+
+\textbf{Gửi lệnh điều khiển.}
+Service cung cấp 4 hàm gửi lệnh, tất cả đều kiểm tra
+\texttt{IsConnected} trước khi gửi:
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|p{3cm}|}
+\hline
+\textbf{Hàm} & \textbf{Gói MAVLink} & \textbf{Mục đích} \\
+\hline
+\texttt{SendManualControl(x,y,z,r,btn)} & \texttt{MANUAL\_CONTROL} &
+    Gửi lệnh di chuyển và bitmask thiết bị phụ trợ \\
+    \hline
+\texttt{SendSetMode(mode)}              & \texttt{SET\_MODE}        &
+    Chuyển chế độ điều khiển ROV \\
+    \hline
+\texttt{SendThrusterPing(channel)}      & Plain text UDP            &
+    Kích hoạt thử một kênh động cơ \\
+    \hline
+\texttt{SendThrusterConfigJson(json)}   & Plain text UDP            &
+    Gửi file cấu hình ánh xạ động cơ \\
+\hline
+\end{tabular}
+\caption{Các hàm gửi lệnh của MavlinkService}
+\label{tab:mavlink_send}
+\end{table}
+\subsection{JoystickService — Kết nối thiết bị}
+\label{sec:joystickService}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{Hinhve/JoystickService.drawio.png}
+    \caption{Sơ đồ luồng hoạt động JoystickServie}
+    \label{fig:usecase}
+\end{figure}
+
+\texttt{JoystickService} chạy trên một luồng nền riêng, liên tục giám
+sát cổng USB để phát hiện thiết bị điều khiển. Thay vì chỉ hỗ trợ
+một loại thiết bị cố định, service quét theo thứ tự ưu tiên giảm dần:
+Gamepad trước, sau đó Joystick, cuối cùng là Flight controller.Hiện tại với Joystick đang có sẵn tương thích nhất là T.Flight Hotas 4 -ThrustMater
+\textbf{Cơ chế phát hiện thiết bị.}
+Service sử dụng DirectInput API của Windows thông qua thư viện
+SharpDX để liệt kê các thiết bị đang kết nối
+(\texttt{DeviceEnumerationFlags.AttachedOnly}). Mỗi lần quét chỉ lấy
+thiết bị đầu tiên tìm thấy trong từng nhóm --- đủ để phục vụ một
+người vận hành. Nếu không tìm thấy bất kỳ thiết bị nào sau cả ba
+lần quét, luồng nghỉ $1000\,ms$ rồi thử lại, tránh chiếm CPU trong
+khi chờ người vận hành cắm tay cầm.
+
+\textbf{Khởi tạo kết nối.}
+Khi tìm thấy thiết bị, service tạo đối tượng \texttt{Joystick} với
+GUID của thiết bị và gọi \texttt{joystick.Acquire()} để chiếm quyền
+đọc độc quyền từ DirectInput. Sau bước này, luồng chuyển sang vòng
+lặp đọc dữ liệu liên tục (trình bày ở module điều khiển).
+
+\textbf{Tự động kết nối lại.}
+Khi Joystick bị rút ra trong khi phần mềm đang chạy, DirectInput
+ném ngoại lệ tại lệnh \texttt{Poll()} hoặc \texttt{GetCurrentState()}.
+Khối \texttt{catch} bắt ngoại lệ này, gán \texttt{joystick = null}
+và nghỉ $1000\,ms$ trước khi quay lại vòng quét thiết bị. Toàn bộ
+quá trình tự động mà không cần người vận hành khởi động lại phần
+mềm.
+
+\subsection{CameraStreamService}
+
+\texttt{CameraStreamService} là thành phần trung gian chịu trách nhiệm tiếp nhận, xử lý và phân phối luồng video thời gian thực từ camera gắn trên ROV tới giao diện điều khiển của trạm GCS. Đây là module đóng vai trò quan trọng trong hệ thống vì cung cấp dữ liệu hình ảnh trực quan phục vụ quá trình điều khiển, giám sát môi trường dưới nước và hỗ trợ người vận hành đánh giá trạng thái hoạt động của phương tiện trong suốt quá trình thực hiện nhiệm vụ.
+
+Trong hệ thống, camera được kết nối trực tiếp tới board xử lý nhúng QCS8550 đặt trên ROV. Tại board nhúng, video từ camera được xử lý sơ bộ và phát ra dưới dạng luồng MJPEG (\textit{Motion JPEG}) thông qua một dịch vụ \texttt{mjpegserver} nội bộ. Với chuẩn MJPEG, video không được truyền dưới dạng luồng nén liên tục như H.264 hoặc H.265 mà được biểu diễn dưới dạng chuỗi liên tiếp của các frame JPEG độc lập. Cách tiếp cận này giúp đơn giản hóa việc giải mã ở phía GCS, giảm độ trễ hiển thị và phù hợp với yêu cầu quan sát thời gian thực của hệ thống điều khiển ROV.
+
+Phía GCS, module \texttt{CameraStreamService} thiết lập kết nối đến server camera thông qua địa chỉ \texttt{http://192.168.80.2:8080} bằng lớp \texttt{HttpClient}. Về mặt giao thức truyền thông, hệ thống sử dụng giao thức HTTP ở tầng ứng dụng để truyền luồng MJPEG, trong khi dữ liệu được vận chuyển thông qua giao thức TCP ở tầng transport. Việc sử dụng TCP đảm bảo cơ chế truyền tin cậy, kiểm soát lỗi và duy trì kết nối liên tục giữa board nhúng trên ROV và máy tính điều khiển trên topside.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{Hinhve/camera_stream_service.png}
+    \caption{Sơ đồ luồng xử lý và hiển thị video trong CameraStreamService}
+    \label{fig:camera_stream_service}
+\end{figure}
+
+Khi giao diện camera được khởi tạo, phương thức \texttt{StartAsync()} sẽ được gọi để bắt đầu quá trình streaming. Module đầu tiên kiểm tra trạng thái hoạt động hiện tại nhằm tránh tạo nhiều phiên kết nối đồng thời đến cùng một camera. Sau đó, hệ thống khởi tạo một \texttt{CancellationTokenSource} và tạo một tác vụ nền riêng biệt bằng cơ chế \texttt{Task.Run()}. Việc sử dụng luồng nền riêng cho phép toàn bộ quá trình nhận và xử lý video diễn ra song song với giao diện người dùng mà không làm ảnh hưởng tới khả năng phản hồi của hệ thống.
+
+Tác vụ nền này thực thi vòng lặp chính có tên \texttt{ConnectionLoop}. Trong vòng lặp này, service liên tục gửi HTTP GET request tới camera server và chờ thiết bị nhúng phản hồi. Nếu kết nối được thiết lập thành công, hệ thống nhận về một đối tượng \texttt{Stream} đại diện cho luồng dữ liệu video liên tục từ camera. Đồng thời trạng thái kết nối nội bộ được cập nhật và sự kiện \texttt{OnConnected} được kích hoạt để thông báo cho các thành phần khác của hệ thống rằng camera đã sẵn sàng hoạt động.
+
+Sau khi kết nối thành công, service chuyển sang giai đoạn xử lý luồng video. Dữ liệu được đọc tuần tự từ \texttt{Stream} dưới dạng các khối byte có kích thước cố định. Do đặc điểm của giao thức truyền liên tục, dữ liệu nhận được tại mỗi lần đọc không nhất thiết tương ứng với một frame ảnh hoàn chỉnh mà có thể chỉ chứa một phần của frame hoặc nhiều frame liên tiếp. Vì vậy, hệ thống sử dụng một bộ đệm tạm thời (\texttt{buffer}) để lưu trữ toàn bộ dữ liệu nhận được trước khi tiến hành phân tích.
+
+Quá trình tách frame dựa trên cấu trúc chuẩn của định dạng JPEG. Cụ thể, mỗi ảnh JPEG luôn bắt đầu bằng marker nhị phân \texttt{FFD8}, còn được gọi là \textit{Start Of Image} (SOI), và kết thúc bằng marker \texttt{FFD9}, tương ứng với \textit{End Of Image} (EOI). Service liên tục quét bộ đệm để tìm cặp marker này nhằm xác định ranh giới của một frame hoàn chỉnh. Trong trường hợp chỉ tìm thấy marker bắt đầu nhưng chưa tìm thấy marker kết thúc, hệ thống hiểu rằng dữ liệu vẫn chưa được nhận đầy đủ và tiếp tục đọc thêm byte từ stream trước khi xử lý tiếp.
+
+Khi một frame JPEG hoàn chỉnh được xác định, phần dữ liệu tương ứng sẽ được tách khỏi bộ đệm và chuyển sang giai đoạn giải mã ảnh. Hệ thống sử dụng thư viện \texttt{OpenCvSharp} để chuyển dữ liệu nhị phân JPEG thành đối tượng ảnh \texttt{Mat}, đây là cấu trúc dữ liệu chuẩn của thư viện OpenCV dùng để biểu diễn ảnh trong bộ nhớ. Nếu quá trình giải mã thành công và frame hợp lệ, service phát sinh sự kiện \texttt{OnFrameReceived} và truyền frame vừa nhận được tới các thành phần giao diện.
+
+Tại phía giao diện người dùng, thành phần \texttt{CameraView} đăng ký lắng nghe sự kiện \texttt{OnFrameReceived}. Mỗi khi một frame mới được gửi tới, hệ thống thực hiện chuyển đổi dữ liệu từ đối tượng \texttt{Mat} sang định dạng hình ảnh tương thích với framework WPF, sau đó cập nhật trực tiếp lên thành phần hiển thị video trên cửa sổ điều khiển. Quá trình này diễn ra liên tục với tần suất phụ thuộc vào tốc độ camera và tốc độ mạng, tạo ra cảm giác hiển thị video thời gian thực cho người vận hành.
+
+Toàn bộ pipeline từ nhận dữ liệu, lưu bộ đệm, tách frame, giải mã ảnh và cập nhật giao diện đều được thực hiện bất đồng bộ nhằm đảm bảo rằng việc truyền video không làm gián đoạn các chức năng khác của GCS như điều khiển phương tiện, hiển thị telemetry hoặc xử lý dữ liệu cảm biến. Đây là yêu cầu đặc biệt quan trọng đối với hệ thống điều khiển robot thời gian thực, nơi nhiều module phải hoạt động song song với độ trễ thấp.
+
+Ngoài chức năng streaming, module còn tích hợp cơ chế tự động khôi phục kết nối nhằm tăng độ ổn định của hệ thống. Trong trường hợp kết nối tới camera server bị gián đoạn, hoặc quá trình đọc stream phát sinh lỗi, service sẽ phát hiện trạng thái mất kết nối, cập nhật lại trạng thái nội bộ và kích hoạt sự kiện \texttt{OnDisconnected}. Sau đó hệ thống tạm dừng trong khoảng thời gian \texttt{2000\,ms} rồi tự động quay lại vòng lặp \texttt{ConnectionLoop} để thực hiện kết nối lại. Cơ chế này cho phép hệ thống tự phục hồi trong trường hợp cáp tether bị nhiễu, mạng Ethernet nội bộ mất ổn định hoặc board xử lý nhúng khởi động lại tạm thời mà không yêu cầu người vận hành phải thao tác thủ công.
+
+Nhờ kiến trúc xử lý bất đồng bộ kết hợp cơ chế tự động phục hồi kết nối, \texttt{CameraStreamService} đảm bảo khả năng truyền và hiển thị video ổn định theo thời gian thực, đóng vai trò là nền tảng quan trọng cho chức năng giám sát hình ảnh trong toàn bộ hệ thống điều khiển ROV.
+
+\subsection{SonarService}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.05\textwidth]{Hinhve/sona_service.png}
+    \caption{Sơ đồ luồng thu nhận và hiển thị dữ liệu sonar}
+    \label{fig:sonar_service}
+\end{figure}
+
+\texttt{SonarService} là thành phần chịu trách nhiệm giao tiếp với cảm biến sonar quét \texttt{Ping360}, thu nhận dữ liệu phản xạ âm thanh dưới nước và cung cấp dữ liệu phục vụ hiển thị ảnh sonar thời gian thực trên giao diện điều khiển GCS. Đây là một module quan trọng trong hệ thống vì cho phép người vận hành quan sát môi trường xung quanh ROV trong điều kiện ánh sáng yếu hoặc môi trường nước đục, nơi camera quang học hoạt động kém hiệu quả.
+
+Trong kiến trúc phần cứng, cảm biến sonar Ping360 được kết nối với hệ thống mạng nội bộ trên ROV thông qua Ethernet và giao tiếp trực tiếp với GCS bằng giao thức UDP. Khác với camera truyền video liên tục, sonar hoạt động theo cơ chế chủ động phát xung âm thanh tại từng góc quét xác định, sau đó thu tín hiệu phản xạ từ môi trường và trả về dữ liệu echo tương ứng cho từng lần đo.
+
+Phía GCS, module sử dụng thư viện \texttt{Ping360Net} để giao tiếp với thiết bị thông qua lớp \texttt{UdpPingTransport}. Khi sonar được khởi động, phương thức \texttt{StartWithAutoConnect()} tạo một tiến trình nền riêng biệt bằng \texttt{Task.Run()} và thực thi vòng lặp chính \texttt{RunSweepLoopAsync}. Service trước tiên thực hiện quá trình handshake với thiết bị nhằm xác nhận sonar sẵn sàng hoạt động. Nếu kết nối thất bại hoặc timeout, hệ thống chờ \texttt{2000\,ms} rồi tự động thử kết nối lại.
+
+Sau khi kết nối thành công, service bắt đầu quá trình quét liên tục. Tại mỗi chu kỳ, hệ thống gửi lệnh \texttt{TransducerOnceAsync()} yêu cầu sonar phát một xung âm thanh tại góc quét hiện tại với các tham số như hệ số khuếch đại tín hiệu, số lượng mẫu đo, tần số phát và góc quét. Sau khi phát xung, sonar nhận tín hiệu phản xạ từ vật thể trong môi trường và trả về một gói dữ liệu \texttt{DeviceData} chứa góc quét hiện tại cùng mảng dữ liệu biên độ phản xạ.
+
+Để tránh ảnh hưởng đến tốc độ hiển thị giao diện, dữ liệu thu được không xử lý trực tiếp mà được ghi vào một bộ đệm bất đồng bộ \texttt{Channel}. Một tiến trình nền riêng biệt liên tục đọc dữ liệu từ bộ đệm này và phát sự kiện \texttt{SweepReceived} tới tầng giao diện.
+
+Phía hiển thị, thành phần \texttt{SonarDisplay} đóng vai trò xử lý đồ họa và chuyển đổi dữ liệu sonar thô thành ảnh trực quan cho người vận hành. Module này đăng ký lắng nghe sự kiện \texttt{SweepReceived} từ \texttt{SonarService} thông qua phương thức \texttt{AttachService()}. Mỗi khi service phát sinh dữ liệu mới, hàm \texttt{OnSweepReceived()} được kích hoạt để tiếp nhận gói dữ liệu \texttt{DeviceData} chứa thông tin góc quét hiện tại (\texttt{AngleGrads}) và mảng dữ liệu phản xạ (\texttt{Data}).
+
+Thay vì xử lý trực tiếp ngay khi nhận dữ liệu, hệ thống lưu tạm từng gói dữ liệu sonar vào cấu trúc \texttt{ConcurrentDictionary} có tên \texttt{spokeBuffer}. Mỗi phần tử trong bộ đệm tương ứng với một góc quét riêng biệt trong không gian 400 grad của Ping360. Cơ chế này giúp tách biệt hoàn toàn luồng nhận dữ liệu mạng với luồng xử lý đồ họa, tránh hiện tượng nghẽn hoặc giảm tốc độ khi sonar gửi dữ liệu liên tục với tần suất cao.
+
+Quá trình dựng ảnh được thực hiện độc lập thông qua bộ định thời \texttt{DispatcherTimer} chạy định kỳ mỗi \texttt{30\,ms}. Tại mỗi chu kỳ timer, hàm \texttt{OnSweepTick()} được gọi để kiểm tra dữ liệu mới cần hiển thị. Hệ thống xác định góc quét mới nhất mà sonar vừa gửi về, sau đó lần lượt xử lý toàn bộ các góc chưa được render kể từ chu kỳ trước nhằm đảm bảo hình ảnh hiển thị liên tục và không bỏ sót dữ liệu.
+
+Đối với từng góc quét, hệ thống trước tiên xóa dữ liệu cũ tương ứng trên lớp ảnh sonar thông qua hàm \texttt{ClearSpokeInSonarLayer()}. Sau đó dữ liệu phản xạ mới được đưa vào hàm \texttt{DrawSpokeToSonarLayer()} để thực hiện quá trình dựng ảnh. Trong bước này, từng phần tử trong mảng dữ liệu sonar được xem như cường độ phản xạ của một điểm đo theo khoảng cách từ đầu dò.
+
+Hệ thống tính toán khoảng cách thực tế của từng mẫu dựa trên phạm vi quét tối đa (\texttt{maxRange}) và số lượng mẫu nhận được từ thiết bị. Sau đó giá trị cường độ phản xạ (\texttt{intensity}) được ánh xạ thành màu sắc tương ứng để biểu diễn mức độ phản xạ của vật thể trong môi trường nước.
+
+Module hỗ trợ nhiều chế độ hiển thị màu khác nhau thông qua biến cấu hình \texttt{ColorMode}, bao gồm chế độ trắng đơn sắc, chế độ vàng sonar truyền thống, chế độ radar xanh và chế độ heatmap. Với chế độ heatmap, hệ thống chuyển đổi cường độ phản xạ thành dải màu từ xanh lam, xanh lục, vàng đến đỏ nhằm làm nổi bật các vùng phản xạ mạnh và giúp người vận hành dễ dàng nhận biết vật thể trong môi trường xung quanh.
+
+Sau khi xác định màu sắc, hệ thống chuyển đổi dữ liệu từ hệ tọa độ cực của sonar sang tọa độ pixel trên ảnh hiển thị. Mỗi điểm dữ liệu được ánh xạ lên lớp bộ nhớ ảnh \texttt{sonarLayer}, là một mảng byte lưu trữ trực tiếp giá trị màu của từng pixel theo định dạng \texttt{BGRA32}. Toàn bộ dữ liệu ảnh sonar được lưu tạm trong lớp bộ nhớ này trước khi hiển thị lên giao diện.
+
+Sau khi hoàn thành quá trình render, hàm \texttt{CompositeAndPresent()} được gọi để sao chép toàn bộ dữ liệu từ \texttt{sonarLayer} sang đối tượng \texttt{WriteableBitmap}. Đây là đối tượng ảnh trung gian được liên kết trực tiếp với thành phần giao diện \texttt{SonarImage} trong WPF. Việc sử dụng \texttt{WriteableBitmap} cho phép cập nhật trực tiếp vùng nhớ ảnh thay vì tạo mới từng frame, giúp giảm tải CPU và đảm bảo tốc độ hiển thị theo thời gian thực.
+
+Ngoài phần dữ liệu phản xạ sonar, hệ thống còn vẽ thêm một đường quét động (\texttt{Sweep Line}) thông qua hàm \texttt{DrawSweepLineToDst()}. Sweep line biểu diễn góc quét hiện tại của đầu dò sonar, được cập nhật liên tục theo vị trí phần cứng thực tế. Thành phần này giúp người vận hành dễ dàng theo dõi trạng thái quét đang diễn ra và quan sát trực quan hướng hoạt động hiện tại của cảm biến sonar.
+
+Song song với quá trình hiển thị, module còn theo dõi trạng thái kết nối của sonar. Khi \texttt{SonarService} phát sinh các sự kiện như \texttt{ReconnectAttempting}, \texttt{ReconnectSucceeded} hoặc \texttt{ReconnectFailed}, giao diện sẽ cập nhật lớp phủ trạng thái (\texttt{StatusOverlay}) để hiển thị thông báo mất kết nối, trạng thái đang kết nối lại hoặc cảnh báo lỗi thiết bị cho người vận hành.
+
+Ngoài ra, hệ thống hỗ trợ thay đổi phạm vi hiển thị sonar thông qua nhiều mức khoảng cách khác nhau. Khi người dùng thay đổi phạm vi quan sát, module tự động dựng lại toàn bộ lưới khoảng cách, vẽ lại dữ liệu sonar đã lưu và cập nhật giao diện tương ứng mà không làm gián đoạn quá trình quét đang diễn ra.
+
+Nhờ kiến trúc bất đồng bộ tách biệt giữa quá trình giao tiếp thiết bị, bộ đệm trung gian, tiến trình xử lý dữ liệu và vòng lặp render độc lập theo timer, hệ thống đảm bảo dữ liệu sonar được thu nhận và hiển thị ổn định theo thời gian thực, cung cấp khả năng quan sát môi trường dưới nước đáng tin cậy cho toàn bộ hệ thống điều khiển ROV.
+
+\subsection{DVL Module}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width =1.0\textwidth]{Hinhve/dvl_service.png}
+    \caption{Sơ đồ hiển thị dữ liệu DVL}
+    \label{fig:usecase}
+\end{figure}
+
+Module \texttt{DVL} là thành phần chịu trách nhiệm thu nhận, xử lý và hiển thị dữ liệu vận tốc cũng như trạng thái chuyển động của ROV trong môi trường dưới nước. Trong hệ thống điều khiển robot lặn, DVL đóng vai trò quan trọng trong việc cung cấp thông tin vận tốc tương đối so với đáy biển hoặc khối nước xung quanh, hỗ trợ định vị, điều hướng và giám sát trạng thái chuyển động của phương tiện khi hoạt động tại khu vực không thể sử dụng tín hiệu GPS.
+
+Về mặt phần cứng, cảm biến DVL được gắn trực tiếp trên thân ROV và hoạt động dựa trên nguyên lý hiệu ứng Doppler. Thiết bị phát đồng thời nhiều chùm sóng âm xuống môi trường nước theo các góc cố định. Khi sóng âm phản xạ từ đáy biển hoặc các hạt lơ lửng trong nước quay trở lại đầu thu, sự thay đổi tần số giữa tín hiệu phát và tín hiệu phản hồi được sử dụng để tính toán vận tốc chuyển động của phương tiện theo từng trục không gian.
+
+Dữ liệu từ DVL được truyền trực tiếp về hệ thống GCS thông qua kết nối mạng Ethernet nội bộ giữa ROV và topside. Phía phần mềm GCS duy trì một tiến trình nền riêng biệt chịu trách nhiệm thiết lập kết nối tới thiết bị và liên tục lắng nghe dữ liệu được gửi từ DVL theo thời gian thực. Việc xử lý dữ liệu được thực hiện bất đồng bộ nhằm đảm bảo quá trình giao tiếp không làm ảnh hưởng đến khả năng phản hồi của giao diện điều khiển.
+
+Trong quá trình hoạt động, cảm biến DVL liên tục gửi các gói dữ liệu đo đạc chứa thông tin vận tốc theo ba trục chuyển động của ROV gồm trục dọc (\texttt{Surge}), trục ngang (\texttt{Sway}) và trục thẳng đứng (\texttt{Heave}). Ngoài ra hệ thống còn nhận được các thông tin bổ sung như độ cao so với đáy biển (\texttt{Altitude}), chất lượng tín hiệu phản hồi của từng beam, trạng thái khóa đáy (\texttt{Bottom Lock}) và dữ liệu phục vụ tính toán dead reckoning.
+
+Sau khi nhận dữ liệu từ thiết bị, hệ thống tiến hành giải mã gói tin và chuyển đổi sang cấu trúc dữ liệu nội bộ phục vụ xử lý tiếp theo. Các giá trị vận tốc thô sau đó được chuẩn hóa đơn vị đo, kiểm tra tính hợp lệ và cập nhật vào bộ nhớ đệm trung gian để đồng bộ với tầng giao diện hiển thị.
+
+Phía giao diện GCS, dữ liệu DVL được cập nhật liên tục theo cơ chế binding của kiến trúc \texttt{MVVM}. Các thông số vận tốc theo từng trục được hiển thị trực tiếp trên bảng điều khiển giúp người vận hành theo dõi trạng thái chuyển động tức thời của ROV trong thời gian thực. Đồng thời thông tin về độ cao so với đáy biển, trạng thái kết nối thiết bị và chất lượng tín hiệu cũng được cập nhật liên tục nhằm hỗ trợ đánh giá độ tin cậy của phép đo.
+
+Ngoài việc hiển thị giá trị tức thời, dữ liệu vận tốc từ DVL còn được sử dụng như đầu vào cho các module xử lý cao hơn trong hệ thống, bao gồm thuật toán định vị quán tính, ước lượng quỹ đạo di chuyển, hỗ trợ giữ vị trí tự động và phục vụ quá trình ghi log dữ liệu nhiệm vụ để phân tích sau khi vận hành.
+
+Để đảm bảo hệ thống hoạt động ổn định trong môi trường thực tế, module DVL tích hợp cơ chế giám sát kết nối liên tục. Nếu phát hiện thiết bị mất phản hồi hoặc đường truyền gặp lỗi, hệ thống tự động chuyển sang trạng thái reconnect, thử thiết lập lại kết nối và cập nhật trạng thái lỗi lên giao diện điều khiển để người vận hành có thể theo dõi.
+
+Nhờ kiến trúc xử lý bất đồng bộ kết hợp cơ chế cập nhật dữ liệu thời gian thực, module \texttt{DVL} cho phép hệ thống liên tục giám sát vận tốc và trạng thái chuyển động của ROV với độ trễ thấp, đóng vai trò quan trọng trong khả năng điều hướng chính xác và vận hành ổn định của toàn bộ hệ thống robot lặn.
+
+\section{Module xử lý dữ liệu thời gian thực}
+
+\subsection{TelemetryService}
+
+
+\texttt{TelemetryService} là module trung gian giữa tầng mạng
+(\texttt{MavlinkService}) và tầng giao diện (ViewModel/WPF). Module
+không tự nhận dữ liệu từ mạng mà đăng ký xử lý các sự kiện do
+\texttt{MavlinkService} phát ra, sau đó cập nhật vào các ViewModel
+tương ứng để giao diện tự động cập nhật thông qua WPF Data Binding.
+Hình~\ref{fig:telemetry_service_flow} mô tả toàn bộ chuỗi xử lý này.
+% Chèn sơ đồ luồng telemetry
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{Hinhve/telemetry_flow.drawio.png}
+    \caption{Chuỗi xử lý dữ liệu telemetry từ MavlinkService đến giao diện WPF}
+    \label{fig:telemetry_service_flow}
+\end{figure}
+
+\textbf{Vấn đề đa luồng trong WPF.}
+Các luồng nền của \texttt{MavlinkService} (\texttt{HBT\_Thread},
+\texttt{STA\_Thread}, \texttt{IMU\_Thread}, \texttt{ATT\_Thread})
+chạy độc lập với UI thread của WPF. WPF áp đặt quy tắc cứng: chỉ
+UI thread mới được phép thay đổi giá trị của các phần tử giao diện
+và các ViewModel binding với giao diện. Nếu một background thread cố
+gắng gán giá trị trực tiếp vào ViewModel, WPF sẽ ném
+\texttt{InvalidOperationException} ngay lập tức.
+
+\texttt{TelemetryService} giải quyết vấn đề này bằng cách bọc toàn
+bộ thao tác gán giá trị trong \texttt{Dispatcher.BeginInvoke()} ---
+yêu cầu WPF lên lịch thực thi đoạn code trên UI thread tại thời điểm
+sớm nhất có thể, không chặn luồng nền đang gọi. Kết quả là background
+thread thoát ngay sau khi đặt lịch, trong khi UI thread xử lý cập
+nhật giao diện theo tốc độ của riêng nó.
+
+\textbf{Ánh xạ sự kiện vào ViewModel.}
+Mỗi sự kiện từ \texttt{MavlinkService} được ánh xạ vào một hoặc
+nhiều thuộc tính của ViewModel tương ứng:
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|p{4.5cm}|}
+\hline
+\textbf{Sự kiện} & \textbf{ViewModel} & \textbf{Thuộc tính cập nhật} \\
+\hline
+\texttt{OnAttitude} & \texttt{AttitudeData} &
+    \texttt{Roll}, \texttt{Pitch}, \texttt{Yaw},\\
+    & & \texttt{RollSpeed}, \texttt{PitchSpeed} \\
+\hline
+\texttt{OnStatus} & \texttt{StatusVM} &
+    \texttt{voltage\_battery}, \texttt{battery\_remaining},
+    \texttt{current\_battery}, \texttt{current\_mode} \\
+\hline
+\texttt{OnNamedValueFloat} & \texttt{StatusVM} &
+    \texttt{temp}, \texttt{humid}, \texttt{Depth},
+    \texttt{waterTemperature}, \texttt{cameraTilt},
+    \texttt{lightLevel}, \texttt{powerLevel},
+    \texttt{HoldHeading}, \texttt{HoldDepth} \\
+\hline
+\texttt{OnImu} & \texttt{ImuVM} &
+    \texttt{AccX/Y/Z}, \texttt{GyroX/Y/Z},
+    \texttt{MagX/Y/Z} \\
+\hline
+\texttt{OnConnectionStatusChanged} & \texttt{RovViewModel} &
+    \texttt{IsConnected} \\
+\hline
+\end{tabular}
+\caption{Ánh xạ sự kiện MAVLink vào ViewModel trong TelemetryService}
+\label{tab:telemetry_mapping}
+\end{table}
+
+\textbf{Cơ chế cập nhật giao diện tự động.}
+Tất cả các ViewModel đều implement \texttt{INotifyPropertyChanged}.
+Khi một thuộc tính được gán giá trị mới, setter tự động gọi
+\texttt{PropertyChanged} với tên thuộc tính tương ứng. WPF Binding
+Engine lắng nghe sự kiện này và cập nhật trực tiếp phần tử giao diện
+đã binding vào thuộc tính đó --- không cần thêm bất kỳ dòng code
+thao tác UI nào. Chuỗi hoàn chỉnh từ ROV đến giao diện là:
+
+\begin{center}
+\texttt{MAVLink packet} $\rightarrow$ \texttt{MavlinkService} (phát sự kiện)
+$\rightarrow$ \texttt{Dispatcher.BeginInvoke} (chuyển UI thread)
+$\rightarrow$ \texttt{ViewModel} (gán thuộc tính)
+$\rightarrow$ \texttt{PropertyChanged} (kích hoạt)
+$\rightarrow$ \texttt{WPF Binding Engine} (cập nhật giao diện)
+\end{center}
+
+\textbf{Xử lý đặc biệt OnNamedValueFloat.}
+Gói \texttt{NAMED\_VALUE\_FLOAT} mang nhãn tên dạng chuỗi tối đa
+10 ký tự. \texttt{TelemetryService} đọc nhãn, cắt bỏ ký tự null
+cuối (\texttt{TrimEnd('\textbackslash 0')}), rồi dùng \texttt{switch}
+để phân loại và gán vào đúng thuộc tính. Đây là cơ chế linh hoạt cho
+phép ROV gửi các thông số tùy chỉnh không có trong chuẩn MAVLink mà
+không cần thay đổi cấu trúc giao tiếp.
+
+
+\section{Module điểu khiển}
+
+\subsection{Điều khiển thủ công - Joystick}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width =1.0\textwidth]{Hinhve/JOYSTICK CONTROL.drawio.png}
+    \caption{Sơ đồ luồng điểu khiển và đọc lệnh từ Joystick}
+    \label{fig:usecase}
+\end{figure}
+
+\texttt{JoystickService} là thành phần chịu trách nhiệm thu nhận tín
+hiệu từ thiết bị điều khiển vật lý và chuyển đổi thành các lệnh điều
+khiển chuẩn gửi tới ROV. Module đóng vai trò trung gian giữa thiết bị
+nhập liệu và tầng truyền thông, giúp tách biệt việc xử lý Joystick khỏi
+giao thức MAVLink. Nhờ đó, firmware phía ROV chỉ cần xử lý các bản tin
+điều khiển mà không phụ thuộc vào loại thiết bị điều khiển được sử dụng
+trên GCS.
+
+Để tránh ảnh hưởng đến giao diện người dùng, \texttt{JoystickService}
+được triển khai trên một luồng nền độc lập. Khi dịch vụ được khởi động,
+module tạo một vòng lặp hoạt động liên tục cho đến khi người dùng dừng
+dịch vụ. Thiết kế đa luồng giúp quá trình đọc dữ liệu từ Joystick diễn
+ra song song với giao diện WPF, đảm bảo các thao tác điều khiển luôn
+được cập nhật theo thời gian thực mà không làm treo hoặc giảm tốc độ
+phản hồi của giao diện.
+
+Trong giai đoạn khởi tạo, service sử dụng thư viện
+\texttt{SharpDX.DirectInput} để dò tìm thiết bị điều khiển. Quá trình
+tìm kiếm được thực hiện theo thứ tự ưu tiên gồm \texttt{Gamepad},
+\texttt{Joystick} và \texttt{Flight Controller}. Khi phát hiện thiết bị
+phù hợp, service thực hiện chiếm quyền điều khiển (Acquire) và bắt đầu
+thu thập dữ liệu. Nếu chưa phát hiện được thiết bị hoặc Joystick bị rút
+ra trong khi chương trình đang hoạt động, service sẽ tự động thực hiện
+quá trình dò tìm lại sau mỗi $1\,s$. Cơ chế này giúp người vận hành có
+thể cắm hoặc thay đổi thiết bị điều khiển mà không cần khởi động lại
+toàn bộ phần mềm.
+
+Sau khi kết nối thành công, \texttt{JoystickService} thực hiện polling
+thiết bị với chu kỳ khoảng $100\,ms$, tương đương tần số cập nhật gần
+$10\,Hz$. Trong mỗi chu kỳ, module đọc toàn bộ trạng thái hiện thời của
+Joystick bao gồm các trục điều khiển, các nút bấm, thanh trượt
+(\texttt{Slider}) và bộ điều khiển hướng (\texttt{POV Hat}). Việc đọc
+đồng thời toàn bộ trạng thái giúp các lệnh gửi đến ROV phản ánh đầy đủ
+thao tác của người điều khiển tại thời điểm hiện tại.
+
+Các giá trị của bốn trục điều khiển do DirectInput cung cấp nằm trong
+khoảng $[0,65535]$. Để thống nhất với chuẩn điều khiển của MAVLink,
+module thực hiện chuẩn hóa toàn bộ các giá trị này về khoảng
+$[-1000,1000]$. Sau khi chuẩn hóa, bốn trục được ánh xạ trực tiếp tới
+bốn bậc điều khiển cơ bản của ROV gồm chuyển động tiến/lùi, trái/phải,
+lên/xuống và quay quanh trục đứng (Yaw). Việc chuẩn hóa này giúp firmware
+phía ROV luôn nhận được cùng một miền dữ liệu điều khiển bất kể loại
+Joystick được sử dụng, đồng thời đơn giản hóa thuật toán phân phối lực
+đẩy cho các động cơ.
+
+Ngoài bốn trục điều khiển chính, module còn xử lý các nút chức năng của
+Joystick. Thay vì truyền trạng thái của từng nút riêng lẻ, hệ thống sử
+dụng một trường \texttt{buttons} dưới dạng bitmask để biểu diễn đồng
+thời nhiều lệnh điều khiển trong cùng một bản tin. Mỗi bit trong bitmask
+tương ứng với một chức năng riêng như bật hoặc tắt hệ thống chiếu sáng,
+tăng giảm cường độ đèn, điều chỉnh hệ số điều khiển (Gain), thay đổi góc
+camera hoặc điều khiển đóng mở tay gắp. Cách biểu diễn này giúp giảm kích
+thước gói tin truyền và cho phép nhiều thao tác được gửi đồng thời chỉ
+với một trường dữ liệu.
+
+Bên cạnh các lệnh điều khiển chuyển động, \texttt{JoystickService} còn
+hỗ trợ chuyển đổi chế độ hoạt động của ROV. Các nút chức năng trên
+Joystick được ánh xạ tới các chế độ điều khiển như Manual, Hold Heading,
+Hold Depth và các chế độ mở rộng khác. Các lệnh chuyển chế độ được gửi
+riêng thông qua bản tin \texttt{SET\_MODE}, trong khi các lệnh điều
+khiển chuyển động được truyền bằng bản tin
+\texttt{MANUAL\_CONTROL}. Việc tách riêng hai loại bản tin giúp tránh
+việc lệnh chuyển chế độ bị gửi lặp lại liên tục theo chu kỳ polling,
+đồng thời đảm bảo quá trình điều khiển diễn ra ổn định.
+
+Sau khi hoàn thành quá trình xử lý dữ liệu, \texttt{JoystickService}
+không trực tiếp thao tác với socket mạng mà chuyển các giá trị điều
+khiển cho \texttt{MavlinkService}. Thành phần này chịu trách nhiệm đóng
+gói dữ liệu thành các bản tin MAVLink, tuần tự hóa thành mảng byte và
+gửi qua kết nối UDP tới ROV. Việc tách biệt giữa tầng xử lý thiết bị và
+tầng truyền thông giúp giảm sự phụ thuộc giữa các module, đồng thời nâng
+cao khả năng tái sử dụng của hệ thống.
+
+Thiết kế này cũng tạo điều kiện thuận lợi cho việc mở rộng trong tương
+lai. Ngoài \texttt{JoystickService}, các thành phần khác của GCS như
+giao diện đồ họa hoặc các thuật toán điều khiển bán tự động đều có thể
+gọi trực tiếp các hàm của \texttt{MavlinkService} để gửi lệnh điều khiển
+đến ROV mà không cần thay đổi firmware. Nhờ đó, hệ thống có thể hỗ trợ
+nhiều phương thức điều khiển khác nhau trong khi vẫn duy trì một giao
+thức truyền thông thống nhất.
+
+
+\subsection{Hỗ trợ đa thiết bị điều khiển - XboxService}
+
+Bên cạnh \texttt{JoystickService} được tối ưu riêng cho Flight HOTAS
+4, hệ thống GCS cung cấp thêm \texttt{XboxService} nhằm hỗ trợ các
+bộ điều khiển phổ biến khác như Xbox Controller, Gamepad thông thường
+hoặc bất kỳ Joystick nào có cấu hình nút bấm khác với HOTAS 4.
+
+\textbf{Điểm khác biệt so với JoystickService.}
+Trong khi \texttt{JoystickService} gán cứng (hard code) từng nút bấm
+vào từng chức năng ROV ngay trong mã nguồn, \texttt{XboxService} đọc
+ánh xạ nút bấm từ file \texttt{Xbox\_config.json} khi khởi động.
+Điều này cho phép người vận hành thay đổi cấu hình nút bấm mà không
+cần biên dịch lại phần mềm. Công thức chuẩn hóa 4 trục điều khiển
+hoàn toàn giống nhau giữa hai service:
+
+\begin{equation}
+    X = \frac{state.X - 32768}{32768} \times 1000, \quad
+    Y = \frac{32768 - state.Y}{32768} \times 1000
+\end{equation}
+\begin{equation}
+    Z = \frac{32768 - state.Z}{32768} \times 1000, \quad
+    R = \frac{state.RotZ - 32768}{32768} \times 1000
+\end{equation}
+
+Trục Y và Z được đảo dấu so với giá trị thô vì DirectInput quy ước
+chiều dương hướng xuống/về sau, trong khi MAVLink quy ước chiều dương
+hướng lên/về trước.
+
+\textbf{Cấu trúc file cấu hình.}
+File \texttt{Xbox\_config.json} lưu tên thiết bị và từ điển ánh xạ
+từ tên chức năng ROV sang chỉ số đầu vào vật lý. Hệ thống sử dụng
+quy ước chỉ số mở rộng để phân biệt ba loại đầu vào khác nhau trên
+cùng một trường số nguyên:
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|}
+\hline
+\textbf{Dải chỉ số} & \textbf{Loại đầu vào} \\
+\hline
+$0$ -- $99$  & Nút bấm thường (Button index) \\
+$100$        & POV hat hướng lên \\
+$101$        & POV hat hướng xuống \\
+$200$        & Slider gạt về phía âm \\
+$201$        & Slider gạt về phía dương \\
+$-1$         & Chưa gán \\
+\hline
+\end{tabular}
+\caption{Quy ước chỉ số đầu vào trong file cấu hình Joystick}
+\label{tab:joystick_index}
+\end{table}
+
+Ví dụ file cấu hình thực tế cho thiết bị T.Flight HOTAS 4:
+
+\begin{lstlisting}[language=Python, caption={File Xbox\_config.json cho T.Flight HOTAS 4}, label={lst:joystick_config}]
+{
+  "DeviceName": "T.Flight Hotas 4",
+  "ButtonMappings": {
+    "LIGHT_DECREASE":  10,
+    "GAIN_INCREASE":   201,
+    "GAIN_DECREASE":   200,
+    "TILT_INCREASE":   100,
+    "TILT_DECREASE":   101,
+    "GRIPPER_OPEN":    0,
+    "GRIPPER_CLOSE":   3,
+    "MODE_STABILIZE":  6,
+    "MODE_MANUAL":     4,
+    "MODE_DEPTH_HOLD": 5
+  }
+}
+\end{lstlisting}
+
+Từ file trên có thể đọc ra ánh xạ vật lý cụ thể như sau: tăng/giảm
+Gain được gán vào Slider (chỉ số 201/200), điều chỉnh góc camera
+tilt được gán vào POV hat (chỉ số 100/101), gripper mở/đóng dùng
+nút 0 và 3, ba chế độ điều khiển Manual/Hold Depth/Stabilize lần
+lượt ở nút 4, 5 và 6. Các chức năng không xuất hiện trong file
+(\texttt{LIGHT\_SWITCH}, \texttt{LIGHT\_INCREASE}, \texttt{GRIPPER\_CLOSE}...)
+được coi là chưa gán và \texttt{XboxService} bỏ qua khi xử lý.
+
+Thiết kế tách cấu hình ra file JSON thay vì hard code mang lại lợi
+ích thực tế: khi đội vận hành sử dụng bộ điều khiển khác (ví dụ
+Xbox Controller thay vì HOTAS 4), chỉ cần mở \texttt{JoystickConfigurator},
+gán lại nút bấm và lưu --- phần mềm hoạt động ngay với thiết bị mới
+mà không cần can thiệp vào mã nguồn.
+
+\subsection{Cấu hình nút bấm - JoystickConfigurator}
+
+\texttt{JoystickConfigurator} là giao diện đồ họa cho phép người vận
+hành ánh xạ các nút bấm vật lý trên tay cầm với các chức năng ROV
+tương ứng, kết quả được lưu vào \texttt{Xbox\_config.json} và nạp
+lại bởi \texttt{XboxService} trong lần khởi động tiếp theo.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width = 1.1\textwidth]{Hinhve/JoystickConfig_flow.png}
+    \caption{Luồng cấu hình tay điểu khiển}
+    \label{fig:}
+\end{figure}
+\textbf{Quy trình gán nút.}
+Giao diện hiển thị danh sách 12 chức năng ROV, mỗi chức năng có một
+nút \textit{Click để gán}. Khi người vận hành bấm nút gán, hệ thống
+chuyển sang trạng thái chờ (\texttt{\_bindingTargetFunction}) và đổi
+màu nút sang cam để báo hiệu. Một \texttt{DispatcherTimer} chạy mỗi
+$50\,ms$ liên tục polling Joystick, phát hiện nút vật lý nào đang
+được bấm (kiểm tra theo thứ tự: nút bấm thường → POV hat → Slider)
+và ghi chỉ số vào từ điển mapping. Giao diện lập tức cập nhật tên
+nút tương ứng và đổi màu sang xanh lá để xác nhận.
+
+\textbf{Xử lý xung đột.}
+Nếu người vận hành bấm nút gán của một chức năng trong khi đang ở
+trạng thái chờ của chức năng khác, hệ thống tự động hủy trạng thái
+chờ cũ (\texttt{ResetBindingUIStatus()}) trước khi bắt đầu gán mới,
+tránh ghi đè nhầm. Nút \textit{Xóa} cho phép xóa mapping của từng
+chức năng riêng lẻ về trạng thái chưa gán ($-1$) mà không ảnh hưởng
+đến các chức năng còn lại.
+
+\textbf{Lưu và nạp cấu hình.}
+Khi bấm Lưu, hệ thống lọc bỏ các chức năng chưa gán ($value < 0$),
+serialize từ điển thành JSON với \texttt{WriteIndented = true} và ghi
+vào \texttt{Xbox\_config.json} trong thư mục cài đặt phần mềm. Khi
+mở lại \texttt{JoystickConfigurator}, hàm \texttt{LoadExistingConfig()}
+đọc file này và khôi phục toàn bộ trạng thái giao diện, giúp người
+vận hành thấy ngay mapping hiện tại mà không cần cấu hình lại từ đầu.
+
+
+\subsection{Cấu hình vị trí động cơ - \hyperref[fig:thruster_config_flow]{ThrusterConfigurator}}
+
+\texttt{ThrusterConfigurator} là cửa sổ công cụ chuyên biệt cho phép
+người vận hành xác định và lưu ánh xạ giữa 8 vị trí logic của động
+cơ trong ma trận mixing và kênh vật lý thực tế trên PCA9685. Khác
+với \texttt{JoystickConfigurator} hoạt động độc lập, \texttt{ThrusterConfigurator}
+được inject trực tiếp \texttt{MavlinkService} khi khởi tạo --- mọi
+lệnh Ping và lưu cấu hình đều gửi ngay xuống ROV thông qua kết nối
+UDP đang hoạt động mà không cần bước xác nhận trung gian.
+
+\textbf{Giao diện Ping kênh.}
+Hàm \texttt{BuildPingUI()} tạo động 16 nút \texttt{Button} tương ứng
+với 16 kênh PCA9685 (kênh 0 đến 15). Mỗi nút lưu chỉ số kênh trong
+thuộc tính \texttt{Tag}. Khi người vận hành bấm nút kênh $N$, sự kiện
+\texttt{BtnPing\_Click} đọc giá trị \texttt{Tag} và gọi thẳng
+\texttt{\_mavlinkService.SendThrusterPing(N)}, gửi chuỗi
+\texttt{PING:N} đến ROV qua UDP cổng 12345. ROV nhận lệnh và kích
+hoạt động cơ ở kênh $N$ quay trong $1\,s$.
+
+\textbf{Giao diện điền ánh xạ.}
+Hàm \texttt{BuildMappingUI()} tạo 8 hàng tương ứng với 8 vị trí logic
+trong danh sách \texttt{\_thrusters}. Mỗi hàng gồm nhãn tên vị trí
+và một \texttt{TextBox} để người vận hành nhập số kênh PCA9685 vừa
+xác định qua Ping. Các \texttt{TextBox} được lưu vào từ điển
+\texttt{\_thrusterTextBoxes} với key là tên vị trí, phục vụ tra cứu
+khi lưu cấu hình.
+
+\textbf{Nạp cấu hình hiện tại.}
+Khi cửa sổ mở, \texttt{LoadExistingConfig()} đọc file
+\texttt{thruster\_config.json} từ thư mục cài đặt và điền sẵn giá
+trị vào các \texttt{TextBox} tương ứng. Cờ \texttt{\_isUpdatingUI}
+ngăn các sự kiện thay đổi \texttt{TextBox} kích hoạt trong lúc đang
+nạp dữ liệu từ file. Người vận hành thấy ngay cấu hình đang áp dụng
+mà không cần nhập lại từ đầu.
+
+\textbf{Lưu và đồng bộ cấu hình.}
+Khi bấm Lưu, \texttt{BtnSave\_Click} duyệt qua toàn bộ
+\texttt{\_thrusterTextBoxes}, kiểm tra từng giá trị nhập vào bằng
+\texttt{int.TryParse()} --- nếu có ô nào không phải số nguyên hợp lệ,
+hàm hiển thị thông báo lỗi và dừng lại ngay thay vì lưu cấu hình
+sai. Sau khi kiểm tra xong, hệ thống thực hiện đồng thời hai việc:
+
+\begin{enumerate}
+    \item Ghi file \texttt{thruster\_config.json} cục bộ trên máy GCS
+    bằng \texttt{File.WriteAllText()} dùng để nạp lại lần sau khi
+    mở ThrusterConfigurator.
+    \item Gọi \texttt{\_mavlinkService.SendThrusterConfigJson(jsonString)}
+    để gửi chuỗi \texttt{SAVE\_CONFIG:json} xuống ROV --- ROV lưu file
+    và cập nhật \texttt{THRUSTER\_MAP} ngay lập tức.
+\end{enumerate}
+
+Hai bước ghi file và gửi xuống ROV được thực hiện trong cùng một lần
+bấm Lưu, đảm bảo GCS và ROV luôn có cùng cấu hình mà không cần người
+vận hành thực hiện thêm bước đồng bộ thủ công.
+\subsection{Điều khiển cơ cấu chấp hành trên giao diện}
+
+Ngoài điều khiển qua Joystick, người vận hành có thể gửi lệnh trực
+tiếp từ giao diện GCS thông qua các nút bấm và thanh điều khiển trên
+\hyperref[fig:mission_control]{màn hình}. Thay vì gọi thẳng vào \texttt{MavlinkService}, giao diện
+tương tác thông qua \texttt{RovViewModel} theo mô hình MVVM --- tách
+biệt hoàn toàn tầng giao diện khỏi tầng truyền thông.
+
+\textbf{Định nghĩa lệnh qua Enum.}
+Hệ thống định nghĩa hai enum trung tâm phục vụ điều khiển. \texttt{RovMode}
+mã hóa các chế độ hoạt động của ROV thành giá trị \texttt{ushort}
+đồng bộ với firmware:
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|l|}
+\hline
+\textbf{Chế độ} & \textbf{Giá trị} & \textbf{Mô tả} \\
+\hline
+\texttt{HeadingHold}   & 1 & Giữ hướng (yaw) \\
+\texttt{Manual}        & 2 & Điều khiển thủ công \\
+\texttt{AutoStabilize} & 3 & Ổn định tự động (đội tự động hóa) \\
+\texttt{DepthHold}     & 4 & Giữ độ sâu \\
+\hline
+\end{tabular}
+\caption{Enum RovMode — mã chế độ điều khiển ROV}
+\label{tab:rov_mode}
+\end{table}
+
+\texttt{ControlAction} mã hóa các lệnh thiết bị phụ trợ dưới dạng
+bitmask \texttt{ushort}, đồng bộ với định nghĩa phía firmware Python:
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|}
+\hline
+\textbf{Hành động} & \textbf{Bitmask (hex)} \\
+\hline
+\texttt{LIGHT\_SWITCH}   & \texttt{0x001} \\
+\texttt{GAIN\_INCREASE}  & \texttt{0x002} \\
+\texttt{GAIN\_DECREASE}  & \texttt{0x004} \\
+\texttt{TILT\_INCREASE}  & \texttt{0x008} \\
+\texttt{TILT\_DECREASE}  & \texttt{0x010} \\
+\texttt{LIGHT\_INCREASE} & \texttt{0x020} \\
+\texttt{LIGHT\_DECREASE} & \texttt{0x040} \\
+\texttt{TILT\_CENTER}    & \texttt{0x080} \\
+\texttt{GRIPPER\_OPEN}   & \texttt{0x100} \\
+\texttt{GRIPPER\_CLOSE}  & \texttt{0x200} \\
+\hline
+\end{tabular}
+\caption{Enum ControlAction — bitmask lệnh thiết bị phụ trợ}
+\label{tab:control_action}
+\end{table}
+
+\textbf{Kiến trúc Command trong ViewModel.}
+\texttt{RovViewModel} nhận hai callback được inject từ
+\texttt{MainWindow} khi khởi tạo: \texttt{sendModeAction} để gửi
+lệnh chuyển chế độ và \texttt{sendManualControlAction} để gửi lệnh
+điều khiển cơ cấu chấp hành. Hai callback này được bind trực tiếp
+vào các hàm của \texttt{MavlinkService}:
+
+\begin{lstlisting}[language=Csharp, caption={Inject callback vào RovViewModel từ MainWindow}, label={lst:viewmodel_inject}]
+_mainVM = new RovViewModel(
+    modeId => _mavlinkService.SendSetMode(modeId),
+    (x, y, z, r, btn) => _mavlinkService.SendManualControl(x, y, z, r, btn)
+);
+\end{lstlisting}
+
+Từ hai callback này, \texttt{RovViewModel} xây dựng hai
+\texttt{RelayCommand} để giao diện XAML binding vào:
+
+\texttt{SetModeCommand} nhận một \texttt{RovMode} làm tham số, ép
+kiểu sang \texttt{ushort} và gọi \texttt{sendModeAction}. Đồng thời
+cập nhật \texttt{current\_mode} trên ViewModel để giao diện phản ánh
+chế độ hiện tại ngay lập tức mà không cần chờ telemetry phản hồi từ
+ROV.
+
+\texttt{SetControlAction} nhận một \texttt{ControlAction} làm tham
+số, ép kiểu sang \texttt{ushort} và gọi
+\texttt{sendManualControlAction} với 4 trục bằng 0 và chỉ trường
+\texttt{buttons} mang giá trị bitmask tương ứng. Cách này tận dụng
+lại đúng gói tin \texttt{MANUAL\_CONTROL} mà Joystick vẫn dùng ---
+firmware ROV không phân biệt lệnh đến từ Joystick hay từ nút bấm
+giao diện, chỉ xử lý bitmask nhận được.
+
+\textbf{Ưu điểm của thiết kế.}
+Việc dùng enum thay vì hằng số nguyên trực tiếp mang lại hai lợi ích
+rõ ràng. Thứ nhất, XAML có thể binding \texttt{CommandParameter}
+trực tiếp bằng tên enum (\texttt{RovMode.DepthHold}) thay vì số
+nguyên, code giao diện dễ đọc và ít lỗi hơn. Thứ hai, giá trị enum
+được định nghĩa một lần duy nhất và dùng chung cho toàn bộ hệ thống
+--- \texttt{JoystickService}, \texttt{XboxService} và giao diện đều
+tham chiếu cùng một định nghĩa, loại bỏ nguy cơ sai lệch giá trị
+giữa các module.
+
+Ngoài ra, cơ chế inject callback thay vì tham chiếu trực tiếp đến
+\texttt{MavlinkService} giúp \texttt{RovViewModel} hoàn toàn độc lập
+với tầng mạng --- có thể viết unit test cho ViewModel mà không cần
+kết nối ROV thật, chỉ cần truyền vào mock callback.
+
+\section{Module ghi dữ liệu nhiệm vụ}
+\label{section:mission_recording}
+
+Module ghi dữ liệu nhiệm vụ chịu trách nhiệm thu thập, đồng bộ, lưu trữ và quản lý toàn bộ dữ liệu phát sinh trong suốt quá trình vận hành robot lặn điều khiển từ xa (ROV). Đây là thành phần quan trọng phục vụ quá trình phân tích sau nhiệm vụ (post-mission analysis), truy vết dữ liệu vận hành, đánh giá chất lượng khảo sát và hỗ trợ xây dựng bộ dữ liệu cho các thuật toán xử lý trong tương lai.
+
+Trong quá trình hoạt động, hệ thống Ground Control Station (GCS) liên tục tiếp nhận nhiều luồng dữ liệu thời gian thực từ các thành phần khác nhau của robot. Các luồng dữ liệu này bao gồm video quan sát từ camera, dữ liệu quét môi trường từ sonar, dữ liệu vận tốc và định vị từ cảm biến DVL, cùng với telemetry phản ánh trạng thái hoạt động của toàn bộ hệ thống.
+
+Do các nguồn dữ liệu này có tốc độ sinh dữ liệu, định dạng lưu trữ và đặc tính xử lý khác nhau, module ghi dữ liệu được thiết kế theo kiến trúc phân tán theo service (service-oriented recording architecture). Trong kiến trúc này, mỗi nguồn dữ liệu được xử lý bởi một recorder service độc lập nhằm đảm bảo khả năng xử lý song song và tránh hiện tượng blocking giữa các luồng dữ liệu.
+
+Toàn bộ vòng đời của quá trình ghi dữ liệu được điều phối tập trung bởi một thành phần trung tâm có tên là \texttt{MasterRecordingService}. Thành phần này chịu trách nhiệm khởi tạo phiên ghi dữ liệu mới, tạo cấu trúc lưu trữ nhiệm vụ, kích hoạt đồng thời các recorder service, quản lý trạng thái hoạt động của từng service và thực hiện quá trình kết thúc phiên ghi dữ liệu khi nhiệm vụ hoàn tất.
+
+Kiến trúc phân tán kết hợp điều phối tập trung giúp hệ thống đảm bảo ba yêu cầu quan trọng.
+
+\begin{itemize}
+    \item Ghi nhận đồng thời nhiều nguồn dữ liệu mà không gây ảnh hưởng lẫn nhau.
+    
+    \item Đảm bảo toàn bộ dữ liệu được đồng bộ theo cùng thời gian nhiệm vụ.
+    
+    \item Cho phép mở rộng dễ dàng khi tích hợp thêm cảm biến hoặc module lưu trữ mới trong tương lai.
+\end{itemize}
+
+Hình dưới đây mô tả tổng quan luồng hoạt động của module ghi dữ liệu nhiệm vụ.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width = 1.0\textwidth]{Hinhve/trip_recorde.png}
+    \caption{Tổng quan luồng hoạt động của module lưu trữ}
+    \label{fig:mission_recording_overview}
+\end{figure}
+
+Khi người vận hành gửi lệnh bắt đầu ghi dữ liệu, hệ thống khởi tạo một recording session mới và chuẩn bị toàn bộ cấu trúc lưu trữ cần thiết cho nhiệm vụ hiện tại. Sau đó, các recorder service tương ứng sẽ được kích hoạt đồng thời để bắt đầu ghi dữ liệu từ từng nguồn riêng biệt.
+
+Trong suốt quá trình nhiệm vụ, mỗi service hoạt động độc lập và ghi dữ liệu xuống bộ nhớ cục bộ theo định dạng phù hợp với loại dữ liệu tương ứng. Việc tách riêng từng luồng ghi dữ liệu giúp hệ thống duy trì khả năng xử lý thời gian thực ngay cả khi một nguồn dữ liệu có tốc độ truyền lớn hoặc phát sinh lỗi tạm thời.
+
+Khi nhiệm vụ kết thúc, hệ thống gửi tín hiệu dừng đến toàn bộ recorder service. Sau khi toàn bộ tiến trình ghi dữ liệu được đóng an toàn, metadata của nhiệm vụ sẽ được cập nhật nhằm đảm bảo dữ liệu cuối cùng được lưu trữ ở trạng thái nhất quán trước khi kết thúc phiên ghi dữ liệu.
+
+Hệ thống ghi dữ liệu được xây dựng dựa trên nhiều recorder service độc lập, trong đó mỗi service chịu trách nhiệm xử lý một loại dữ liệu riêng biệt.
+
+Thành phần trung tâm \texttt{MasterRecordingService} đóng vai trò điều phối toàn bộ quá trình ghi dữ liệu và quản lý vòng đời của phiên recording.
+
+Trong kiến trúc này, mỗi recorder service hoạt động tương đối độc lập và ghi dữ liệu xuống vùng lưu trữ riêng biệt. Việc phân tách này giúp giảm phụ thuộc giữa các module và tăng khả năng mở rộng hệ thống trong tương lai.
+
+Các recorder service chính trong hệ thống bao gồm:
+
+\begin{itemize}
+    \item \texttt{MasterRecordingService}
+    
+    Thành phần điều phối trung tâm chịu trách nhiệm quản lý toàn bộ vòng đời recording session.
+
+    \item \texttt{CameraRecorderService}
+    
+    Chịu trách nhiệm ghi video liên tục và quản lý các file media từ camera quan sát.
+
+    \item \texttt{SonarRecorderService}
+    
+    Ghi nhận dữ liệu sonar phục vụ khảo sát môi trường và lưu trữ dữ liệu quét theo thời gian thực.
+
+    \item \texttt{DVLRecorderService}
+    
+    Lưu dữ liệu vận tốc và thông tin định vị từ cảm biến Doppler Velocity Log.
+
+    \item \texttt{LogService}
+    
+    Ghi nhận telemetry hệ thống bao gồm trạng thái cảm biến, thông số điều khiển và các dữ liệu vận hành khác.
+\end{itemize}
+
+Do mỗi recorder service có cơ chế hoạt động, luồng xử lý dữ liệu và chiến lược lưu trữ khác nhau, từng service sẽ được trình bày chi tiết trong các mục tiếp theo cùng với activity diagram riêng tương ứng.
+\\subsection{MasterRecorderService}
+
+\subsection{MasterRecorderService}
+
+\texttt{MasterRecorderService} là thành phần trung tâm của toàn bộ module ghi dữ liệu nhiệm vụ, chịu trách nhiệm điều phối và quản lý vòng đời của một phiên ghi dữ liệu (recording session). Service này thực hiện khởi tạo môi trường lưu trữ, quản lý trạng thái hoạt động của các recorder service, theo dõi trạng thái kết nối thiết bị và quản lý metadata của toàn bộ nhiệm vụ thông qua file \texttt{trip.json}.
+
+Các chức năng chính của service bao gồm:
+
+\begin{itemize}
+    \item Tạo định danh nhiệm vụ (Mission ID).
+    \item Khởi tạo thư mục lưu trữ cho mission.
+    \item Tạo file metadata \texttt{trip.json}.
+    \item Khởi động đồng thời các recorder service.
+    \item Giám sát trạng thái hoạt động của từng service.
+    \item Nhận sự kiện từ các recorder service khi tạo file dữ liệu mới.
+    \item Cập nhật metadata nhiệm vụ trong quá trình recording.
+    \item Xử lý sự kiện mất kết nối hoặc reconnect từ các thiết bị.
+    \item Dừng toàn bộ recorder service khi nhiệm vụ kết thúc.
+\end{itemize}
+
+Khi người vận hành bắt đầu ghi dữ liệu, \texttt{MasterRecorderService} trước tiên kiểm tra trạng thái recording hiện tại của hệ thống. Nếu một phiên ghi dữ liệu đang hoạt động, yêu cầu mới sẽ bị từ chối nhằm tránh tạo nhiều session đồng thời.
+
+Nếu chưa tồn tại session nào, service tạo một Mission ID mới, ghi nhận thời điểm bắt đầu nhiệm vụ và khởi tạo cấu trúc thư mục lưu trữ cho toàn bộ dữ liệu phát sinh trong quá trình vận hành.
+
+Cấu trúc thư mục lưu trữ cuối cùng của một mission được tổ chức như ví dụ sau:
+
+\begin{verbatim}
+/ROV_DATA
+    /trip_20260610_151002
+        trip.json
+        
+        /camera
+            record_20260610_151306.mp4
+            record_20260610_152306.mp4
+            record_20260610_153304.mp4
+
+        /sonar
+            sona_20260610_151306.sonar
+
+        /dvl
+            dvl_20260610_151306.json
+
+        /log
+            log_20260610_151306.csv
+\end{verbatim}
+
+Sau khi tạo thư mục thành công, hệ thống khởi tạo file metadata \texttt{trip.json}. Đây là file metadata trung tâm dùng để quản lý toàn bộ thông tin liên quan tới nhiệm vụ, bao gồm thời gian bắt đầu, danh sách file dữ liệu, trạng thái kết nối của các module và trạng thái hoàn thành mission.
+
+Tiếp theo, service kiểm tra trạng thái kết nối của từng nguồn dữ liệu trước khi kích hoạt các recorder service tương ứng.
+
+Nếu camera đang hoạt động, hệ thống khởi động \texttt{CameraRecorderService} để bắt đầu ghi dữ liệu video. Trong quá trình ghi, camera service sẽ lưu tạm các frame ảnh dưới dạng dữ liệu thô để phục vụ quá trình dựng video. Sau khi quá trình chuyển đổi hoàn tất, file video MP4 cuối cùng sẽ được tạo và dữ liệu tạm thời sẽ bị xóa hoàn toàn.
+
+Nếu kết nối với hệ thống điều khiển ROV đang hoạt động, service khởi động \texttt{LogService} để bắt đầu lưu dữ liệu telemetry theo thời gian thực.
+
+Đồng thời, \texttt{SonarRecorderService} được kích hoạt để ghi dữ liệu sonar, trong khi \texttt{DVLRecorderService} chịu trách nhiệm lưu dữ liệu vận tốc và thông tin định vị từ cảm biến DVL.
+
+Sau khi toàn bộ recorder service được kích hoạt, hệ thống chuyển sang trạng thái giám sát liên tục. Trong trạng thái này, \texttt{MasterRecorderService} theo dõi trạng thái hoạt động của camera, sonar, DVL, telemetry và kết nối tổng thể với ROV.
+
+Trong quá trình vận hành, các recorder service liên tục gửi event về service trung tâm khi phát sinh thay đổi trạng thái, ví dụ như tạo file video mới, hoàn thành một segment video, tạo file log mới sau reconnect hoặc phát hiện mất kết nối thiết bị.
+
+Khi nhận được các sự kiện này, \texttt{MasterRecorderService} cập nhật lại file \texttt{trip.json} nhằm đảm bảo metadata luôn phản ánh chính xác trạng thái hiện tại của toàn bộ mission.
+
+Ví dụ, đối với camera recording, khi một segment video đạt giới hạn thời gian hoặc khi camera mất kết nối, \texttt{CameraRecorderService} sẽ đóng segment hiện tại, thực hiện chuyển đổi dữ liệu tạm thành file MP4 hoàn chỉnh, xóa dữ liệu trung gian và gửi thông báo về service trung tâm. Sau đó tên file video mới sẽ được thêm vào danh sách video của \texttt{trip.json}.
+
+Khi người vận hành chọn dừng ghi dữ liệu, \texttt{MasterRecorderService} gửi tín hiệu dừng đến toàn bộ recorder service.
+
+Mỗi service sẽ hoàn thành việc ghi dữ liệu còn tồn đọng trong bộ đệm nội bộ, đóng file hiện tại và giải phóng toàn bộ tài nguyên đang sử dụng.
+
+Sau khi toàn bộ service đã dừng hoàn toàn, hệ thống thực hiện cập nhật lần cuối file \texttt{trip.json}, ghi nhận thời điểm kết thúc nhiệm vụ, trạng thái hoàn thành recording và toàn bộ metadata cuối cùng trước khi kết thúc recording session.
+
+Toàn bộ luồng hoạt động của thành phần này được mô tả trong activity diagram tại Hình ...
+
+\subsection{CameraRecorderService}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width = 1.0\textwidth]{Hinhve/video_record_activity.png}
+    \caption{Luồng hoạt động của lưu video}
+    \label{fig:mission_recording_overview}
+\end{figure}
+
+\texttt{CameraRecorderService} là thành phần phức tạp nhất trong hệ thống ghi dữ liệu nhiệm vụ do phải xử lý luồng video thời gian thực với tốc độ cao, tốc độ khung hình không cố định và yêu cầu đảm bảo tính toàn vẹn dữ liệu trong trường hợp mất kết nối hoặc phân đoạn video định kỳ.
+
+Khác với cách ghi video truyền thống bằng cách encode trực tiếp từng frame thành file video, service này sử dụng kiến trúc lưu trữ hai giai đoạn nhằm bảo toàn timestamp thực tế của từng frame và hỗ trợ xử lý variable frame rate (VFR).
+
+Khi \texttt{MasterRecordingService} khởi động quá trình ghi hình, \texttt{CameraRecorderService} thực hiện khởi tạo một segment video mới.
+
+Đầu tiên, service tạo thư mục lưu trữ dữ liệu thô (raw recording), bao gồm thư mục chứa toàn bộ frame ảnh JPEG và file lưu timestamp.
+
+Ví dụ cấu trúc thư mục:
+
+\begin{verbatim}
+/camera_segment_001_raw
+    /frames
+        000000.jpg
+        000001.jpg
+        000002.jpg
+    timestamps.txt
+\end{verbatim}
+
+Sau khi khởi tạo thư mục, service bắt đầu hai tiến trình song song.
+
+Tiến trình thứ nhất là tiến trình nhận frame video từ camera.
+
+Mỗi khi hệ thống nhận được một frame mới thông qua hàm \texttt{WriteFrame()}, service lấy timestamp hiện tại thông qua bộ đếm thời gian nội bộ \texttt{Stopwatch}, sau đó đưa dữ liệu vào hàng đợi bất đồng bộ \texttt{ConcurrentQueue}.
+
+Tiến trình thứ hai là worker background thực hiện xử lý dữ liệu trong queue.
+
+Worker liên tục kiểm tra queue. Nếu tồn tại frame mới, service lấy frame ra khỏi queue và thực hiện ghi xuống ổ đĩa dưới dạng file JPEG tuần tự.
+
+Ví dụ:
+
+\begin{verbatim}
+000000.jpg
+000001.jpg
+000002.jpg
+\end{verbatim}
+
+Đồng thời timestamp tương ứng của từng frame được ghi vào file \texttt{timestamps.txt}.
+
+Ví dụ:
+
+\begin{verbatim}
+0
+35
+72
+106
+145
+\end{verbatim}
+
+Trong quá trình ghi hình, hệ thống đồng thời chạy một bộ đếm thời gian định kỳ thông qua \texttt{PeriodicTimer}.
+
+Sau mỗi khoảng thời gian xác định trước (ví dụ 10 phút trong hệ thống thực tế), timer kích hoạt callback rotation để đóng segment video hiện tại và tạo segment mới.
+
+Khi một segment kết thúc, service bắt đầu giai đoạn hậu xử lý video.
+
+Đầu tiên hệ thống đọc toàn bộ timestamp đã ghi và tạo file \texttt{concat.txt}.
+
+File này mô tả thời lượng hiển thị chính xác của từng frame dựa trên chênh lệch timestamp giữa hai frame liên tiếp.
+
+Ví dụ:
+
+\begin{verbatim}
+file '000000.jpg'
+duration 0.035
+
+file '000001.jpg'
+duration 0.037
+\end{verbatim}
+
+Sau khi tạo xong file concat, service gọi công cụ \texttt{FFmpeg} để convert toàn bộ dữ liệu raw thành file video MP4 hoàn chỉnh.
+
+Lệnh chuyển đổi sử dụng chế độ \texttt{fps\_mode vfr} nhằm bảo toàn tốc độ khung hình biến thiên thực tế trong quá trình truyền video.
+
+Ví dụ file đầu ra:
+
+\begin{verbatim}
+recorde_20260624_191031.mp4
+\end{verbatim}
+
+Nếu quá trình convert thành công, service xóa toàn bộ thư mục raw nhằm tiết kiệm bộ nhớ lưu trữ.
+
+Sau đó service gửi thông báo về \texttt{MasterRecordingService} để cập nhật metadata nhiệm vụ trong file \texttt{trip.json}.
+
+Khi người vận hành dừng recording, service dừng nhận frame mới, chờ queue xử lý hoàn tất toàn bộ frame còn tồn đọng, đóng file timestamp, thực hiện convert video lần cuối, xóa dữ liệu raw và kết thúc segment hiện tại.
+
+\subsection{SonarRecorderService}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width = 1.0\textwidth]{Hinhve/sona_recorder.png}
+    \caption{Luồng hoạt động của lưu dữ liệu sonar}
+    \label{fig:sonar_recording_activity}
+\end{figure}
+
+\texttt{SonarRecorderService} chịu trách nhiệm ghi nhận và lưu trữ toàn bộ dữ liệu quét từ cảm biến sonar trong suốt quá trình vận hành của hệ thống ROV.
+
+Khác với dữ liệu camera phải xử lý tốc độ khung hình biến thiên và thực hiện chuyển đổi video sau khi ghi, dữ liệu sonar có cấu trúc dữ liệu tương đối ổn định và được ghi trực tiếp xuống file nhị phân theo thời gian thực nhằm giảm chi phí xử lý và tối ưu tốc độ lưu trữ.
+
+Khi \texttt{MasterRecordingService} khởi động phiên ghi dữ liệu mới, \texttt{SonarRecorderService} bắt đầu tạo file dữ liệu sonar mới.
+
+Đầu tiên service khởi tạo đường dẫn lưu trữ, tạo thư mục chứa dữ liệu nếu chưa tồn tại và tạo đối tượng \texttt{FileStream} kết hợp với \texttt{BinaryWriter} để thực hiện ghi dữ liệu nhị phân xuống ổ đĩa.
+
+Ví dụ file dữ liệu đầu ra:
+
+\begin{verbatim}
+/sonar/sonar_20260624_191031.sonar
+\end{verbatim}
+
+Sau khi khởi tạo file thành công, service ghi phần header của file nhằm xác định định dạng dữ liệu và phiên bản cấu trúc file.
+
+Header bao gồm magic number để nhận diện file sonar, version và vùng dữ liệu dự phòng phục vụ mở rộng về sau.
+
+Ví dụ header được ghi như sau:
+
+\begin{verbatim}
+SONAR360
+Version = 1
+Reserved bytes
+\end{verbatim}
+
+Sau khi hoàn thành khởi tạo file, service bắt đầu kích hoạt bộ đếm thời gian nội bộ thông qua \texttt{Stopwatch}. Bộ đếm này được sử dụng để tạo timestamp tương đối cho từng frame sonar kể từ thời điểm bắt đầu ghi dữ liệu.
+
+Trong quá trình vận hành, module sonar liên tục gửi dữ liệu quét mỗi khi cảm biến hoàn thành một chu kỳ quét thông qua sự kiện \texttt{SweepReceived}.
+
+Mỗi khi nhận được một frame dữ liệu mới, hệ thống gọi hàm \texttt{WriteFrame()} để thực hiện ghi dữ liệu xuống file.
+
+Trước tiên service kiểm tra trạng thái recorder hiện tại. Nếu service đang hoạt động, hệ thống khóa vùng ghi dữ liệu nhằm tránh hiện tượng ghi đồng thời từ nhiều luồng khác nhau.
+
+Tiếp theo service lấy timestamp hiện tại từ \texttt{Stopwatch} và lần lượt ghi toàn bộ thông tin của frame sonar xuống file nhị phân.
+
+Mỗi frame sonar bao gồm các thành phần sau:
+
+\begin{itemize}
+    \item Timestamp của frame kể từ thời điểm bắt đầu recording.
+    \item Góc quét hiện tại của sonar (\texttt{AngleGrads}).
+    \item Số lượng sample trong frame.
+    \item Mảng dữ liệu intensity phản hồi của từng sample.
+\end{itemize}
+
+Cấu trúc dữ liệu của mỗi frame được ghi theo định dạng:
+
+\begin{verbatim}
+[Timestamp]
+[Angle]
+[Sample Count]
+[Intensity Array]
+\end{verbatim}
+
+Sau mỗi lần ghi thành công, hệ thống tăng biến đếm \texttt{FrameCount} nhằm theo dõi tổng số frame sonar đã được lưu trong phiên ghi hiện tại.
+
+Quá trình ghi dữ liệu này diễn ra liên tục theo cơ chế event-driven và kéo dài trong toàn bộ thời gian nhiệm vụ đang diễn ra.
+
+Trong quá trình hoạt động, \texttt{MasterRecordingService} đồng thời theo dõi trạng thái kết nối của thiết bị sonar.
+
+Nếu phát hiện sonar mất kết nối hoặc ngừng gửi dữ liệu trong khoảng thời gian vượt quá ngưỡng cho phép, service ghi nhận sự kiện disconnect.
+
+Khi đó hệ thống ngừng tiếp nhận dữ liệu sonar mới, thực hiện flush toàn bộ dữ liệu còn lại trong bộ đệm nội bộ và đóng file dữ liệu hiện tại.
+
+Sau khi đóng file thành công, service gửi sự kiện về \texttt{MasterRecordingService} để cập nhật metadata trong file \texttt{trip.json}, bao gồm tên file sonar vừa hoàn thành và trạng thái mất kết nối của thiết bị.
+
+Trong giai đoạn mất kết nối, hệ thống chuyển sang trạng thái chờ reconnect.
+
+Nếu kết nối sonar được khôi phục thành công, \texttt{MasterRecordingService} sẽ yêu cầu \texttt{SonarRecorderService} tạo file sonar mới và tiếp tục ghi dữ liệu.
+
+Ví dụ:
+
+\begin{verbatim}
+sonar_20260624_191031.sonar
+sonar_20260624_191536.sonar
+\end{verbatim}
+
+Nhờ cơ chế này, toàn bộ dữ liệu sonar vẫn được lưu trữ liên tục ngay cả khi thiết bị xảy ra mất kết nối tạm thời trong quá trình vận hành.
+
+Khi người vận hành kết thúc nhiệm vụ và gửi lệnh dừng recording, service ngừng nhận dữ liệu sonar mới, flush toàn bộ dữ liệu còn lại trong bộ đệm, đóng file hiện tại và giải phóng toàn bộ tài nguyên hệ thống.
+
+Sau đó service gửi thông báo hoàn thành về \texttt{MasterRecordingService}. Service trung tâm thực hiện cập nhật lần cuối metadata trong file \texttt{trip.json} trước khi kết thúc phiên ghi dữ liệu.
+
+Do dữ liệu sonar được ghi trực tiếp xuống file nhị phân ngay khi nhận được từ cảm biến, service này không yêu cầu bước hậu xử lý hoặc chuyển đổi dữ liệu như kiến trúc của \texttt{CameraRecorderService}. Điều này giúp giảm độ trễ lưu trữ và đảm bảo tốc độ ghi ổn định trong suốt quá trình vận hành hệ thống.
+
+\subsection{DVLRecorderService}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width = 1.0\textwidth]{Hinhve/dvl_recorder.png}
+    \caption{Luồng hoạt động của lưu dữ liệu DVL}
+    \label{fig:dvl_recording_activity}
+\end{figure}
+
+\texttt{DVLRecorderService} chịu trách nhiệm lưu trữ toàn bộ dữ liệu định vị và vận tốc thu nhận từ cảm biến \textit{Doppler Velocity Log (DVL)} trong suốt quá trình vận hành robot lặn.
+
+Dữ liệu DVL đóng vai trò quan trọng trong việc xác định vận tốc tương đối của robot so với môi trường xung quanh, hỗ trợ dead reckoning, ước lượng quỹ đạo chuyển động và phục vụ quá trình phân tích hậu kỳ sau nhiệm vụ.
+
+So với dữ liệu camera hoặc sonar, dữ liệu DVL có tốc độ sinh dữ liệu thấp hơn đáng kể và thường được truyền dưới dạng các packet telemetry tuần tự. Vì vậy service sử dụng kiến trúc ghi trực tiếp xuống file mà không yêu cầu cơ chế buffer bất đồng bộ hoặc xử lý hậu kỳ.
+
+Khi \texttt{MasterRecordingService} bắt đầu một recording session mới, hệ thống khởi tạo \texttt{DVLRecorderService} và tạo file lưu trữ dữ liệu DVL mới.
+
+Service trước tiên kiểm tra trạng thái file hiện tại. Nếu đang tồn tại một file đang mở, hệ thống đóng file cũ để đảm bảo không tồn tại nhiều luồng ghi đồng thời.
+
+Tiếp theo service tạo thư mục lưu trữ nếu chưa tồn tại và khởi tạo đối tượng \texttt{StreamWriter} để bắt đầu ghi dữ liệu xuống ổ đĩa.
+
+Ví dụ file đầu ra:
+
+\begin{verbatim}
+/DVL/DVL_20260624_191031.json
+\end{verbatim}
+
+Trong quá trình vận hành, module giao tiếp với DVL liên tục nhận dữ liệu position report từ cảm biến dưới dạng đối tượng \texttt{DvlPositionLocalReport}.
+
+Mỗi khi nhận được một packet dữ liệu mới, \texttt{MasterRecordingService} chuyển tiếp dữ liệu thông qua hàm:
+
+\begin{verbatim}
+WriteDvlPoint(...)
+\end{verbatim}
+
+Service sau đó gọi hàm \texttt{WritePoint()} để thực hiện lưu dữ liệu.
+
+Tại bước này, toàn bộ đối tượng dữ liệu DVL được chuyển đổi sang định dạng JSON thông qua bộ thư viện tuần tự hóa dữ liệu của hệ thống.
+
+Ví dụ một packet dữ liệu sau khi serialize:
+
+\begin{verbatim}
+{
+    "ts":1716825071.645135,
+    "x":0.011333328416144681,
+    "y":0.11576623035467287,
+    "z":0.010286708660463901,
+    "std":0.06391234032012223,
+    "roll":0.2480690936983577,
+    "pitch":-1.593824477853443,
+    "yaw":21.784247717824616,
+    "status":0,
+    "format":"json_v3.1",
+    "type":"position_local"
+}
+\end{verbatim}
+
+Sau khi chuyển đổi thành công, hệ thống ghi trực tiếp chuỗi JSON xuống file dưới dạng từng dòng độc lập.
+
+Ví dụ file dữ liệu:
+
+\begin{verbatim}
+{"x":0.32,"y":-0.14,"z":0.05,...}
+{"x":0.35,"y":-0.13,"z":0.06,...}
+{"x":0.39,"y":-0.11,"z":0.04,...}
+\end{verbatim}
+
+Sau mỗi lần ghi, service thực hiện \texttt{Flush()} ngay lập tức nhằm đảm bảo dữ liệu được ghi xuống ổ đĩa ngay tại thời điểm nhận packet mới.
+
+Cơ chế này giúp hạn chế mất dữ liệu trong trường hợp hệ thống mất điện hoặc xảy ra lỗi dừng đột ngột trong quá trình vận hành.
+
+Trong suốt nhiệm vụ, \texttt{MasterRecordingService} đồng thời theo dõi trạng thái kết nối giữa hệ thống điều khiển trung tâm và thiết bị ROV.
+
+Do dữ liệu DVL được truyền thông qua hệ thống giao tiếp chính của ROV, khi xảy ra mất kết nối với ROV, hệ thống xem như luồng dữ liệu DVL bị gián đoạn.
+
+Khi phát hiện disconnect, service dừng tiếp nhận dữ liệu DVL mới và thực hiện đóng file hiện tại.
+
+Quá trình đóng file bao gồm flush toàn bộ dữ liệu còn tồn tại trong buffer nội bộ và giải phóng đối tượng \texttt{StreamWriter}.
+
+Sau đó hệ thống gửi sự kiện về \texttt{MasterRecordingService} để cập nhật trạng thái vào file metadata \texttt{trip.json}.
+
+Trong giai đoạn mất kết nối, hệ thống chuyển sang trạng thái chờ reconnect.
+
+Khi kết nối với ROV được khôi phục, \texttt{MasterRecordingService} tạo file DVL mới và khởi động lại quá trình ghi dữ liệu.
+
+Ví dụ:
+
+\begin{verbatim}
+DVL_20260624_191031.json
+DVL_20260624_191842.json
+\end{verbatim}
+
+Nhờ cơ chế phân đoạn theo trạng thái kết nối, toàn bộ dữ liệu DVL vẫn được lưu trữ đầy đủ ngay cả khi hệ thống xảy ra gián đoạn tạm thời trong quá trình vận hành.
+
+Khi người vận hành kết thúc nhiệm vụ và gửi lệnh dừng recording, service ngừng tiếp nhận packet DVL mới, flush dữ liệu cuối cùng xuống ổ đĩa, đóng file hiện tại và giải phóng tài nguyên hệ thống.
+
+Sau đó \texttt{MasterRecordingService} cập nhật metadata lần cuối vào file \texttt{trip.json} và kết thúc recording session.
+
+\subsection{TelemetryRecorderService}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width = 1.0\textwidth]{Hinhve/log_recorder.png}
+    \caption{Luồng hoạt động của lưu dữ liệu telemetry}
+    \label{fig:telemetry_recording_activity}
+\end{figure}
+
+\texttt{TelemetryRecorderService} chịu trách nhiệm ghi nhận toàn bộ dữ liệu telemetry được truyền từ hệ thống điều khiển của ROV về Ground Control Station trong suốt quá trình vận hành.
+
+Dữ liệu telemetry bao gồm các thông số trạng thái thời gian thực của toàn bộ hệ thống như góc định hướng, độ sâu, điện áp nguồn, nhiệt độ, độ ẩm, trạng thái điều khiển và nhiều thông tin phục vụ giám sát vận hành.
+
+Khác với dữ liệu camera hoặc sonar được ghi theo cơ chế event-driven khi nhận dữ liệu mới từ thiết bị, module telemetry hoạt động theo cơ chế lấy mẫu định kỳ (periodic sampling), trong đó hệ thống chủ động lấy dữ liệu hệ thống theo chu kỳ thời gian cố định.
+
+Khi \texttt{MasterRecordingService} bắt đầu một phiên ghi dữ liệu mới, service khởi tạo file log telemetry mới trong thư mục lưu trữ của mission hiện tại.
+
+Đầu tiên hệ thống tạo thư mục lưu trữ nếu chưa tồn tại và khởi tạo đối tượng \texttt{StreamWriter} để ghi dữ liệu xuống file.
+
+Ví dụ file đầu ra:
+
+\begin{verbatim}
+/log/log_20260624_191031.csv
+\end{verbatim}
+
+Sau khi file được tạo thành công, service ghi dòng header mô tả cấu trúc dữ liệu CSV.
+
+Ví dụ header của file:
+
+\begin{verbatim}
+Time;Roll;Pitch;Yaw;Depth;Voltage;HoldDepth;
+HoldHeading;Manual;Humidity;Temperature;
+CameraTilt;LightLevel;PowerLevel;WaterTemperature
+\end{verbatim}
+
+Tiếp theo service khởi tạo bộ định thời \texttt{DispatcherTimer} với chu kỳ lấy mẫu cố định 1 giây.
+
+Sau khi timer được kích hoạt, hệ thống chuyển sang trạng thái ghi dữ liệu tuần hoàn.
+
+Mỗi khi timer phát sinh sự kiện \texttt{Tick}, service thực hiện gọi hàm \texttt{LogDataProvider()} để lấy trạng thái hiện tại của toàn bộ hệ thống ROV.
+
+Dữ liệu telemetry nhận được sẽ được chuyển thành một dòng dữ liệu CSV theo đúng định dạng đã định nghĩa trước đó.
+
+Ví dụ:
+
+\begin{verbatim}
+12:00:01;1.2;0.4;185;2.3;24.1;True;False;...
+12:00:02;1.1;0.5;186;2.4;24.1;True;False;...
+12:00:03;1.3;0.4;185;2.4;24.0;True;False;...
+\end{verbatim}
+
+Sau khi tạo dòng dữ liệu, service ghi trực tiếp xuống file thông qua \texttt{StreamWriter} và thực hiện \texttt{Flush()} ngay lập tức để đảm bảo dữ liệu được lưu xuống ổ đĩa theo thời gian thực.
+
+Quá trình lấy mẫu và ghi dữ liệu này được lặp lại liên tục mỗi giây trong toàn bộ thời gian nhiệm vụ đang diễn ra.
+
+Song song với quá trình ghi dữ liệu, \texttt{MasterRecordingService} liên tục giám sát trạng thái kết nối giữa hệ thống điều khiển trung tâm và ROV.
+
+Nếu phát hiện mất kết nối, service thực hiện chuyển sang trạng thái disconnect.
+
+Trong trạng thái này hệ thống dừng bộ định thời lấy mẫu, thực hiện flush toàn bộ dữ liệu còn lại trong buffer và đóng file telemetry hiện tại.
+
+Khác với thao tác dừng recording hoàn toàn, quá trình disconnect chỉ kết thúc segment log hiện tại nhưng không kết thúc toàn bộ recording session.
+
+Sau khi file được đóng thành công, service gửi thông báo về \texttt{MasterRecordingService} để cập nhật metadata tương ứng trong file \texttt{trip.json}.
+
+Trong thời gian mất kết nối, hệ thống chuyển sang trạng thái chờ reconnect.
+
+Nếu kết nối với ROV được khôi phục, \texttt{MasterRecordingService} tạo file telemetry mới và yêu cầu service khởi động lại quá trình ghi dữ liệu.
+
+Ví dụ:
+
+\begin{verbatim}
+telemetry_001.csv
+telemetry_002.csv
+\end{verbatim}
+
+Sau reconnect, service khởi tạo lại \texttt{DispatcherTimer} và tiếp tục chu trình lấy mẫu dữ liệu định kỳ như ban đầu.
+
+Khi người vận hành gửi lệnh dừng recording, service dừng bộ timer, thực hiện flush toàn bộ dữ liệu cuối cùng, đóng file hiện tại và giải phóng tài nguyên hệ thống.
+
+Sau đó service phát sự kiện hoàn thành về \texttt{MasterRecordingService}. Service trung tâm thực hiện cập nhật metadata cuối cùng vào file \texttt{trip.json} và kết thúc phiên ghi dữ liệu.
+
+Do dữ liệu telemetry được lấy mẫu định kỳ theo chu kỳ cố định và được ghi trực tiếp xuống file CSV, service này không yêu cầu cơ chế xử lý đa luồng hoặc hậu xử lý dữ liệu như kiến trúc của \texttt{CameraRecorderService}.
+
+\subsection{Metadata quản lý nhiệm vụ với \texttt{trip.json}}
+
+Ngoài các dữ liệu thô được tạo ra trong quá trình vận hành, hệ thống sử dụng một file metadata trung tâm có tên là \texttt{trip.json} nhằm quản lý toàn bộ thông tin liên quan đến phiên ghi dữ liệu nhiệm vụ.
+
+File này đóng vai trò như một manifest mô tả cấu trúc đầy đủ của toàn bộ mission, cho phép hệ thống theo dõi trạng thái recording, quản lý các file dữ liệu được tạo ra trong suốt nhiệm vụ, hỗ trợ truy xuất dữ liệu hậu kỳ, phát lại nhiệm vụ (mission replay) hoặc đồng bộ dữ liệu lên cloud trong tương lai.
+
+Khác với cách lưu metadata đơn giản chỉ bao gồm danh sách file đầu ra, cấu trúc \texttt{trip.json} trong hệ thống được thiết kế theo hướng phân tầng nhằm phản ánh đầy đủ lịch sử recording session, các asset được tạo ra và các sự kiện xảy ra trong quá trình vận hành.
+
+Cấu trúc tổng thể của file metadata bao gồm bốn thành phần chính.
+
+\begin{itemize}
+    \item \texttt{schema\_version}
+    
+    Xác định phiên bản cấu trúc của file metadata nhằm đảm bảo khả năng mở rộng và tương thích khi hệ thống được nâng cấp trong tương lai.
+
+    \item \texttt{trip}
+    
+    Chứa thông tin tổng quát của toàn bộ nhiệm vụ như mã nhiệm vụ, thời điểm tạo mission, trạng thái hoàn thành và thời lượng tổng của nhiệm vụ.
+
+    \item \texttt{recording\_config}
+    
+    Lưu cấu hình recording tại thời điểm bắt đầu nhiệm vụ, bao gồm trạng thái bật hoặc tắt của từng recorder service.
+
+    \item \texttt{sessions}
+    
+    Chứa danh sách toàn bộ recording session phát sinh trong nhiệm vụ, bao gồm các file dữ liệu được tạo ra và toàn bộ sự kiện xảy ra trong quá trình ghi dữ liệu.
+\end{itemize}
+
+Phần thông tin tổng quát của mission được lưu trong trường \texttt{trip}.
+
+Thông tin bao gồm:
+
+\begin{itemize}
+    \item Mã định danh nhiệm vụ (\texttt{trip\_id}).
+    \item Tên phương tiện hoặc robot đang vận hành (\texttt{vehicle}).
+    \item Thời điểm tạo nhiệm vụ (\texttt{created\_at}).
+    \item Trạng thái nhiệm vụ (\texttt{status}).
+    \item Trạng thái toàn vẹn dữ liệu (\texttt{integrity}).
+    \item Tổng thời lượng ghi dữ liệu (\texttt{total\_duration\_ms}).
+\end{itemize}
+
+Ví dụ:
+
+\begin{verbatim}
+"trip": {
+  "trip_id": "trip_20260624_191031",
+  "vehicle": "ROV_01",
+  "created_at": "...",
+  "status": "completed",
+  "integrity": "full",
+  "total_duration_ms": 55173
+}
+\end{verbatim}
+
+Phần \texttt{recording\_config} lưu cấu hình của các recorder service tại thời điểm bắt đầu nhiệm vụ.
+
+Ví dụ hệ thống cho phép bật hoặc tắt từng nguồn dữ liệu riêng biệt.
+
+\begin{verbatim}
+"recording_config": {
+  "video_enabled": true,
+  "sonar_enabled": false,
+  "dvl_enabled": false,
+  "log_enabled": true
+}
+\end{verbatim}
+
+Điều này giúp hệ thống xác định chính xác dữ liệu nào được ghi trong từng mission thay vì giả định toàn bộ cảm biến luôn hoạt động.
+
+Thành phần quan trọng nhất của metadata là danh sách \texttt{sessions}.
+
+Một mission có thể bao gồm một hoặc nhiều recording session tùy thuộc vào trạng thái vận hành thực tế của hệ thống.
+
+Mỗi session lưu trữ:
+
+\begin{itemize}
+    \item Mã session (\texttt{session\_id}).
+    \item Thời điểm bắt đầu session.
+    \item Thời điểm kết thúc session.
+    \item Tổng thời lượng session.
+    \item Trạng thái session.
+    \item Danh sách asset được tạo ra.
+    \item Danh sách sự kiện trong quá trình recording.
+\end{itemize}
+
+Ví dụ:
+
+\begin{verbatim}
+"session_id": "session_20260624_191031",
+"start_ms": 0,
+"end_ms": 55173,
+"duration_ms": 55173,
+"status": "completed"
+\end{verbatim}
+
+Trong mỗi session, hệ thống lưu danh sách các asset được tạo ra trong quá trình ghi dữ liệu.
+
+Mỗi asset đại diện cho một file dữ liệu vật lý được tạo bởi từng recorder service.
+
+Thông tin của mỗi asset bao gồm:
+
+\begin{itemize}
+    \item Mã định danh asset.
+    \item Loại dữ liệu (\texttt{video}, \texttt{sonar}, \texttt{dvl}, \texttt{telemetry}).
+    \item Thiết bị tạo dữ liệu.
+    \item Đường dẫn file lưu trữ.
+    \item Thời điểm bắt đầu ghi dữ liệu.
+    \item Thời điểm kết thúc ghi dữ liệu.
+    \item Trạng thái hoàn thành file.
+\end{itemize}
+
+Ví dụ một video segment được tạo bởi \texttt{CameraRecorderService}.
+
+\begin{verbatim}
+{
+  "asset_id": "vid_003",
+  "type": "video",
+  "device": "front_camera",
+  "file": "Camera/record_20260624_191052.mp4",
+  "start_ms": 21630,
+  "end_ms": 32352,
+  "status": "completed"
+}
+\end{verbatim}
+
+Do hệ thống sử dụng cơ chế phân đoạn dữ liệu (segmentation), một mission có thể tạo ra nhiều file video hoặc nhiều file log khác nhau trong trường hợp camera bị mất kết nối, reconnect hoặc recorder service thực hiện rotate định kỳ.
+
+Việc lưu asset theo danh sách cho phép hệ thống quản lý chính xác toàn bộ các file đã được tạo ra thay vì chỉ lưu một tên file duy nhất như các hệ thống ghi dữ liệu truyền thống.
+
+Ngoài danh sách asset, mỗi session còn lưu toàn bộ các sự kiện phát sinh trong quá trình recording thông qua trường \texttt{events}.
+
+Các sự kiện này phản ánh toàn bộ lịch sử hoạt động của recorder service trong suốt nhiệm vụ.
+
+Ví dụ:
+
+\begin{itemize}
+    \item Bắt đầu recording.
+    \item Kết thúc recording.
+    \item Camera disconnect.
+    \item Camera reconnect.
+    \item Sonar disconnect.
+    \item Sonar reconnect.
+    \item ROV disconnect.
+    \item ...
+\end{itemize}
+
+Ví dụ về dữ liệu sự kiện:
+
+\begin{verbatim}
+"events": [
+   { "timestamp_ms": 21, "event": "session_start" },
+        { "timestamp_ms": 11557, "event": "front_camera_disconnect" },
+        { "timestamp_ms": 31077, "event": "front_camera_reconnect" },
+        { "timestamp_ms": 45667, "event": "session_stop" }
+]
+\end{verbatim}
+
+Trong suốt quá trình vận hành, \texttt{MasterRecordingService} liên tục cập nhật file \texttt{trip.json} mỗi khi có thay đổi trạng thái của recorder service.
+
+Ví dụ các trường hợp cập nhật metadata bao gồm:
+
+\begin{itemize}
+    \item Bắt đầu mission mới.
+    \item Tạo video segment mới sau khi rotate.
+    \item Camera mất kết nối hoặc reconnect.
+    \item Sonar recorder đóng file do disconnect.
+    \item DVL hoặc telemetry tạo file mới sau reconnect.
+    \item Người vận hành kết thúc recording.
+\end{itemize}
+
+Việc sử dụng cấu trúc metadata phân tầng giúp hệ thống theo dõi đầy đủ lịch sử hoạt động của toàn bộ mission, đảm bảo khả năng truy xuất dữ liệu chính xác và tạo nền tảng cho các chức năng mở rộng trong tương lai như mission replay, đồng bộ cloud, kiểm tra integrity dữ liệu hoặc phân tích hậu kỳ tự động.
+\subsection{Tổ chức thư mục lưu trữ}
+
+Mỗi nhiệm vụ được lưu trữ trong một thư mục riêng biệt nhằm tách biệt dữ liệu giữa các lần vận hành và giúp hệ thống dễ dàng quản lý số lượng lớn dữ liệu phát sinh theo thời gian.
+
+Cấu trúc thư mục lưu trữ được tổ chức theo dạng phân cấp như sau.
+
+\begin{verbatim}
+/ROV_DATA
+   /trip_{time}
+      trip.json
+
+      /camera
+          camera_{time}.mp4
+          camera_{time}.mp4
+          camera_{time}.mp4
+
+      /sonar
+          sonar_{time}.sonar
+
+      /dvl
+          dvl_{time}.json
+
+      /log
+          log_{time}.json
+      image_{time}.jpg
+\end{verbatim}
+
+Mỗi recorder service sẽ ghi dữ liệu vào thư mục tương ứng của riêng mình, trong khi file \texttt{trip.json} đóng vai trò liên kết toàn bộ dữ liệu của nhiệm vụ.
+
+Cấu trúc này cho phép hệ thống dễ dàng sao lưu dữ liệu, đồng bộ lên cloud hoặc phục vụ phân tích hậu kỳ sau nhiệm vụ.
+
+\subsection{Đồng bộ thời gian giữa các nguồn dữ liệu}
+
+Một yêu cầu quan trọng trong hệ thống là đảm bảo toàn bộ dữ liệu từ nhiều nguồn khác nhau có thể được đồng bộ theo cùng một mốc thời gian nhằm phục vụ quá trình tái dựng chính xác diễn biến của nhiệm vụ.
+
+Do đó, trước khi dữ liệu được ghi xuống bộ nhớ, mỗi gói dữ liệu đều được gắn timestamp thống nhất dựa trên đồng hồ hệ thống hoặc timestamp gốc được truyền từ thiết bị trên ROV.
+
+Việc đồng bộ thời gian giúp hệ thống thực hiện hiệu quả nhiều tác vụ hậu kỳ như.
+
+\begin{itemize}
+
+    \item Đồng bộ video với telemetry hệ thống.
+    
+    \item Đồng bộ dữ liệu sonar với chuyển động robot.
+    
+    \item Phân tích trạng thái hoạt động tại từng thời điểm cụ thể.
+    
+    \item Phát lại toàn bộ nhiệm vụ theo đúng diễn biến thực tế.
+
+\end{itemize}
+
+\subsection{Khả năng mở rộng hệ thống}
+
+Kiến trúc module ghi dữ liệu được thiết kế theo hướng mở nhằm cho phép hệ thống dễ dàng bổ sung thêm các nguồn dữ liệu mới mà không làm ảnh hưởng đến kiến trúc hiện tại.
+
+Trong tương lai, hệ thống có thể mở rộng thêm nhiều khả năng mới như.
+
+\begin{itemize}
+
+    \item Ghi dữ liệu IMU.
+
+    \item Ghi dữ liệu GPS topside.
+
+    \item Đồng bộ dữ liệu lên cloud theo thời gian thực.
+
+    \item Nén dữ liệu tự động sau nhiệm vụ.
+
+    \item Tự động phát lại mission replay.
+
+    \item Tích hợp AI annotation cho dữ liệu khảo sát.
+
+\end{itemize}
+```
+
+\section{Module giao diện người dùng}
+
+Giao diện GCS được xây dựng theo mô hình MVVM trên nền WPF, bố cục
+chia thành ba vùng chính hoạt động song song: vùng hiển thị dữ liệu
+không gian (trái), vùng điều khiển và video (giữa), và vùng giám sát
+trạng thái ROV (phải). Toàn bộ dữ liệu hiển thị được cập nhật tự
+động thông qua cơ chế \texttt{INotifyPropertyChanged} mà không cần
+thao tác UI thủ công.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width = 0.9\textwidth]{Hinhve/UI_GCS.png}
+    \caption{Giao diện chính}
+    \label{fig:mission_control}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width = 0.9\textwidth]{figures/GCS_main_UI.png}
+    \caption{Giao diện chính}
+    \label{fig:mission_control}
+\end{figure}
+
+
+\subsection{Vùng hiển thị không gian (trái)}
+
+Vùng bên trái bao gồm hai UserControl xếp dọc phục vụ giám sát vị
+trí và môi trường xung quanh ROV.
+
+\textbf{DVL Display.}
+Panel phía trên hiển thị vị trí tương đối của ROV trên mặt phẳng
+ngang dưới dạng lưới tọa độ với điểm đỏ đánh dấu vị trí hiện tại.
+Dữ liệu đến từ \texttt{DVLService} thông qua sự kiện
+\texttt{PositionReceived}, cập nhật tọa độ X/Y theo thời gian thực.
+Người vận hành có thể zoom in/out và reset về gốc tọa độ qua các nút
+$(+)$, $(-)$ và $(\oplus)$ ở góc phải panel. Thước tỉ lệ ở góc dưới
+trái hiển thị khoảng cách thực tế tương ứng với một ô lưới.
+
+\textbf{Sonar Display.}
+Panel phía dưới hiển thị dữ liệu quét Sonar Ping360 dưới dạng sector
+scan hình tròn theo thời gian thực. Cường độ tín hiệu phản xạ được
+mã hóa màu sắc, cho phép người vận hành quan sát vật thể và địa hình
+xung quanh ROV trong phạm vi quét. Khi mất kết nối sonar, panel hiển
+thị thông báo \textit{``Mất kết nối sonar --- Đang kết nối lại...''} kèm
+số lần thử, nhờ cơ chế \texttt{AutoReconnect} của \texttt{SonarService}.
+Thanh điều chỉnh phạm vi quét ở dưới cùng cho phép thay đổi khoảng
+cách quét tối đa.
+
+\subsection{Vùng video và điều khiển (giữa)}
+
+\textbf{Camera Stream.}
+Phần trên hiển thị luồng video MJPEG trực tiếp từ camera gắn trên
+ROV. Hai nút \textit{Capture} và \textit{Record} phía dưới cho phép
+chụp ảnh tức thì hoặc bắt đầu/dừng ghi video. Khi bấm Record, nút
+đổi màu đỏ và \texttt{MasterRecordingService} đồng thời kích hoạt
+toàn bộ các recorder (video, sonar, DVL, telemetry log).
+
+\textbf{Mission Control Panel.}
+Panel điều khiển bên dưới video chia thành 4 nhóm chức năng:
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.9]{Hinhve/co_cau_chap_hanh_UI.png}
+    \caption{Misson Control Panel}
+    \label{fig:misson_control}
+\end{figure}
+
+
+
+\textit{MODE} --- Bốn nút chuyển chế độ hoạt động của ROV:
+\texttt{Manual}, \texttt{Heading Hold}, \texttt{Depth Hold} và
+\texttt{Stabilize}. Mỗi nút binding đến \texttt{SetModeCommand} với
+tham số \texttt{RovMode} tương ứng. Nút đang active được tô màu xanh
+nổi bật, các nút còn lại mờ đi, phản ánh \texttt{current\_mode}
+từ \texttt{StatusVM}.
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.8]{Hinhve/mode_ui.png}
+    \caption{Chọn mode cho điểu khiển tự động}
+    \label{fig:usecase}
+\end{figure}
+
+
+\textit{CAMERA TILT} --- Hiển thị góc nghiêng camera hiện tại (°)
+và bốn nút điều chỉnh: ngẩng lên, về giữa, hạ xuống và xoay. Mỗi
+nút binding đến \texttt{SetControlAction} với \texttt{ControlAction}
+tương ứng (\texttt{TILT\_INCREASE}, \texttt{TILT\_CENTER},
+\texttt{TILT\_DECREASE}).
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.8]{Hinhve/cameratilt.png}
+    \caption{Điểu khiển góc nghiêng camera}
+    \label{fig:usecase}
+\end{figure}
+
+
+\textit{GRIPPER} --- Hai nút \textit{OPEN} (xanh lam) và
+\textit{CLOSE} (đỏ) gửi \texttt{GRIPPER\_OPEN} và
+\texttt{GRIPPER\_CLOSE} qua \texttt{SetControlAction}.
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.8]{Hinhve/Gripper_ui.png}
+    \caption{Đóng mở tay gắp}
+    \label{fig:usecase}
+\end{figure}
+
+\textit{LIGHTS} --- Nút bật/tắt đèn, hiển thị mức sáng hiện tại
+(\texttt{LVL}) và hai nút tăng/giảm độ sáng. Giá trị \texttt{LVL}
+binding đến \texttt{lightLevel} trong \texttt{StatusVM}, cập nhật
+theo telemetry từ ROV.
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.8]{Hinhve/lightPower.png}
+    \caption{Tăng độ sáng đèn}
+    \label{fig:usecase}
+\end{figure}
+
+
+\subsection{Vùng giám sát trạng thái ROV (phải)}
+
+\textbf{Compass.}
+UserControl la bàn hiển thị hướng heading (yaw) của ROV dưới dạng
+đồng hồ la bàn hình tròn với mũi tên đỏ chỉ hướng Bắc. Mặt số xoay
+theo giá trị \texttt{Yaw} tính theo gốc có gốc là 0 độ khi mũi ROV hướng về phía Nam từ \texttt{AttitudeData}, kim đứng yên.
+Thanh \texttt{PITCH} bên trái hiển thị độ nghiêng dọc, phần màu xanh phía sau thể hiện việc mô phỏng mặt nước theo góc nhìn của ROV\texttt{Roll}. Toàn bộ ba giá trị binding
+đến \texttt{AttitudeData.Yaw}, \texttt{AttitudeData.Pitch} và
+\texttt{AttitudeData.Roll} trong \texttt{RovViewModel}.
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=1]{Hinhve/Compass.png}
+    \caption{La bàn}
+    \label{fig:usecase}
+\end{figure}
+
+\textbf{RovHealth Panel.}
+Panel giám sát sức khỏe hệ thống hiển thị các thông số theo thời
+gian thực, tất cả binding đến \texttt{StatusVM}:
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale = 0.9]{Hinhve/Rov_status.png}
+    \caption{Theo dõi thông tin trạng thái ROV}
+    \label{fig:usecase}
+\end{figure}
+
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Thông số} & \textbf{Nguồn} & \textbf{Binding} \\
+\hline
+DEPTH           & MS5837       & \texttt{StatusVM.Depth} \\
+BATTERY LEVEL   & ADS1115      & \texttt{StatusVM.battery\_remaining} \\
+VOLTAGE         & ADS1115      & \texttt{StatusVM.voltage\_battery} \\
+TEMPERATURE     & Si7021       & \texttt{StatusVM.temperature} \\
+HUMIDITY        & Si7021       & \texttt{StatusVM.humidity} \\
+WATER TEMP      & MS5837       & \texttt{StatusVM.waterTemperature} \\
+POWER GAIN      & ESC\_GAIN    & \texttt{StatusVM.powerLevel} \\
+\hline
+\end{tabular}
+\caption{Ánh xạ thông số giám sát ROV lên giao diện RovHealth}
+\label{tab:rovhealth_binding}
+\end{table}
+
+Thanh \texttt{POWER GAIN} ở cuối panel có hai nút $(\ominus)$ và
+$(\oplus)$ để tăng/giảm hệ số công suất động cơ, gửi lệnh
+\texttt{GAIN\_DECREASE} và \texttt{GAIN\_INCREASE} qua
+\texttt{SetControlAction}. Thanh tiến trình màu xanh lá phản ánh
+mức gain hiện tại.
+
+\subsection{Thanh điều hướng (Navigation Bar)}
+
+Thanh dưới cùng chứa 5 nút điều hướng chính:
+\begin{figure}[H]
+    \centering
+    \includegraphics[width =1.1\textwidth]{Hinhve/navigation.png}
+    \caption{Thanh điều hướng}
+    \label{fig:usecase}
+\end{figure}
+
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|p{9cm}|}
+\hline
+\textbf{Nút} & \textbf{Chức năng} \\
+\hline
+\texttt{CONNECT SYSTEM}  &
+    Kết nối/ngắt kết nối với ROV. Gọi \texttt{MavlinkService.Start()}
+    hoặc \texttt{closeConnection()}, đồng thời kết nối
+    \texttt{SonarService}. \\
+\hline
+\texttt{SETTING}         &
+    Mở cửa sổ cài đặt chung (địa chỉ IP sonar, đơn vị độ sâu...). \\
+\hline
+\texttt{CONFIG THRUSTER} &
+    Mở giao diện cấu hình vị trí động cơ, cho phép Ping từng kênh
+    và lưu ánh xạ \texttt{THRUSTER\_MAP}. \\
+\hline
+\texttt{CONFIG JOYSTICK} &
+    Mở \texttt{JoystickConfigurator} để ánh xạ lại nút bấm cho
+    \texttt{XboxService}. \\
+\hline
+\end{tabular}
+\caption{Chức năng các nút trên thanh điều hướng GCS}
+\label{tab:navbar}
+\end{table}
+
+\textbf{Cơ chế cập nhật giao diện.}
+Toàn bộ dữ liệu hiển thị trên giao diện được cập nhật thông qua
+chuỗi: \texttt{MavlinkService} nhận gói MAVLink → phát sự kiện →
+\texttt{MainWindow.RegisterMavlinkEvent()} nhận sự kiện →
+\texttt{Dispatcher.BeginInvoke()} chuyển sang UI thread → gán giá
+trị vào ViewModel → \texttt{INotifyPropertyChanged} kích hoạt →
+WPF Binding Engine cập nhật phần tử giao diện tương ứng. Chuỗi này
+đảm bảo giao diện luôn phản ánh đúng trạng thái thực tế của ROV mà
+không cần vòng lặp polling từ phía UI.
+
+\subsection{Cửa sổ cài đặt hệ thống (SettingsWindow)}
+\begin{figure}[H]
+    \centering
+    \includegraphics[scale=0.9]{Hinhve/setting_UI.png}
+    \caption{Cửa sổ cài đặt}
+    \label{fig:usecase}
+\end{figure}
+
+\texttt{SettingsWindow} là cửa sổ dialog tập trung toàn bộ cấu hình
+vận hành của GCS, mở khi người vận hành bấm nút \textit{SETTING} trên
+thanh điều hướng. Cửa sổ nhận vào đối tượng \texttt{AppSettings}
+hiện tại khi khởi tạo và trả về các giá trị đã chỉnh sửa thông qua
+các thuộc tính public khi đóng với \texttt{DialogResult = true}.
+
+\textbf{Chọn nguồn điều khiển (Control Source).}
+Người vận hành chọn thiết bị điều khiển chính cho ROV thông qua
+nhóm RadioButton. Hệ thống hỗ trợ 4 lựa chọn tương ứng với enum
+\texttt{ControllerType}:
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|p{6cm}|}
+\hline
+\textbf{Lựa chọn} & \textbf{ControllerType} & \textbf{Mô tả} \\
+\hline
+Joystick Controller     & \texttt{Joystick} &
+    Kích hoạt \texttt{JoystickService}, tối ưu cho Flight HOTAS 4 \\
+VSP System Controller   & \texttt{VSP} &
+    Kích hoạt \texttt{VSPControllerService} \\
+Xbox Controller         & \texttt{Xbox} &
+    Kích hoạt \texttt{XboxService}, nạp cấu hình từ JSON \\
+Disable Controller      & \texttt{None} &
+    Tắt toàn bộ đầu vào điều khiển \\
+\hline
+\end{tabular}
+\caption{Các lựa chọn nguồn điều khiển trong SettingsWindow}
+\label{tab:controller_type}
+\end{table}
+
+Khi người vận hành bấm \textit{SAVE SETTINGS}, hàm
+\texttt{BtnSave\_Click()} đọc RadioButton đang được chọn, gán vào
+\texttt{SelectedController} rồi đóng cửa sổ với
+\texttt{DialogResult = true}. Phía \texttt{MainWindow} nhận kết quả,
+dừng service điều khiển đang chạy và khởi động đúng service tương
+ứng với lựa chọn mới mà không cần khởi động lại phần mềm.
+
+\textbf{Cấu hình mạng (Network Configuration).}
+Hai trường \texttt{IP Sonar} và \texttt{IP DVL} cho phép người vận
+hành nhập địa chỉ IP tĩnh của sonar Ping360 và cảm biến DVL. Giá
+trị mặc định lần lượt là \texttt{192.168.80.3} và
+\texttt{192.168.80.4}. Sau khi lưu, \texttt{SonarService} và
+\texttt{DVLService} sử dụng địa chỉ mới cho lần kết nối tiếp theo.
+Thiết kế tách địa chỉ IP ra cài đặt thay vì hard code cho phép triển
+khai trên các hạ tầng mạng khác nhau mà không cần biên dịch lại phần
+mềm.
+
+\textbf{Thư mục lưu dữ liệu (Save Folder).}
+Phần dưới cùng hiển thị đường dẫn thư mục hiện tại đang dùng để lưu
+video và log nhiệm vụ, lấy từ \\ \texttt{TripConfig.Current.TripFolder}.
+Nút \textit{CHANGE FOLDER} không mở hộp thoại chọn thư mục ngay
+trong \texttt{SettingsWindow} mà đặt cờ \texttt{RequestChangeFolder
+= true} rồi đóng cửa sổ. \texttt{MainWindow} kiểm tra cờ này sau
+khi \texttt{SettingsWindow} đóng và mở hộp thoại chọn thư mục của
+hệ thống (\texttt{FolderBrowserDialog}) ở tầng trên. Thiết kế này
+tách biệt logic điều hướng cửa sổ khỏi \texttt{SettingsWindow},
+đảm bảo \texttt{SettingsWindow} không cần tham chiếu đến bất kỳ
+service hay cửa sổ nào khác.
+
+\textbf{Lưu và áp dụng cài đặt.}
+Toàn bộ cài đặt được lưu vào \texttt{AppSettings} và ghi xuống file
+cấu hình cục bộ thông qua \texttt{SettingsService} sau khi
+\texttt{SettingsWindow} đóng, đảm bảo phần mềm tự động khôi phục
+đúng cấu hình trong lần khởi động tiếp theo.
+
+
+\subsection{Cấu hình chức năng nút bấm}
+Quy trình người vẫn hành cấu hình theo sơ đồ sau:
+\begin{figure}[H]
+    \centering
+    \includegraphics[width = 0.9\textwidth]{figures/JOYSTICK CONFIG ACTIVITI.drawio.png}
+    \caption{Quy trinhg cấu hình tay điểu khiển}
+    \label{fig:mission_control}
+\end{figure}
+
+Giao diện cấu hình tay điểu khiển:
+\begin{figure}[H]
+    \centering
+    \includegraphics[width = 0.9\textwidth]{figures/JoystickConfig_UI.png}
+    \caption{Giao diện chính}
+    \label{fig:mission_control}
+\end{figure}
+\subsection{Cấu hình vị trí động cơ}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width =1.1\textwidth]{Hinhve/Cau hinh dong co_operator.drawio.png}
+    \caption{Quy trình cấu hình}
+    \label{fig:thruster_config_flow}
+\end{figure}
+\textbf{Quy trình thao tác của người vận hành.}
+Hình~\ref{fig:thruster_config_flow} mô tả toàn bộ quy trình cấu hình
+vị trí động cơ từ góc nhìn người vận hành, gồm 5 bước tuần tự:
+
+\begin{enumerate}
+    \item \textbf{Mở giao diện cấu hình}: Người vận hành bấm nút
+    \textit{CONFIG THRUSTER} trên thanh điều hướng. Giao diện hiển
+    thị 16 nút tương ứng với 16 kênh PCA9685, mỗi nút đại diện cho
+    một kênh vật lý có thể có động cơ gắn vào.
+
+    \item \textbf{Ping từng kênh}: Người vận hành bấm lần lượt từng
+    nút kênh. Mỗi lần bấm, GCS gửi lệnh \texttt{PING:N} đến ROV qua
+    UDP cổng 12345. ROV nhận lệnh, ghi PWM $1650\,\mu s$ vào kênh $N$
+    trong $1\,s$ khiến động cơ tương ứng quay nhẹ rồi tự dừng.
+
+    \item \textbf{Quan sát và xác định}: Người vận hành quan sát trực
+    tiếp trên khung ROV để xác định kênh $N$ đang điều khiển động cơ
+    ở vị trí nào (forward-right, rear-left, vertical-forward-right...).
+    Bước này lặp lại cho đến khi xác định đủ 8 vị trí động cơ.
+
+    \item \textbf{Điền ánh xạ}: Sau khi xác định xong, người vận hành
+    điền ánh xạ vào giao diện --- mỗi vị trí logic tương ứng với số
+    kênh vật lý vừa xác định qua Ping. GCS tổng hợp thành đối tượng
+    JSON với 8 cặp \texttt{tên\_vị\_trí: số\_kênh}.
+
+    \item \textbf{Lưu cấu hình}: Người vận hành bấm Lưu. GCS gửi
+    chuỗi \texttt{SAVE\_CONFIG:json} đến ROV. Phía ROV ghi xuống file
+    \texttt{thruster\_config.json} và gọi \\\texttt{load\_thrust\_config()}
+    để cập nhật \texttt{THRUSTER\_MAP} ngay lập tức, không cần khởi
+    động lại hệ thống.
+\end{enumerate}
+
+Quy trình này chỉ cần thực hiện một lần sau khi lắp ráp hoặc khi
+thay đổi vị trí lắp đặt động cơ. Cấu hình được lưu bền vững trên
+ROV và tự động nạp lại mỗi lần khởi động, đảm bảo hệ thống hoạt
+động đúng ngay từ lần bật nguồn tiếp theo mà không cần cấu hình lại.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.12\textwidth]{Hinhve/Cau_hinh_dong_co.png}
+    \caption{Giao diện thao tác cấu hình vị trí động cơ}
+    \label{fig:usecase}
+\end{figure}
 
 \end{document}

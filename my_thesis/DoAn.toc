@@ -14,16 +14,16 @@
 \contentsline {section}{\numberline {2.1}Khảo sát hiện trạng}{4}{section.2.1}%
 \contentsline {section}{\numberline {2.2}Tổng quan chức năng}{5}{section.2.2}%
 \contentsline {subsection}{\numberline {2.2.1}Biểu đồ use case tổng quát}{6}{subsection.2.2.1}%
-\contentsline {subsection}{\numberline {2.2.2}Biểu đồ use case phân rã Phân hệ Dữ liệu Thực địa}{6}{subsection.2.2.2}%
-\contentsline {subsection}{\numberline {2.2.3}Biểu đồ use case phân rã Phân hệ AI Phân tích}{7}{subsection.2.2.3}%
-\contentsline {subsection}{\numberline {2.2.4}Quy trình nghiệp vụ tải lên và phân tích dữ liệu}{7}{subsection.2.2.4}%
+\contentsline {subsection}{\numberline {2.2.2}Biểu đồ use case phân rã Phân hệ Dữ liệu Thực địa}{7}{subsection.2.2.2}%
+\contentsline {subsection}{\numberline {2.2.3}Biểu đồ use case phân rã Phân hệ AI Phân tích}{8}{subsection.2.2.3}%
+\contentsline {subsection}{\numberline {2.2.4}Quy trình nghiệp vụ tải lên và phân tích dữ liệu}{9}{subsection.2.2.4}%
 \contentsline {section}{\numberline {2.3}Đặc tả chức năng}{9}{section.2.3}%
-\contentsline {subsection}{\numberline {2.3.1}UC-01: Tải lên và đồng bộ dữ liệu cảm biến}{9}{subsection.2.3.1}%
-\contentsline {subsection}{\numberline {2.3.2}UC-02: Kích hoạt phân tích nhận diện vật thể bằng YOLOv8}{10}{subsection.2.3.2}%
-\contentsline {subsection}{\numberline {2.3.3}UC-03: Trích xuất và phân tích bằng chứng}{11}{subsection.2.3.3}%
-\contentsline {subsection}{\numberline {2.3.4}UC-04: Tạo báo cáo tóm tắt bằng ngôn ngữ tự nhiên}{12}{subsection.2.3.4}%
-\contentsline {section}{\numberline {2.4}Yêu cầu phi chức năng}{13}{section.2.4}%
-\contentsline {section}{\numberline {2.5}Sơ đồ trạng thái}{13}{section.2.5}%
+\contentsline {subsection}{\numberline {2.3.1}UC-01: Tải lên và đồng bộ dữ liệu cảm biến}{12}{subsection.2.3.1}%
+\contentsline {subsection}{\numberline {2.3.2}UC-02: Kích hoạt phân tích nhận diện vật thể bằng YOLOv8}{12}{subsection.2.3.2}%
+\contentsline {subsection}{\numberline {2.3.3}UC-03: Trích xuất và phân tích bằng chứng}{13}{subsection.2.3.3}%
+\contentsline {subsection}{\numberline {2.3.4}UC-04: Tạo báo cáo tóm tắt bằng ngôn ngữ tự nhiên}{14}{subsection.2.3.4}%
+\contentsline {section}{\numberline {2.4}Yêu cầu phi chức năng}{15}{section.2.4}%
+\contentsline {section}{\numberline {2.5}Sơ đồ trạng thái}{15}{section.2.5}%
 \contentsline {subsection}{\numberline {2.5.1}Vòng đời Chuyến khảo sát (Project)}{16}{subsection.2.5.1}%
 \contentsline {subsection}{\numberline {2.5.2}Vòng đời Lượt lặn (Trip)}{17}{subsection.2.5.2}%
 \contentsline {subsection}{\numberline {2.5.3}Vòng đời phân tích Media}{17}{subsection.2.5.3}%

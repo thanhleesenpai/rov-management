@@ -1,17 +1,24 @@
 @startuml er_diagram
 skinparam backgroundColor White
+
+' Ép đường nối vuông góc (Chuẩn ER Diagram)
+skinparam linetype ortho
+skinparam nodesep 40
+skinparam ranksep 60
+
+' Chỉnh cỡ chữ to và rõ ràng hơn
 skinparam class {
   BackgroundColor White
   BorderColor #555
   HeaderBackgroundColor #EEF3FF
-  FontSize 10
+  FontSize 13
+  AttributeFontSize 12
 }
 skinparam arrow {
   Color #555
-  FontSize 9
+  FontSize 11
+  FontWeight bold
 }
-skinparam ranksep 60
-skinparam nodesep 30
 hide circle
 hide methods
 
@@ -26,6 +33,25 @@ entity "users" {
   googleId : String <<optional>>
   authProvider : String
   lastLoginAt : Date
+}
+
+entity "auditlogs" {
+  * _id : ObjectId <<PK>>
+  --
+  action / entity : String
+  entityId : ObjectId
+  userId : ObjectId <<FK>>
+  details : Mixed
+  createdAt : Date
+}
+
+entity "notifications" {
+  * _id : ObjectId <<PK>>
+  --
+  userId : ObjectId <<FK>>
+  type / title / body : String
+  isRead : Boolean
+  link : String
 }
 
 entity "rovs" {
@@ -78,6 +104,26 @@ entity "sensordatas" {
   sourceFile : String
 }
 
+entity "sonarfiles" {
+  * _id : ObjectId <<PK>>
+  --
+  trip : ObjectId <<FK>>
+  filename : String
+  s3Key : String
+  frameCount / durationMs : Number
+  recordedAt : Date
+}
+
+entity "dvldatas" {
+  * _id : ObjectId <<PK>>
+  --
+  trip : ObjectId <<FK>>
+  ts : Date
+  x / y / z : Number
+  vx / vy / vz : Number
+  sourceFile : String
+}
+
 entity "media" {
   * _id : ObjectId <<PK>>
   --
@@ -107,62 +153,31 @@ entity "snapshots" {
   createdBy : ObjectId <<FK>>
 }
 
-entity "notifications" {
-  * _id : ObjectId <<PK>>
-  --
-  userId : ObjectId <<FK>>
-  type / title / body : String
-  isRead : Boolean
-  link : String
-}
+' ==========================================
+' ĐỊNH NGHĨA QUAN HỆ (RELATIONSHIPS)
+' ==========================================
 
-entity "auditlogs" {
-  * _id : ObjectId <<PK>>
-  --
-  action / entity : String
-  entityId : ObjectId
-  userId : ObjectId <<FK>>
-  details : Mixed
-  createdAt : Date
-}
-
-entity "sonarfiles" {
-  * _id : ObjectId <<PK>>
-  --
-  trip : ObjectId <<FK>>
-  filename : String
-  s3Key : String
-  frameCount / durationMs : Number
-  recordedAt : Date
-}
-
-entity "dvldatas" {
-  * _id : ObjectId <<PK>>
-  --
-  trip : ObjectId <<FK>>
-  ts : Date
-  x / y / z : Number
-  vx / vy / vz : Number
-  sourceFile : String
-}
-
+' Nhóm Users và các bảng phụ trợ
+users ||--o{ auditlogs : "ghi nhận"
+users ||--o{ notifications : "nhận"
 users ||--o{ rovs : "tạo"
 users ||--o{ projects : "tạo"
-users ||--o{ trips : "tạo"
-users ||--o{ notifications : "nhận"
-users ||--o{ snapshots : "tạo"
 
-rovs ||--o{ projects : "tham gia"
-
+' Quan hệ cốt lõi (Core Domain) - Dùng nét liền
+rovs ||-right-o{ projects : "tham gia"
 projects ||--o{ trips : "chứa"
-projects ||--o{ snapshots : "có"
-
 trips ||--o{ sensordatas : "có"
-trips ||--o{ media : "có"
-trips ||--o{ snapshots : "có"
 trips ||--o{ sonarfiles : "có"
 trips ||--o{ dvldatas : "có"
+trips ||--o{ media : "có"
 
+' Quan hệ với Snapshots (Nguồn tổng hợp)
 media ||--o{ snapshots : "là nguồn của"
+trips ||--o{ snapshots : "có"
+
+' Quan hệ theo vết (Metadata Tracking) - Dùng nét đứt (..o{) để giảm rối
+projects ||..o{ snapshots : "có"
+users ||..o{ trips : "tạo"
+users ||..o{ snapshots : "tạo"
 
 @enduml
