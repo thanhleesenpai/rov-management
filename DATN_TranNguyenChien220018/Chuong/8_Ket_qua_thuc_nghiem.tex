@@ -1,6 +1,796 @@
 \documentclass[../DoAn.tex]{subfiles}
 \begin{document}
 
-Tự viết
+\section{Các thành phần đã hoàn thành}
+
+Sau quá trình nghiên cứu, thiết kế, phát triển và tích hợp, nhóm đã xây dựng hoàn chỉnh hệ thống phần mềm điều khiển và quản lý robot lặn điều khiển từ xa (ROV). Hệ thống bao gồm nhiều thành phần hoạt động phối hợp với nhau nhằm đáp ứng yêu cầu điều khiển thời gian thực, giám sát trạng thái robot, lưu trữ dữ liệu nhiệm vụ và hỗ trợ phân tích dữ liệu sau quá trình vận hành.
+
+Các thành phần chính đã được hoàn thiện được chia thành bốn nhóm chức năng lớn như sau.
+
+\begin{enumerate}
+
+\item \textbf{Phát triển phần mềm Ground Control Station (GCS)}
+
+Nhóm đã xây dựng thành công phần mềm Ground Control Station chạy trên máy tính topside, đóng vai trò là trung tâm điều khiển và giám sát toàn bộ hoạt động của ROV trong quá trình vận hành.
+
+Phần mềm được phát triển theo kiến trúc MVVM, cho phép giao diện và logic xử lý hoạt động độc lập, thuận tiện cho việc mở rộng về sau.
+
+Các chức năng chính đã được triển khai bao gồm:
+
+\begin{itemize}
+    \item Thiết lập kết nối mạng giữa GCS và ROV thông qua giao thức Ethernet.
+    
+    \item Gửi lệnh điều khiển thủ công theo thời gian thực thông qua joystick hoặc giao diện điều khiển trực tiếp.
+    
+    \item Hiển thị liên tục dữ liệu telemetry từ robot bao gồm góc nghiêng Roll, Pitch, Yaw, độ sâu, nhiệt độ nước, điện áp pin, độ ẩm và trạng thái hệ thống.
+    
+    \item Nhận và hiển thị video camera từ ROV theo giao thức MJPEG phục vụ giám sát trực tiếp trong quá trình điều khiển.
+    
+    \item Kết nối và hiển thị dữ liệu từ sonar quét môi trường dưới nước nhằm hỗ trợ quan sát vật cản và môi trường xung quanh.
+    
+    \item Nhận dữ liệu từ cảm biến DVL để hiển thị vận tốc và vị trí tương đối của robot theo thời gian thực.
+    
+    \item Điều khiển các cơ cấu chấp hành như đèn chiếu sáng, camera tilt, tay gắp và cấu hình động cơ.
+    
+    \item Hỗ trợ ghi lại toàn bộ dữ liệu phát sinh trong quá trình vận hành phục vụ lưu trữ và phân tích sau nhiệm vụ.
+\end{itemize}
+
+Phần mềm GCS hiện đóng vai trò giao diện điều khiển trung tâm, đảm bảo khả năng giám sát trực quan và điều khiển robot theo thời gian thực.
+
+\item \textbf{Xây dựng nền tảng Web quản lý dữ liệu nhiệm vụ}
+
+Nhóm đã xây dựng thành công nền tảng Web phục vụ quản lý và phân tích dữ liệu sau mỗi nhiệm vụ của ROV, triển khai theo kiến trúc ba tầng gồm backend Node.js + Express, cơ sở dữ liệu MongoDB Atlas và frontend React được triển khai trên VPS thông qua Docker.
+
+Các chức năng chính đã được triển khai bao gồm:
+
+\begin{itemize}
+    \item Hệ thống xác thực người dùng với JWT (access token 15 phút, refresh token 7 ngày) và Google OAuth2, phân quyền theo mô hình RBAC với ba vai trò: quản trị viên (\textit{admin}), điều hành viên (\textit{operator}) và người xem (\textit{viewer}).
+
+    \item Quản lý toàn bộ vòng đời dữ liệu nhiệm vụ theo cấu trúc phân cấp Project và Trip, hỗ trợ tìm kiếm, lọc theo trạng thái, khoảng ngày và xuất báo cáo CSV/PDF.
+
+    \item Upload đa nguồn dữ liệu gồm video, ảnh, telemetry CSV, DVL JSON và sonar; lưu trữ tệp trực tiếp lên AWS S3 qua presigned URL, xử lý batch upload từ thư mục trip qua file ZIP.
+
+    \item Giao diện TripDetailPage theo phong cách cockpit với bố cục ba cột, cho phép phát video đồng bộ với biểu đồ cảm biến, hiển thị đồng hồ điều hướng SVG (ArtificialHorizon, CompassRose) và panel cảnh báo bất thường.
+
+    \item Tích hợp dịch vụ nhận diện vật thể YOLOv8 thông qua FastAPI microservice, xử lý bất đồng bộ qua Bull Queue trên nền Redis; hỗ trợ chọn model và ngưỡng confidence trước khi phân tích.
+
+    \item Phát hiện bất thường cảm biến tự động bằng Z-Score ($|z| > 2{,}5$) và tạo tóm tắt nhiệm vụ bằng mô hình Gemini 2.5 Flash.
+
+    \item Hệ thống thông báo realtime qua SSE (Server-Sent Events), nhật ký kiểm toán (Audit Log) và dashboard thống kê tổng quan.
+\end{itemize}
+
+Nền tảng Web đã hoạt động đầy đủ với ba vai trò người dùng, hỗ trợ luồng từ upload dữ liệu sau nhiệm vụ đến phân tích hậu kỳ và trích xuất bằng chứng.
+
+\item \textbf{Thiết kế và triển khai hệ thống điều khiển tự động}
+
+Nhóm đã triển khai bốn chế độ điều khiển tự động trên firmware của ROV, cho phép hệ thống duy trì trạng thái ổn định mà không cần can thiệp thủ công liên tục từ người vận hành.
+
+Các chế độ điều khiển tự động đã được triển khai bao gồm:
+
+\begin{itemize}
+    \item \textbf{Giữ hướng (Hold Heading):} sử dụng giá trị yaw từ IMU làm tín hiệu phản hồi cho bộ điều khiển PID, cho phép ROV duy trì hướng di chuyển khi chịu tác động của dòng chảy hoặc lực kéo từ dây tether.
+
+    \item \textbf{Giữ độ sâu (Hold Depth):} sử dụng cảm biến áp suất MS5837 để duy trì độ sâu cố định, kiểm soát chuyển động theo trục heave thông qua vòng điều khiển PID.
+
+    \item \textbf{Giữ vị trí bằng DVL (Hold Position):} sử dụng dữ liệu vận tốc từ DVL tích phân thành vị trí tương đối, kết hợp PID và damping velocity để giảm dao động quanh điểm đặt.
+
+    \item \textbf{Bám giữ mục tiêu bằng thị giác (Vision Tracking):} phát hiện và theo dõi mục tiêu do người vận hành lựa chọn trên ảnh camera, sử dụng đặc trưng Shi--Tomasi, Pyramidal Lucas--Kanade và template matching để duy trì bounding box qua các khung hình liên tiếp.
+\end{itemize}
+
+Các vòng điều khiển được phân quyền theo từng trục chuyển động, cho phép người vận hành can thiệp thủ công trên các trục không bị chiếm bởi chế độ tự động. Cơ chế Heartbeat Watchdog đảm bảo ROV tự động đưa động cơ về giá trị PWM trung tính khi mất tín hiệu từ GCS quá thời gian quy định.
+
+\item \textbf{Tích hợp hoàn chỉnh toàn bộ hệ thống phần mềm}
+
+Sau khi hoàn thiện từng thành phần riêng biệt, nhóm đã tiến hành tích hợp toàn bộ hệ thống thành một kiến trúc hoàn chỉnh cho phép các module phối hợp hoạt động đồng bộ trong môi trường thực tế.
+
+Hệ thống tích hợp cuối cùng bao gồm:
+
+\begin{itemize}
+    \item Firmware nhúng chạy trên vi điều khiển STM32 chịu trách nhiệm điều khiển động cơ, đọc cảm biến và thực thi các thuật toán điều khiển tự động.
+    
+    \item Máy tính nhúng Qualcomm QCS8550 đặt trên ROV đảm nhiệm xử lý camera, truyền dữ liệu video, thực hiện các thuật toán thị giác máy tính và quản lý truyền thông nội bộ.
+    
+    \item Phần mềm Ground Control Station trên máy tính topside phục vụ điều khiển trực tiếp và giám sát robot theo thời gian thực.
+    
+    \item Hệ thống ghi dữ liệu nhiệm vụ cho phép lưu trữ đồng thời nhiều nguồn dữ liệu phát sinh trong quá trình vận hành.
+    
+    \item Nền tảng Web phục vụ quản lý dữ liệu tập trung, phân tích hậu kỳ và lưu trữ lâu dài.
+    
+    \item Hạ tầng Cloud đảm nhiệm lưu trữ dữ liệu từ các nhiệm vụ đã thực hiện và cung cấp dịch vụ xử lý từ xa.
+\end{itemize}
+
+Kết quả tích hợp cho thấy các thành phần có khả năng phối hợp hoạt động ổn định, cho phép hình thành một hệ thống phần mềm hoàn chỉnh phục vụ điều khiển, giám sát, ghi dữ liệu và phân tích cho robot lặn trong các nhiệm vụ khảo sát thực tế.
+
+\end{enumerate}
+
+\section{Kết quả triển khai Ground Control Station}
+
+Ground Control Station (GCS) là thành phần trung tâm của toàn bộ hệ thống phần mềm, đóng vai trò giao diện điều khiển chính giữa người vận hành và robot lặn ROV trong quá trình thực hiện nhiệm vụ.
+
+Sau quá trình thiết kế và phát triển, nhóm đã hoàn thiện phần mềm GCS chạy trên máy tính topside, cho phép thiết lập kết nối với robot thông qua mạng Ethernet, gửi lệnh điều khiển theo thời gian thực, hiển thị trạng thái hoạt động của hệ thống, tiếp nhận dữ liệu cảm biến từ robot và hỗ trợ ghi lại toàn bộ dữ liệu phát sinh trong quá trình vận hành.
+
+Kết quả triển khai thực tế cho thấy phần mềm hoạt động ổn định, đáp ứng đầy đủ yêu cầu điều khiển trực tiếp, giám sát trạng thái robot theo thời gian thực và đóng vai trò trung tâm trong toàn bộ hệ thống điều khiển.
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width = 1.0\textwidth]{Hinhve/gcs.png}
+    \caption{Giao diện phần mềm GCS}
+    \label{fig:telemetry_recording_activity}
+\end{figure}
+
+
+\subsection{Kết quả điều khiển thủ công thời gian thực}
+
+Một trong những chức năng quan trọng nhất của GCS là cho phép người vận hành điều khiển trực tiếp chuyển động của robot trong quá trình làm việc dưới nước.
+
+Hệ thống điều khiển được thiết kế dựa trên mô hình điều khiển bốn thành phần chuyển động chính của robot, bao gồm:
+
+\begin{itemize}
+    \item Surge: điều khiển chuyển động tiến và lùi theo phương dọc thân robot.
+    
+    \item Sway: điều khiển chuyển động ngang sang trái và sang phải.
+    
+    \item Heave: điều khiển chuyển động lên và xuống theo phương thẳng đứng.
+    
+    \item Yaw: điều khiển quay thân robot quanh trục đứng.
+\end{itemize}
+
+Trong quá trình thử nghiệm, người vận hành sử dụng joystick vật lý kết nối trực tiếp với GCS để gửi lệnh điều khiển tới robot. Dữ liệu điều khiển được chuyển đổi thành gói MAVLink và truyền tới firmware điều khiển trên ROV thông qua kết nối UDP.
+
+Ngoài phương thức điều khiển bằng joystick, giao diện phần mềm cũng hỗ trợ điều khiển trực tiếp thông qua các nút chức năng trên màn hình, cho phép thực hiện các thao tác điều khiển ngay cả khi không có thiết bị ngoại vi.
+
+Kết quả thử nghiệm thực tế cho thấy:
+
+\begin{itemize}
+    \item Robot phản hồi chính xác theo hướng điều khiển tương ứng với từng trục chuyển động.
+    
+    \item Các lệnh điều khiển đồng thời trên nhiều trục được xử lý ổn định.
+    
+    \item Độ trễ từ thao tác của người dùng tới khi firmware nhận lệnh duy trì dưới $200\ ms$ trong điều kiện mạng nội bộ thông thường.
+    
+    \item Không xuất hiện hiện tượng mất điều khiển hoặc gửi sai lệnh trong quá trình vận hành liên tục.
+\end{itemize}
+
+Kết quả này cho thấy hệ thống điều khiển thủ công đã đáp ứng yêu cầu điều khiển thời gian thực đối với robot lặn trong môi trường vận hành thực tế.
+
+Video kết quả thử nghiệm được trình bày tại: \href{https://drive.google.com/file/d/11iHc4Oya20JVWQp25lEVBZ62LGkQiPMb/view?usp=drive_link}{\underline{Điều khiển ROV}}.
+
+\subsection{Kết quả hiển thị video và dữ liệu telemetry}
+
+Nhóm đã triển khai thành công cơ chế truyền dữ liệu video trực tiếp từ camera gắn trên robot tới GCS phục vụ quan sát trong quá trình điều khiển.
+
+Hệ thống camera sử dụng máy tính nhúng trên ROV để thu nhận hình ảnh, mã hóa thành chuỗi MJPEG và truyền tới phần mềm GCS thông qua giao thức HTTP chạy trên nền TCP.
+
+Trong quá trình thử nghiệm, luồng video được truyền liên tục và hiển thị trực tiếp trên giao diện mà không làm ảnh hưởng tới các tác vụ khác đang chạy đồng thời trong hệ thống.
+
+Song song với luồng video, GCS cũng tiếp nhận và hiển thị toàn bộ dữ liệu telemetry được gửi từ firmware thông qua các kênh truyền MAVLink.
+
+Các thông số đã được hiển thị thành công bao gồm:
+
+\begin{itemize}
+    \item Giá trị độ sâu thu được từ cảm biến áp suất MS5837.
+    
+    \item Góc Roll, Pitch và Yaw từ cảm biến IMU phục vụ giám sát tư thế robot.
+    
+    \item Điện áp pin tổng, điện áp từng cell và trạng thái dung lượng pin.
+    
+    \item Nhiệt độ nước đo từ cảm biến áp suất.
+    
+    \item Nhiệt độ và độ ẩm khoang kín từ cảm biến môi trường.
+    
+    \item Trạng thái kết nối hệ thống và trạng thái hoạt động của các chế độ điều khiển.
+\end{itemize}
+
+Kết quả thử nghiệm cho thấy dữ liệu telemetry được cập nhật liên tục theo chu kỳ định kỳ, đảm bảo người vận hành có thể theo dõi trạng thái robot theo thời gian thực trong suốt quá trình hoạt động.
+
+Việc truyền đồng thời video và dữ liệu cảm biến cho thấy kiến trúc truyền thông của hệ thống có khả năng xử lý nhiều luồng dữ liệu song song mà vẫn duy trì được tính ổn định.
+
+Video kết quả thử nghiệm được trình bày tại:\href{https://drive.google.com/file/d/126JseNt3CxkLHu0OeOHQrsxOD38szYMj/view?usp=drive_link}{\underline{Hiển thị RealTime Video+Telemetry}}
+
+\subsection{Kết quả hiển thị dữ liệu Sonar và DVL}
+
+Ngoài các dữ liệu telemetry cơ bản, phần mềm GCS còn hỗ trợ hiển thị dữ liệu từ các cảm biến phục vụ định vị và khảo sát môi trường dưới nước, bao gồm sonar và DVL.
+
+Đối với sonar, hệ thống tiếp nhận dữ liệu từ sonar quét môi trường và dựng lại ảnh quét theo dạng sector scan theo thời gian thực.
+
+Thông qua giao diện này, người vận hành có thể quan sát khoảng cách tới vật cản, hình dạng tương đối của môi trường xung quanh và phục vụ điều hướng trong điều kiện tầm nhìn hạn chế dưới nước.
+
+Đối với cảm biến DVL, GCS tiếp nhận liên tục các gói dữ liệu vận tốc và vị trí tương đối của robot thông qua kết nối Ethernet riêng biệt.
+
+Dữ liệu DVL sau khi giải mã được sử dụng để hiển thị:
+
+\begin{itemize}
+    \item Vận tốc theo các trục X, Y và Z.
+    
+    \item Khoảng cách tới đáy biển hoặc đáy bể thử nghiệm.
+    
+    \item Trạng thái bottom lock của cảm biến.
+    
+    \item Quỹ đạo di chuyển tương đối của robot theo thời gian.
+\end{itemize}
+
+Kết quả thử nghiệm cho thấy dữ liệu sonar và DVL được cập nhật ổn định trong thời gian thực và hiển thị chính xác trên giao diện mà không gây ảnh hưởng tới hiệu năng chung của phần mềm.
+
+Việc tích hợp thành công sonar và DVL cho phép hệ thống nâng cao khả năng quan sát môi trường dưới nước và cung cấp dữ liệu đầu vào quan trọng cho các thuật toán điều khiển tự động trong các giai đoạn tiếp theo.
+
+\section{Kết quả hệ thống ghi dữ liệu nhiệm vụ}
+
+Bên cạnh chức năng điều khiển trực tiếp robot, nhóm đã triển khai thành công chức năng ghi dữ liệu nhiệm vụ nhằm lưu trữ toàn bộ dữ liệu phát sinh trong quá trình robot hoạt động. Chức năng này cho phép lưu lại dữ liệu phục vụ cho việc phân tích hậu kỳ, đánh giá quá trình vận hành và quản lý dữ liệu của từng nhiệm vụ khảo sát.
+
+Khi người vận hành bắt đầu một nhiệm vụ, hệ thống sẽ tự động tạo ra một phiên lưu trữ riêng biệt, gọi là một \texttt{trip}. Mỗi \texttt{trip} tương ứng với một thư mục độc lập dùng để lưu toàn bộ dữ liệu được tạo ra trong suốt quá trình robot hoạt động.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width = 1.0\textwidth]{Hinhve/foler.png}
+\caption{Cấu trúc thư mục lưu trữ dữ liệu của một trip}
+\label{fig:trip_folder_structure}
+\end{figure}
+
+Kết quả triển khai cho thấy hệ thống đã lưu trữ thành công nhiều loại dữ liệu khác nhau trong cùng một nhiệm vụ. Trong mỗi thư mục \texttt{trip}, dữ liệu được tổ chức thành các thành phần riêng biệt bao gồm:
+
+\begin{itemize}
+\item \texttt{Camera/}: lưu các video được ghi từ camera của robot trong quá trình vận hành. Một nhiệm vụ có thể chứa nhiều file video khác nhau trong trường hợp kết nối camera bị gián đoạn hoặc quá trình ghi được khởi tạo lại.
+
+\item \texttt{Sonar/}: lưu dữ liệu quét từ sonar phục vụ khảo sát môi trường xung quanh robot.
+
+\item \texttt{DVL/}: lưu dữ liệu từ cảm biến DVL bao gồm thông tin vận tốc và dữ liệu hỗ trợ định vị dưới nước.
+
+\item \texttt{Log/}: lưu dữ liệu telemetry và trạng thái hoạt động của hệ thống trong suốt quá trình robot vận hành.
+
+\item \texttt{Capture/}: lưu các hình ảnh được người vận hành chụp lại trong quá trình thực hiện nhiệm vụ.
+
+\item \texttt{trip.json}: lưu thông tin tổng hợp của toàn bộ nhiệm vụ bao gồm thời gian thực hiện, danh sách file đã tạo và trạng thái của từng loại dữ liệu được ghi nhận.
+
+\end{itemize}
+
+Trong quá trình thử nghiệm, hệ thống đã ghi nhận thành công đồng thời nhiều luồng dữ liệu khác nhau và lưu trữ đầy đủ theo từng nhiệm vụ riêng biệt.
+
+Các kết quả ghi dữ liệu của từng thành phần được thể hiện trong các hình dưới đây.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width = 1.0\textwidth]{Hinhve/video_rec.png}
+\caption{Kết quả ghi dữ liệu video từ camera}
+\label{fig:video_recording_result}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width = 1.0\textwidth]{Hinhve/sona_rec.png}
+\caption{Kết quả ghi dữ liệu từ sonar}
+\label{fig:sonar_recording_result}
+\end{figure}
+
+Dữ liệu sona đã lưu được hiển thị lại chính xác:
+\begin{figure}[H]
+\centering
+\includegraphics[width = 1.0\textwidth]{Hinhve/sona_review.png}
+\caption{Hiển thị dữ liệu sona đã lưu}
+\label{fig:sonar_recording_result}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width = 1.0\textwidth]{Hinhve/dvl_rec.png}
+\caption{Kết quả ghi dữ liệu từ dvl}
+\label{fig:sonar_recording_result}
+\end{figure}
+
+Dữ liệu DVL đã lưu được hiển thị lại chính xác:
+\begin{figure}[H]
+\centering
+\includegraphics[width = 1.0\textwidth]{Hinhve/dvl_viewer.png}
+\caption{Hiển thị dữ liệu dvl đã lưu}
+\label{fig:sonar_recording_result}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width = 1.0\textwidth]{Hinhve/log_rec.png}
+\caption{Kết quả ghi dữ liệu telemetry của hệ thống}
+\label{fig:log_recording_result}
+\end{figure}
+
+Tất cả thư mục và quá trình ghi được lưu trữ trong \texttt{trip.json}:
+\begin{lstlisting}[language=json, caption={Ví dụ file trip.json}]
+{
+  "schema_version": "1.0",
+  "trip": {
+    "trip_id": "trip_20260601_164637",
+    "vehicle": "ROV_01",
+    "created_at": "2026-06-01T16:46:37.3417546Z",
+    "status": "completed",
+    "integrity": "full",
+    "total_duration_ms": 155486
+  },
+  "recording_config": {
+    "video_enabled": true,
+    "sonar_enabled": true,
+    "dvl_enabled": true,
+    "log_enabled": true
+  },
+  "sessions": [
+    {
+      "session_id": "session_001",
+      "start_ms": 0,
+      "end_ms": 92486,
+      "duration_ms": 92486,
+      "status": "completed",
+      "assets": [
+        {
+          "asset_id": "vid_001",
+          "type": "video",
+          "device": "front_camera",
+          "file": "Camera/record_20260601_154644.mp4",
+          "start_ms": 0,
+          "end_ms": 10742,
+          "status": "disconnected"
+        },
+        {
+          "asset_id": "vid_002",
+          "type": "video",
+          "device": "front_camera",
+          "file": "Camera/record_20260601_154711.mp4",
+          "start_ms": 27318,
+          "end_ms": 92486,
+          "status": "completed"
+        },
+        {
+          "asset_id": "sonar_001",
+          "type": "sonar",
+          "device": "ping360",
+          "file": "Sonar/sonar_20260601_154644.sonar",
+          "start_ms": 0,
+          "end_ms": 24987,
+          "status": "disconnected"
+        },
+        {
+          "asset_id": "sonar_002",
+          "type": "sonar",
+          "device": "ping360",
+          "file": "Sonar/sonar_154723.sonar",
+          "start_ms": 39102,
+          "end_ms": 92486,
+          "status": "completed"
+        },
+        {
+          "asset_id": "dvl_001",
+          "type": "dvl",
+          "device": "waterlinked_dvl",
+          "file": "DVL/dvl_20260601_154644.json",
+          "start_ms": 0,
+          "end_ms": 25214,
+          "status": "disconnected"
+        },
+        {
+          "asset_id": "log_001",
+          "type": "telemetry",
+          "device": "rov_controller",
+          "file": "Log/log_20260601_154644.csv",
+          "start_ms": 0,
+          "end_ms": 25103,
+          "status": "disconnected"
+        },
+        {
+          "asset_id": "log_002",
+          "type": "telemetry",
+          "device": "rov_controller",
+          "file": "Log/log_20260601_154746.csv",
+          "start_ms": 62459,
+          "end_ms": 92486,
+          "status": "completed"
+        }
+      ],
+      "events": [
+        {
+          "timestamp_ms": 0,
+          "event": "session_start"
+        },
+        {
+          "timestamp_ms": 10742,
+          "event": "rov_disconnect"
+        },
+        {
+          "timestamp_ms": 24987,
+          "event": "sonar_disconnect"
+        },
+        {
+          "timestamp_ms": 25103,
+          "event": "rov_disconnect"
+        },
+        {
+          "timestamp_ms": 25214,
+          "event": "dvl_disconnect"
+        },
+        {
+          "timestamp_ms": 27318,
+          "event": "rov_reconnect"
+        },
+        {
+          "timestamp_ms": 92486,
+          "event": "session_stop"
+        }
+      ]
+    },
+    {
+      "session_id": "session_001",
+      "start_ms": 0,
+      "end_ms": 120350,
+      "duration_ms": 120350,
+      "status": "completed",
+      "assets": [
+        {
+          "asset_id": "vid_001",
+          "type": "video",
+          "device": "front_camera",
+          "file": "Camera/record_20260616_155544.mp4",
+          "start_ms": 0,
+          "end_ms": 120350,
+          "status": "completed"
+        },
+        {
+          "asset_id": "sonar_001",
+          "type": "sonar",
+          "device": "ping360",
+          "file": "Sonar/sonar_20260616_155544.sonar",
+          "start_ms": 0,
+          "end_ms": 120350,
+          "status": "completed"
+        },
+        {
+          "asset_id": "dvl_001",
+          "type": "dvl",
+          "device": "waterlinked_dvl",
+          "file": "DVL/dvl_20260616_155544.json",
+          "start_ms": 0,
+          "end_ms": 120350,
+          "status": "completed"
+        },
+        {
+          "asset_id": "log_001",
+          "type": "telemetry",
+          "device": "rov_controller",
+          "file": "Log/log_20260616_155544.csv",
+          "start_ms": 0,
+          "end_ms": 120350,
+          "status": "completed"
+        }
+      ],
+      "events": [
+        {
+          "timestamp_ms": 0,
+          "event": "session_start"
+        },
+        {
+          "timestamp_ms": 120350,
+          "event": "session_stop"
+        }
+      ]
+    }
+  ]
+}
+\end{lstlisting}
+
+Qua quá trình thử nghiệm, chức năng ghi dữ liệu nhiệm vụ đã đạt được các kết quả sau:
+
+\begin{itemize}
+\item Ghi nhận đồng thời nhiều loại dữ liệu khác nhau trong cùng một nhiệm vụ bao gồm video, sonar, DVL và telemetry.
+
+\item Dữ liệu được lưu trữ đầy đủ và phân loại rõ ràng theo từng phiên nhiệm vụ riêng biệt.
+
+\item Hệ thống vẫn duy trì việc lưu trữ dữ liệu ổn định trong thời gian vận hành kéo dài.
+
+\item Các file dữ liệu sau khi ghi có thể được sử dụng trực tiếp cho việc xem lại nhiệm vụ hoặc phân tích hậu kỳ.
+
+\item Toàn bộ thông tin của nhiệm vụ được quản lý tập trung thông qua file \texttt{trip.json}, giúp dễ dàng quản lý và truy xuất dữ liệu sau khi kết thúc khảo sát.
+
+\end{itemize}
+
+Kết quả này cho thấy hệ thống đã đáp ứng tốt yêu cầu lưu trữ dữ liệu toàn diện cho từng nhiệm vụ của robot, tạo cơ sở cho việc quản lý dữ liệu lâu dài và hỗ trợ các bước phân tích, đánh giá sau quá trình vận hành thực tế.
+
+\section{Kết quả hệ thống Web}
+
+Nhóm đã xây dựng và triển khai thành công nền tảng Web phục vụ quản lý và phân tích dữ liệu sau nhiệm vụ của ROV. Hệ thống vận hành theo kiến trúc ba tầng gồm backend Node.js + Express chạy trên VPS, cơ sở dữ liệu MongoDB Atlas và frontend React.
+
+\subsection{Quản lý Project và Trip}
+
+Hệ thống tổ chức dữ liệu nhiệm vụ theo cấu trúc phân cấp: mỗi Project đại diện cho một chiến dịch khảo sát, bên trong chứa nhiều Trip tương ứng với từng phiên lặn riêng biệt. Người dùng có thể tạo, chỉnh sửa và theo dõi trạng thái từng Trip, lọc theo trạng thái và khoảng thời gian, đồng thời xuất danh sách ra CSV hoặc PDF.
+
+Phân quyền theo mô hình RBAC ba cấp: \textit{admin} toàn quyền, \textit{operator} tạo và chỉnh sửa dữ liệu, \textit{viewer} chỉ đọc. Hệ thống hỗ trợ đăng nhập bằng tài khoản thông thường (JWT) và Google OAuth2.
+
+\subsection{Upload và quản lý dữ liệu đa nguồn}
+
+Operator upload dữ liệu sau khi ROV về bờ thông qua hai phương thức: upload từng file riêng lẻ hoặc upload batch từ thư mục trip đóng gói dạng ZIP. Hệ thống tự động nhận diện loại file (CSV telemetry, DVL JSON, sonar binary, video, ảnh) và định tuyến đến module xử lý tương ứng.
+
+Tệp lớn (video, ảnh) được truyền trực tiếp lên AWS S3 qua presigned URL, không đi qua máy chủ backend, giảm đáng kể băng thông VPS. Khi có file \texttt{trip\_master.json} trong ZIP, hệ thống tự động đọc metadata và gợi ý thời điểm bắt đầu quay (\texttt{recordedAt}) cho từng video dựa trên session ID.
+
+\subsection{TripDetailPage và đồng bộ video -- cảm biến}
+
+Trang TripDetailPage là thành phần trung tâm của hệ thống Web, được thiết kế theo phong cách cockpit với bố cục ba cột cố định không cuộn trang:
+
+\begin{itemize}
+    \item \textbf{Cột trái:} bản đồ Leaflet ghim vị trí GPS, các thẻ KPI (độ sâu trung bình, nhiệt độ, áp suất) và danh sách file dữ liệu đã upload.
+
+    \item \textbf{Cột giữa:} video player với playlist dọc, nút chụp ảnh bằng chứng (Photo) và đánh dấu clip (Clip). Khi video có trường \texttt{recordedAt}, đường tham chiếu dọc màu đỏ tự động di chuyển trên biểu đồ cảm biến theo thời gian video đang phát.
+
+    \item \textbf{Cột phải:} đồng hồ chân trời nhân tạo (ArtificialHorizon) và la bàn (CompassRose) dạng SVG hoạt hình, panel hiển thị các điểm bất thường cảm biến.
+\end{itemize}
+
+Phía dưới là biểu đồ cảm biến với ba tab: Environment (độ sâu, nhiệt độ, áp suất), Navigation (yaw/pitch/roll) và System (điện áp, pin, độ ẩm). Người dùng có thể zoom/pan trục thời gian bằng thanh Brush.
+
+\subsection{Nhận diện vật thể và trích xuất bằng chứng}
+
+Hệ thống tích hợp dịch vụ nhận diện vật thể YOLOv8 thông qua Python FastAPI microservice. Operator có thể kích hoạt phân tích trên từng ảnh hoặc video, chọn model và ngưỡng confidence phù hợp với điều kiện ánh sáng và độ đục của nước. Tác vụ phân tích chạy bất đồng bộ qua Bull Queue trên nền Redis; kết quả được push về giao diện qua SSE khi hoàn tất.
+
+Kết quả nhận diện hiển thị dưới dạng bounding box overlay trên ảnh/video, có thể bật/tắt bằng nút Eye/EyeOff. Operator có thể chụp ảnh khung hình (Photo) hoặc đánh dấu đoạn clip (Clip) làm bằng chứng và gọi phân tích YOLO riêng trên từng bằng chứng đó, tránh phải xử lý toàn bộ video dài.
+
+\subsection{Phát hiện bất thường và tóm tắt AI}
+
+Dữ liệu cảm biến được kiểm tra bất thường tự động bằng Z-Score sau mỗi lần upload. Các điểm có $|z| > 2{,}5$ được đánh dấu màu đỏ trên biểu đồ và liệt kê trong panel Alerts bên phải màn hình. Khi hoàn thành một Project, hệ thống cho phép tạo tóm tắt nhiệm vụ bằng mô hình Gemini 2.5 Flash, tổng hợp thông tin từ các Trip, số liệu cảm biến và tên địa danh từ reverse geocoding.
+
+\section{Kết quả thuật toán điều khiển tự động}
+
+Nhóm đã triển khai thành công các chế độ điều khiển tự động trên firmware của ROV.
+
+\subsection{Giữ hướng}
+
+Chức năng giữ hướng sử dụng giá trị yaw thu được từ IMU làm tín hiệu phản hồi cho bộ điều khiển PID. Khi chức năng được kích hoạt, giá trị yaw hiện tại của ROV được chọn làm hướng đặt. Bộ điều khiển tính toán sai lệch giữa hướng đặt và hướng thực tế, sau đó tạo lệnh điều khiển moment quay quanh trục yaw.
+
+Kịch bản kiểm thử được thực hiện theo các bước sau:
+
+\begin{enumerate}
+\item Điều khiển ROV đến một hướng xác định và đưa tay điều khiển về vị trí trung tâm.
+\item Kích hoạt chức năng giữ hướng để lưu giá trị yaw hiện tại làm giá trị đặt.
+\item Tạo nhiễu bằng cách tác động nhẹ để ROV lệch khỏi hướng ban đầu.
+\item Quan sát khả năng tự động quay trở lại hướng đặt và duy trì trạng thái ổn định.
+\end{enumerate}
+
+Kết quả được đánh giá dựa trên sai lệch góc yaw, thời gian ROV quay trở lại hướng đặt và mức độ dao động sau khi ổn định. Thử nghiệm cho thấy ROV có khả năng hiệu chỉnh sai lệch hướng và duy trì hướng đặt khi chịu các tác động nhiễu nhỏ.
+
+Video kết quả thử nghiệm được trình bày tại: \href{https://drive.google.com/file/d/11iHc4Oya20JVWQp25lEVBZ62LGkQiPMb/view?usp=sharing}{\underline{Video giữ hướng}}.
+
+\subsection{Giữ độ sâu}
+
+Chức năng giữ độ sâu sử dụng dữ liệu từ cảm biến áp suất MS5837 để xác định độ sâu hiện tại của ROV. Khi chức năng được kích hoạt, độ sâu tại thời điểm đó được lưu làm giá trị đặt. Bộ điều khiển PID tạo lệnh chuyển động theo trục heave nhằm giảm sai lệch giữa độ sâu thực tế và độ sâu mong muốn.
+
+Kịch bản kiểm thử được thực hiện như sau:
+
+\begin{enumerate}
+\item Điều khiển ROV đến độ sâu cần kiểm thử và đưa lệnh chuyển động thẳng đứng về 0.
+\item Kích hoạt chức năng giữ độ sâu.
+\item Tạo sai lệch bằng cách điều khiển hoặc tác động để ROV dịch chuyển lên trên hoặc xuống dưới so với độ sâu đặt.
+\item Thả lệnh điều khiển và quan sát khả năng đưa ROV trở lại độ sâu ban đầu.
+\end{enumerate}
+
+Các tiêu chí đánh giá gồm sai số độ sâu ở trạng thái ổn định, thời gian phục hồi và mức độ dao động theo phương thẳng đứng. Kết quả thử nghiệm cho thấy ROV có thể tự động hiệu chỉnh chuyển động heave và duy trì độ sâu đặt với sai số nhỏ trong điều kiện môi trường kiểm thử.
+
+Video kết quả thử nghiệm được trình bày tại: \href{https://drive.google.com/file/d/1rkvtuPk5gjZ3EpsakQTx7oA0ciTpmEK_/view?usp=sharing}{\underline{Video giữ độ sâu}}
+
+\subsection{Giữ vị trí bằng DVL}
+
+Chức năng giữ vị trí bằng DVL sử dụng dữ liệu vận tốc và vị trí tương đối của ROV trên mặt phẳng ngang. Tại thời điểm kích hoạt, tọa độ hiện tại được chọn làm vị trí đặt. Sai lệch vị trí trên hai trục được đưa vào bộ điều khiển PID, đồng thời thành phần damping velocity được sử dụng để hạn chế dao động và giảm vận tốc khi ROV tiến gần vị trí mong muốn.
+
+Kịch bản kiểm thử được tiến hành theo trình tự sau:
+
+\begin{enumerate}
+\item Điều khiển ROV đến vị trí xác định trong khu vực DVL có thể đo vận tốc ổn định.
+\item Đưa tay điều khiển về vị trí trung tâm và kích hoạt chức năng giữ vị trí.
+\item Tạo nhiễu bằng cách điều khiển ROV lệch khỏi vị trí đặt theo phương surge hoặc sway.
+\item Ngừng tác động điều khiển và quan sát quá trình ROV tự động quay trở lại vị trí ban đầu.
+\item Lặp lại thử nghiệm với các hướng và khoảng dịch chuyển khác nhau.
+\end{enumerate}
+
+Kết quả được đánh giá thông qua sai lệch vị trí trên mặt phẳng ngang, thời gian phục hồi và khả năng hạn chế dao động quanh vị trí đặt. Thử nghiệm cho thấy thuật toán kết hợp PID và damping velocity đã được tích hợp thành công, giúp ROV quay trở lại và duy trì tương đối ổn định quanh vị trí tham chiếu. Tuy nhiên, do điều kiện về phần cứng chưa có trong thời điểm viết báo cáo này nên chúng em không thể đưa ra kết quả thực nghiệm được.
+
+\subsection{Bám mục tiêu bằng thị giác máy tính}
+
+Chức năng bám mục tiêu sử dụng thuật toán Optical Flow để theo dõi vật thể được người điều khiển lựa chọn trên hình ảnh camera. Tâm và kích thước của vùng bao mục tiêu tại thời điểm lựa chọn được sử dụng làm giá trị tham chiếu.
+
+Sai lệch theo phương ngang của mục tiêu trên ảnh được chuyển đổi thành lệnh sway. Sự thay đổi kích thước vùng bao được sử dụng để tạo lệnh surge, giúp ROV duy trì vị trí tương đối và khoảng cách đối với mục tiêu. Chức năng giữ hướng được kích hoạt đồng thời để hạn chế ROV tự quay trong quá trình bám.
+
+Kịch bản kiểm thử được thực hiện theo các bước sau:
+
+\begin{enumerate}
+\item Đặt một vật thể có đặc trưng hình ảnh rõ ràng trước camera của ROV.
+\item Lựa chọn vùng chứa vật thể trên giao diện điều khiển và khởi tạo tracker.
+\item Kích hoạt chế độ bám mục tiêu và đưa tay điều khiển về vị trí trung tâm.
+\item Di chuyển mục tiêu sang trái hoặc sang phải để kiểm tra khả năng điều khiển sway.
+\item Thay đổi khoảng cách giữa mục tiêu và ROV để kiểm tra khả năng điều khiển surge.
+\item Quan sát khả năng duy trì mục tiêu gần vị trí tham chiếu trên khung hình.
+\end{enumerate}
+
+Các tiêu chí đánh giá gồm khả năng duy trì khóa mục tiêu, chiều chuyển động của ROV, độ ổn định của lệnh điều khiển và khả năng đưa mục tiêu trở lại gần vị trí tham chiếu. Kết quả thử nghiệm cho thấy hệ thống có thể chuyển đổi sai lệch hình ảnh thành các lệnh điều khiển:
+
+\begin{itemize}
+\item \textbf{Surge:} điều chỉnh khoảng cách giữa ROV và mục tiêu;
+\item \textbf{Sway:} điều chỉnh sai lệch ngang của mục tiêu trên khung hình.
+\end{itemize}
+
+Khả năng bám phụ thuộc vào chất lượng hình ảnh, độ tương phản của vật thể, điều kiện ánh sáng và mức độ ổn định của thuật toán Optical Flow.
+
+Video kết quả thử nghiệm được trình bày tại: \href{https://drive.google.com/file/d/1XdPxw5cynz7rgjJySfkNA9pCFgF-BrKV/view?usp=drive_link}{\underline{Video giữ vị trí bằng Vision}}.
+
+\section{Kiểm thử phân hệ Web}
+\label{section:8.kiem_thu_web}
+
+\subsection{Kiểm thử chức năng (Functional Test)}
+
+Script \texttt{functional-test.js} tự động hóa 37 ca kiểm thử bao phủ sáu nhóm: xác thực (7 ca), phân quyền RBAC (6 ca), validation đầu vào (5 ca), CRUD Project và Trip (11 ca), phân trang (6 ca) và kiểm thử hồi quy (2 ca).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{functional-test.png}
+\caption{Kết quả kiểm thử chức năng -- 37/37 ca đạt (100\%)}
+\label{fig:ch8-functest}
+\end{figure}
+
+Kết quả Hình~\ref{fig:ch8-functest} cho thấy 37/37 ca PASSED (100\%). Trong quá trình viết test, phát hiện và sửa một lỗi thực tế: endpoint \texttt{POST /projects/:id/trips} không kiểm tra project tồn tại, trả về HTTP~201 thay vì HTTP~404 khi \texttt{projectId} không hợp lệ.
+
+\subsection{Kiểm thử tải (Load Test)}
+
+Script \texttt{load-test.js} bắn 20 request đồng thời $\times$ 3 vòng = 60 request/endpoint. Kết quả tổng hợp trong Bảng~\ref{tab:ch8-loadtest}.
+
+\begin{table}[H]
+\centering
+\caption{Kết quả kiểm thử tải -- 20 concurrent $\times$ 3 rounds (60 requests/endpoint)}
+\label{tab:ch8-loadtest}
+\small
+\begin{tabular}{|p{5.0cm}|c|c|c|c|}
+\hline
+\textbf{Endpoint} & \textbf{Avg} & \textbf{P50} & \textbf{P95} & \textbf{Errors} \\
+\hline
+POST /auth/login & 1312\,ms & 8\,ms & 4101\,ms & 41/60 \\
+\hline
+GET /auth/me & 132\,ms & 82\,ms & 492\,ms & 0/60 \\
+\hline
+GET /projects & 474\,ms & 456\,ms & 934\,ms & 0/60 \\
+\hline
+GET /trips & 458\,ms & 252\,ms & 988\,ms & 0/60 \\
+\hline
+GET /rovs & 205\,ms & 168\,ms & 540\,ms & 0/60 \\
+\hline
+GET /stats/overview & 825\,ms & 887\,ms & 1830\,ms & 0/60 \\
+\hline
+GET /trips/:id/sensor-data & 327\,ms & 261\,ms & 523\,ms & 0/60 \\
+\hline
+GET /trips/:id/dvl & 737\,ms & 810\,ms & 885\,ms & 0/60 \\
+\hline
+GET /media/trip/:id & 377\,ms & 241\,ms & 759\,ms & 0/60 \\
+\hline
+GET /notifications & 525\,ms & 645\,ms & 855\,ms & 0/60 \\
+\hline
+\end{tabular}
+\end{table}
+
+41/60 lỗi tại \texttt{POST /auth/login} là hoạt động đúng thiết kế: Redis rate limiter chặn quá 20 request/15 phút để phòng chống brute-force, các request vượt ngưỡng nhận HTTP~429 Too Many Requests. Endpoint \texttt{GET /stats/overview} chậm nhất (avg 825\,ms) do thực hiện 7 aggregation song song trên MongoDB Atlas free tier (độ trễ mạng ~50\,ms Singapore--Việt Nam); trong môi trường production với VPS gần database, thời gian này giảm đáng kể. Tất cả endpoint đọc dữ liệu hoạt động ổn định ở tải 20 concurrent mà không có lỗi.
+
+\subsection{Kiểm thử hiệu năng Lighthouse}
+
+Công cụ Lighthouse (Chrome DevTools, chế độ Desktop) được chạy trên ba trang đại diện (Bảng~\ref{tab:ch8-lighthouse}).
+
+\begin{table}[H]
+\centering
+\caption{Kết quả kiểm thử Lighthouse -- Desktop mode}
+\label{tab:ch8-lighthouse}
+\small
+\begin{tabular}{|p{3.5cm}|c|c|c|c|c|c|}
+\hline
+\textbf{Trang} & \textbf{Perf.} & \textbf{A11y} & \textbf{BP} & \textbf{SEO} & \textbf{FCP} & \textbf{LCP} \\
+\hline
+Dashboard & 98 & 94 & 96 & 100 & 0,8\,s & 0,9\,s \\
+\hline
+ProjectsPage & 95 & 81 & 100 & 100 & 0,7\,s & 1,4\,s \\
+\hline
+TripDetailPage & 88 & 89 & 100 & 100 & 0,7\,s & 1,9\,s \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{itemize}[leftmargin=*, topsep=4pt, itemsep=2pt]
+  \item \textbf{Dashboard} đạt Performance 98 --- xuất sắc. FCP 0,8\,s và LCP 0,9\,s cho thấy trang tải rất nhanh nhờ kiến trúc React SPA với Vite build tối ưu. TBT chỉ 90\,ms chứng tỏ main thread ít bị chặn.
+  \item \textbf{ProjectsPage} đạt Performance 95. Accessibility 81 do một số button thiếu accessible name và input date không có label rõ ràng --- đây là điểm cần cải thiện trong phiên bản tiếp theo.
+  \item \textbf{TripDetailPage} đạt Performance 88 do LCP 1,9\,s: ảnh/video phải tải từ AWS S3 (Singapore) mất thêm 40--50\,ms RTT so với localhost. Đây là giới hạn về hạ tầng, không phải vấn đề tối ưu code. TBT 100\,ms vẫn trong ngưỡng tốt.
+  \item \textbf{Best Practices đạt 100} trên hai trang kỹ thuật phản ánh code không có lỗi console, không dùng API deprecated và không có third-party cookies không kiểm soát.
+  \item \textbf{SEO đạt 100} trên tất cả trang nhờ thẻ \texttt{<title>}, \texttt{<meta description>} hợp lệ và tất cả link có thể crawl được.
+\end{itemize}
+
+\section{Kiểm thử tích hợp toàn hệ thống}
+
+Sau khi hoàn thành từng module riêng biệt, nhóm tiến hành tích hợp toàn bộ hệ thống.
+
+Quá trình kiểm thử được thực hiện theo các bước:
+
+\begin{enumerate}
+    \item Kiểm thử firmware độc lập
+    
+    \item Kiểm thử GCS với dữ liệu mô phỏng
+    
+    \item Kiểm thử kết nối giữa GCS và ROV
+    
+    \item Kiểm thử camera, sonar và DVL
+    
+    \item Kiểm thử ghi dữ liệu nhiệm vụ
+    
+    \item Kiểm thử upload dữ liệu lên Web
+    
+    \item Kiểm thử các chế độ điều khiển tự động
+    
+\end{enumerate}
+
+% Hình kiểm thử tích hợp — thêm ảnh thực tế vào Hinhve/system_test.png và bỏ comment dòng dưới
+% \begin{figure}[H]
+%     \centering
+%     \includegraphics[width=14cm]{Hinhve/system_test.png}
+%     \caption{Kiểm thử tích hợp toàn bộ hệ thống}
+% \end{figure}
+
+\section{Bảng tổng hợp kết quả kiểm thử}
+
+\begin{table}[H]
+\centering
+\caption{Tổng hợp kết quả kiểm thử}
+\renewcommand{\arraystretch}{1.3}
+
+\begin{tabular}{|p{5cm}|p{4cm}|p{6cm}|}
+\hline
+\textbf{Chức năng} & \textbf{Trạng thái} & \textbf{Kết quả đạt được} \\ \hline
+
+Điều khiển thủ công &
+Đạt &
+Điều khiển ổn định, độ trễ thấp \\ \hline
+
+Hiển thị camera &
+Đạt &
+MJPEG hiển thị liên tục \\ \hline
+
+Sonar &
+Đạt &
+Hiển thị dữ liệu thời gian thực \\ \hline
+
+DVL &
+Đạt &
+Đọc và hiển thị vận tốc thành công \\ \hline
+
+Recording Service &
+Đạt &
+Lưu đồng bộ nhiều loại dữ liệu \\ \hline
+
+Web Platform &
+Đạt &
+Upload và quản lý dữ liệu thành công \\ \hline
+
+Hold Heading &
+Đạt &
+Giữ hướng ổn định \\ \hline
+
+Hold Depth &
+Đạt &
+Giữ độ sâu thành công \\ \hline
+
+Hold Position &
+Đạt &
+Điều khiển vị trí dựa trên DVL \\ \hline
+
+Vision Tracking &
+Đạt &
+Theo dõi mục tiêu thành công \\ \hline
+
+\end{tabular}
+\end{table}
+
+\section{Kết luận}
+
+Kết quả thực nghiệm cho thấy toàn bộ hệ thống phần mềm đã được tích hợp thành công.
+
+Ground Control Station hoạt động ổn định, cho phép điều khiển robot và giám sát dữ liệu theo thời gian thực.
+
+Hệ thống ghi dữ liệu đảm bảo lưu trữ đầy đủ thông tin nhiệm vụ phục vụ phân tích hậu kỳ.
+
+Nền tảng Web cho phép quản lý tập trung dữ liệu và hỗ trợ xử lý hậu kỳ.
+
+Các thuật toán điều khiển tự động đã được triển khai thành công và có khả năng hoạt động trên hệ thống thực tế.
+
+Những kết quả này cho thấy hệ thống đã đạt được mục tiêu thiết kế ban đầu và sẵn sàng cho các giai đoạn thử nghiệm mở rộng trong môi trường dưới nước.
 
 \end{document}

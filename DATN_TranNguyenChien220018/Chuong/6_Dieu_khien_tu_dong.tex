@@ -1,1368 +1,2116 @@
 \documentclass[../DoAn.tex]{subfiles}
 \begin{document}
 
-\section{Cơ sở lý thuyết}
-\label{section:5.1}
-\subsection{Cơ sở lý thuyết điều khiển chuyển động ROV}
-\label{subsection:5.1.1}
+Như đã trình bày trong Chương 3, hệ thống phần mềm ROV được tổ chức theo kiến trúc phân tán giữa khối xử lý đặt trên phương tiện và phần mềm Ground Control Station (GCS) tại trạm điều khiển topside. Trong kiến trúc này, các tác vụ yêu cầu phản hồi nhanh như thu nhận dữ liệu cảm biến, xử lý hình ảnh và điều khiển cơ cấu chấp hành được thực hiện trực tiếp trên máy tính nhúng của ROV, trong khi GCS đảm nhiệm chức năng giám sát, hiển thị và tiếp nhận thao tác từ người vận hành.
 
-Trong hệ thống ROV, bộ điều khiển không tác động trực tiếp tới từng động cơ đẩy mà thay vào đó, hệ thống sinh ra một vector lệnh điều khiển biểu diễn chuyển động của ROV. Ma trận trộn (mixing matrix) được sử dụng để phân bổ lệnh này xuống từng động cơ đẩy. Cách tiếp cận này giúp tách biệt giữa bài toán điều khiển chuyển động ở mức logic và bài toán điều khiển phần cứng ở mức cơ cấu chấp hành.
+Chương 4 đã trình bày quá trình xây dựng phần mềm trên ROV, bao gồm các module cảm biến, truyền thông, điều khiển cơ cấu chấp hành, điều khiển động cơ và phân bổ lệnh tới hệ thống thruster. Chương 5 tiếp tục trình bày phần mềm GCS và cơ chế gửi lệnh điều khiển từ người vận hành. Trên cơ sở đó, chương này tập trung vào lớp điều khiển tự động cấp cao, cụ thể là chức năng bám giữ một mục tiêu được lựa chọn trong hình ảnh camera.
 
-Đối với ROV trong đồ án này, chuyển động chính được xét trên bốn trục điều khiển gồm: tiến/lùi, dịch ngang trái/phải, lên/xuống và quay quanh trục đứng. Do đó, vector điều khiển cấp cao được biểu diễn dưới dạng:
+Chức năng được xây dựng nhằm hỗ trợ ROV duy trì quan hệ tương đối với một mục tiêu quan sát trong điều kiện chịu tác động của dòng nước, lực kéo từ dây tether, sai lệch lực đẩy giữa các động cơ hoặc các nhiễu cơ học khác. Sau khi người vận hành lựa chọn mục tiêu, hệ thống ghi nhận vị trí và kích thước biểu kiến của mục tiêu làm trạng thái tham chiếu. Thuật toán thị giác sau đó theo dõi sự thay đổi của mục tiêu giữa các khung hình, từ đó tạo ra sai lệch vị trí ngang và sai lệch tỷ lệ kích thước. Các đại lượng này được sử dụng để sinh lệnh điều khiển chuyển động ngang và tiến--lùi của ROV.
 
-\begin{equation}
-\mathbf{u}
-=
-\begin{bmatrix}
-u_f \\
-u_l \\
-u_z \\
-u_{\psi}
-\end{bmatrix}
-\end{equation}
+Do dữ liệu hình ảnh không cung cấp trực tiếp đầy đủ trạng thái chuyển động của phương tiện, điều khiển thị giác được phối hợp với các vòng điều khiển sử dụng cảm biến. Trong đó, dữ liệu IMU và EKF được sử dụng để duy trì hướng yaw, còn dữ liệu từ cảm biến áp suất được sử dụng để duy trì độ sâu. Cách phân chia này cho phép mỗi nguồn đo đảm nhiệm trục điều khiển phù hợp nhất: thị giác điều khiển chuyển động tương đối trong mặt phẳng quan sát, cảm biến độ sâu điều khiển heave và cảm biến định hướng điều khiển yaw.
 
-Trong đó:
+Nội dung chương được tổ chức theo trình tự từ bài toán và yêu cầu thiết kế, cơ sở lý thuyết, kiến trúc chức năng, thuật toán theo dõi mục tiêu, các vòng điều khiển đến phương pháp kiểm thử. Các nội dung điều khiển mức thấp như ma trận trộn, ánh xạ kênh động cơ và chuyển đổi PWM không được trình bày lại mà được dẫn chiếu tới Chương 4. Kết quả thực nghiệm và phân tích định lượng được trình bày tại Chương 8.
+
+\section{Bài toán và yêu cầu thiết kế}
+
+\subsection{Vị trí và phạm vi của chức năng trong hệ thống ROV}
+
+Chức năng bám giữ mục tiêu dựa trên thị giác là một module điều khiển cấp cao nằm giữa lớp xử lý cảm nhận và lớp điều khiển cơ cấu chấp hành. Module tiếp nhận thông tin từ camera, cảm biến định hướng và cảm biến độ sâu; xử lý các thông tin này để tạo ra vectơ điều khiển chuyển động; sau đó chuyển vectơ điều khiển tới khối phân bổ lực đẩy đã được xây dựng trong Chương 4.
+
+Các thành phần trực tiếp tham gia vào chức năng gồm:
 \begin{itemize}
-    \item $u_f$ là lệnh điều khiển chuyển động tiến/lùi theo phương dọc thân ROV;
-    \item $u_l$ là lệnh điều khiển chuyển động dịch ngang trái/phải;
-    \item $u_z$ là lệnh điều khiển chuyển động lên/xuống theo phương thẳng đứng;
-    \item $u_{\psi}$ là lệnh điều khiển quay quanh trục đứng, hay còn gọi là điều khiển yaw.
+    \item Camera đặt trên ROV, cung cấp luồng ảnh quan sát phía trước;
+    \item Máy tính nhúng QCS8550, thực hiện xử lý hình ảnh và điều khiển trực tiếp trên ROV;
+    \item Module phát luồng MJPEG từ camera;
+    \item Module theo dõi mục tiêu bằng Optical Flow;
+    \item Module trung gian trao đổi dữ liệu giữa camera, tracker, giao diện và bộ điều khiển;
+    \item Bộ điều khiển PID trên ROV;
+    \item IMU kết hợp EKF để cung cấp góc yaw;
+    \item Cảm biến áp suất MS5837 để cung cấp độ sâu;
+    \item Giao diện phía topside cho phép lựa chọn và giám sát mục tiêu;
+    \item Hệ thống thruster thực hiện các lệnh chuyển động.
 \end{itemize}
 
-Trong chương trình điều khiển, vector này tương ứng với bốn thành phần:
+Về mặt chức năng, hệ thống được chia thành ba lớp chính. Lớp cảm nhận thu nhận hình ảnh và dữ liệu cảm biến. Lớp xử lý và điều khiển ước lượng sai lệch, đánh giá độ tin cậy và tính toán lệnh điều khiển. Lớp chấp hành chuyển vectơ điều khiển thành lệnh cho từng động cơ thông qua ma trận trộn và tín hiệu PWM.
 
-\begin{equation}
-\mathbf{u}
-=
-\begin{bmatrix}
-forward \\
-lateral \\
-ascend \\
-yaw
-\end{bmatrix}
-\end{equation}
-
-Các giá trị trong vector điều khiển được chuẩn hóa trong khoảng xấp xỉ $[-1,1]$. Giá trị dương và âm thể hiện hai chiều chuyển động ngược nhau trên cùng một trục. Ví dụ, $u_f > 0$ và $u_f < 0$ lần lượt biểu diễn hai hướng chuyển động ngược nhau trên phương tiến/lùi; tương tự, $u_l$, $u_z$ và $u_{\psi}$ cũng biểu diễn hai chiều điều khiển tương ứng trên các trục dịch ngang, lên/xuống và quay yaw.
-
-\subsubsection{Nguyên lý phân bổ lực đẩy bằng ma trận trộn}
-
-ROV sử dụng 4 động cơ đẩy ngang tại 4 góc trên để điều khiển độ sâu, 4 động cơ dưới xoay góc $45^{o}$ để di chuyển tiến/lùi/trái/phải. Mỗi động cơ khi hoạt động sẽ tạo ra một lực đẩy theo hướng lắp đặt của nó. Tổng hợp lực và mô-men từ tất cả các động cơ sẽ tạo ra chuyển động thực tế của ROV.
-
-Vì người điều khiển chỉ đưa ra lệnh ở mức chuyển động tổng quát, hệ thống cần một cơ chế để chuyển đổi lệnh điều khiển cấp cao thành lệnh cho từng động cơ. Cơ chế này được gọi là phân bổ lực đẩy, hay control allocation. Trong đồ án, việc phân bổ lực đẩy được thực hiện bằng ma trận trộn.
-
-Quan hệ giữa vector lệnh điều khiển cấp cao và vector lệnh động cơ được biểu diễn như sau:
-
-\begin{equation}
-\mathbf{t} = M\mathbf{u}
-\end{equation}
-
-Trong đó:
+Phạm vi của chương chỉ bao gồm chức năng duy trì vị trí tương đối giữa ROV và mục tiêu đã lựa chọn. Các nội dung sau không thuộc phạm vi triển khai:
 \begin{itemize}
-    \item $\mathbf{u}$ là vector lệnh điều khiển cấp cao;
-    \item $M$ là ma trận trộn;
-    \item $\mathbf{t}$ là vector lệnh lực đẩy chuẩn hóa của các động cơ.
+    \item Giữ vị trí tuyệt đối hoặc tương đối với đáy biển bằng DVL;
+    \item Điều hướng ROV theo quỹ đạo hoặc tọa độ toàn cục;
+    \item Nhận dạng lớp đối tượng bằng mô hình học sâu;
+    \item Phân tích dữ liệu video sau nhiệm vụ;
+    \item Tự động điều khiển tay gắp để thu hồi mục tiêu;
+    \item Điều khiển chủ động hai bậc tự do roll và pitch.
 \end{itemize}
 
-Với ROV sử dụng 8 động cơ đẩy, vector lệnh động cơ có dạng:
+Việc giới hạn phạm vi như trên giúp tập trung vào mục tiêu chính của đồ án là kết hợp xử lý ảnh trực tuyến với điều khiển chuyển động ROV, đồng thời tận dụng các module cảm biến và cơ cấu chấp hành đã có trong hệ thống.
 
-\begin{equation}
-\mathbf{t}
-=
+\subsection{Phát biểu bài toán bám giữ mục tiêu}
+
+Trong chế độ điều khiển thủ công, người vận hành quan sát hình ảnh camera và sử dụng joystick để đưa ROV đến vị trí phù hợp với nhiệm vụ. Tuy nhiên, sau khi joystick trở về trạng thái trung tâm, ROV vẫn có thể bị dịch chuyển do dòng nước, lực kéo của dây tether, quán tính của phương tiện hoặc sự không đồng đều giữa các thruster. Khi đó, người vận hành phải liên tục thực hiện các thao tác bù để duy trì vị trí quan sát.
+
+Bài toán đặt ra là xây dựng một chức năng cho phép ROV tự động bù các sai lệch trên sau khi người vận hành đã lựa chọn một mục tiêu trong hình ảnh. Quá trình hoạt động được mô tả theo các bước sau:
+\begin{enumerate}
+    \item Người vận hành điều khiển ROV tới vị trí và hướng quan sát mong muốn.
+    \item Một điểm hoặc vùng ảnh chứa mục tiêu được lựa chọn trên giao diện.
+    \item Hệ thống tạo vùng theo dõi và lưu trạng thái ban đầu của mục tiêu.
+    \item Thuật toán thị giác theo dõi mục tiêu trong các khung hình tiếp theo.
+    \item Khi ROV bị dịch chuyển, vị trí hoặc kích thước biểu kiến của mục tiêu thay đổi.
+    \item Hệ thống tính toán sai lệch giữa trạng thái hiện tại và trạng thái tham chiếu.
+    \item Bộ điều khiển tạo lệnh chuyển động để giảm các sai lệch.
+    \item Quá trình được lặp lại cho đến khi mục tiêu trở về gần trạng thái ban đầu.
+\end{enumerate}
+
+Trạng thái tham chiếu không nhất thiết là tâm của khung hình. Nó được xác định bởi vị trí thực tế của mục tiêu tại thời điểm người vận hành thực hiện thao tác lựa chọn. Cách tiếp cận này cho phép người vận hành chủ động bố trí mục tiêu tại vị trí phù hợp với nhiệm vụ, chẳng hạn đặt mục tiêu lệch sang một phía để dành vùng quan sát cho tay gắp hoặc thiết bị khác.
+
+Khi ROV bị dịch chuyển theo phương ngang, tâm mục tiêu thay đổi theo trục ngang của ảnh. Khi ROV tiến gần hoặc lùi xa mục tiêu, chiều rộng và chiều cao biểu kiến của vùng theo dõi thay đổi. Hai hiện tượng này lần lượt được sử dụng để tạo lệnh điều khiển sway và surge.
+
+Chuyển động quay yaw có thể tạo ra sai lệch lớn trên ảnh mặc dù vị trí tịnh tiến của ROV chưa thay đổi đáng kể. Do đó, khi Hold Vision được kích hoạt, Hold Heading cũng được sử dụng để duy trì hướng camera. Tương tự, độ sâu được giữ bằng dữ liệu cảm biến áp suất thay vì sử dụng trực tiếp tọa độ dọc của mục tiêu trong ảnh.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.85\linewidth]{figures/hinh6_2.png}
+    \caption{Các trạng thái mục tiêu: tham chiếu, lệch ngang, quá gần và quá xa}
+    \label{fig:trangthai_muctieu}
+\end{figure}
+
+Mục tiêu của hệ thống không phải tạo ra một bộ tự hành hoàn toàn độc lập, mà là cung cấp lớp hỗ trợ ổn định cho người vận hành. Quyền điều khiển thủ công phải luôn được ưu tiên. Khi joystick được tác động, lệnh tự động từ thị giác phải ngừng ghi đè lên các trục chuyển động tương ứng.
+
+\subsection{Các đại lượng và mục tiêu điều khiển}
+
+Giả sử khung hình camera có chiều rộng $W$ và chiều cao $H$. Tại thời điểm lựa chọn mục tiêu, trạng thái tham chiếu được biểu diễn bởi:
+\[
+\mathbf{s}_0 = 
 \begin{bmatrix}
-t_1 \\
-t_2 \\
-t_3 \\
-t_4 \\
-t_5 \\
-t_6 \\
-t_7 \\
-t_8
-\end{bmatrix}
-\end{equation}
+x_0 & y_0 & w_0 & h_0
+\end{bmatrix}^{T}
+\]
+trong đó:
+\begin{itemize}
+    \item $x_0$, $y_0$ là tọa độ tâm của vùng mục tiêu;
+    \item $w_0$, $h_0$ là chiều rộng và chiều cao ban đầu của bounding box.
+\end{itemize}
 
-Trong đó $t_i$ là lệnh điều khiển chuẩn hóa gửi tới động cơ đẩy thứ $i$. Mỗi giá trị $t_i$ thể hiện mức công suất và chiều quay tương ứng của động cơ. Giá trị $t_i = 0$ tương ứng với trạng thái trung tính, $t_i > 0$ và $t_i < 0$ tương ứng với hai chiều tạo lực ngược nhau.
-
-Ma trận trộn có kích thước $8 \times 4$, vì hệ thống có 8 động cơ đẩy và 4 trục điều khiển cấp cao. Mỗi hàng của ma trận tương ứng với một động cơ, còn mỗi cột tương ứng với một trục chuyển động. Với cấu hình trong đồ án, ma trận trộn được biểu diễn như sau:
-
-\begin{equation}
-M =
+Tại thời điểm xử lý thứ $k$, trạng thái ước lượng của mục tiêu được biểu diễn bởi:
+\[
+\mathbf{s}_k = 
 \begin{bmatrix}
-1 & -1 & 0 & -0.7071 \\
--1 & -1 & 0 & -0.7071 \\
-1 & 1 & 0 & -0.7071 \\
-1 & -1 & 0 & 0.7071 \\
-0 & 0 & 1 & 0 \\
-0 & 0 & -1 & 0 \\
-0 & 0 & -1 & 0 \\
-0 & 0 & 1 & 0
-\end{bmatrix}
-\end{equation}
+x_k & y_k & w_k & h_k
+\end{bmatrix}^{T}
+\]
 
-Do đó:
+Độ dịch chuyển của tâm mục tiêu so với trạng thái tham chiếu là:
+\[
+\Delta x_k = x_k - x_0
+\]
+\[
+\Delta y_k = y_k - y_0
+\]
 
-\begin{equation}
+Để giảm phụ thuộc vào độ phân giải hình ảnh, các sai lệch được chuẩn hóa theo kích thước khung hình:
+\[
+e_x(k) = \operatorname{clip} \left( \frac{\Delta x_k}{W/2}, -1, 1 \right)
+\]
+\[
+e_y(k) = \operatorname{clip} \left( \frac{\Delta y_k}{H/2}, -1, 1 \right)
+\]
+trong đó, hàm $\operatorname{clip}(\cdot)$ giới hạn kết quả trong khoảng $[-1, 1]$.
+
+Sự thay đổi kích thước biểu kiến của mục tiêu được xác định từ tỷ lệ giữa bounding box hiện tại và bounding box ban đầu:
+\[
+e_s(k) = \frac{1}{2} \left( \frac{w_k}{w_0} + \frac{h_k}{h_0} \right) - 1
+\]
+
+Ý nghĩa của $e_s$ được xác định như sau:
+\begin{itemize}
+    \item $e_s > 0$: cho biết mục tiêu có kích thước biểu kiến lớn hơn trạng thái tham chiếu, tương ứng với khả năng ROV đã tiến gần mục tiêu;
+    \item $e_s < 0$: cho biết mục tiêu có kích thước biểu kiến nhỏ hơn trạng thái tham chiếu, tương ứng với khả năng ROV đã lùi xa mục tiêu.
+\end{itemize}
+
+Đại lượng $e_s$ chỉ biểu diễn thay đổi khoảng cách tương đối. Nó không phải là phép đo khoảng cách tuyệt đối theo đơn vị mét do chưa sử dụng thông tin kích thước thực của mục tiêu và chưa thực hiện ước lượng pose ba chiều.
+
+Đối với vòng giữ độ sâu, sai lệch được xác định bởi:
+\[
+e_z(k) = z_d - z(k)
+\]
+trong đó $z_d$ là độ sâu tại thời điểm kích hoạt Hold Depth và $z(k)$ là độ sâu đo được tại thời điểm hiện tại.
+
+Đối với vòng giữ hướng, sai lệch tổng quát được biểu diễn bởi:
+\[
+e_\psi(k) = \operatorname{wrap} \left( \psi_d - \psi(k) \right)
+\]
+trong đó $\psi_d$ là góc yaw tại thời điểm kích hoạt Hold Heading. Hàm $\operatorname{wrap}(\cdot)$ đưa sai lệch góc về miền $[-\pi, \pi]$. Công thức chuẩn hóa cụ thể được trình bày tại Mục 6.2.
+
+Các sai lệch được ánh xạ sang vectơ điều khiển:
+\[
+\mathbf{u}(k) = 
 \begin{bmatrix}
-t_1 \\
-t_2 \\
-t_3 \\
-t_4 \\
-t_5 \\
-t_6 \\
-t_7 \\
-t_8
-\end{bmatrix}
-=
+u_f(k) & u_l(k) & u_z(k) & u_\psi(k)
+\end{bmatrix}^{T}
+\]
+trong đó:
+\begin{itemize}
+    \item $u_f$: lệnh chuyển động tiến--lùi theo trục surge;
+    \item $u_l$: lệnh chuyển động ngang theo trục sway;
+    \item $u_z$: lệnh chuyển động lên--xuống theo trục heave;
+    \item $u_\psi$: lệnh quay quanh trục yaw.
+\end{itemize}
+
+Mối quan hệ giữa các đại lượng sai lệch và trục điều khiển được tổng hợp trong Bảng 6.1.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Ánh xạ đại lượng sai lệch sang các trục điều khiển}
+    \label{tab:anhxa_sailech}
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{|c|p{0.38\linewidth}|p{0.22\linewidth}|p{0.26\linewidth}|}
+        \hline
+        \textbf{Đại lượng} & \textbf{Ý nghĩa} & \textbf{Nguồn dữ liệu} & \textbf{Đầu ra điều khiển} \\
+        \hline
+        $e_x$ & Sai lệch ngang của mục tiêu so với vị trí tham chiếu & Camera và bộ theo dõi & Sway ($u_l$) \\
+        \hline
+        $e_s$ & Sai lệch tỷ lệ kích thước biểu kiến & Camera và bộ theo dõi & Surge ($u_f$) \\
+        \hline
+        $e_y$ & Sai lệch dọc của mục tiêu & Camera và bộ theo dõi & Được giám sát, chưa kích hoạt điều khiển \\
+        \hline
+        $e_z$ & Sai lệch độ sâu & Cảm biến MS5837 & Heave ($u_z$) \\
+        \hline
+        $e_\psi$ & Sai lệch góc yaw & IMU/EKF & Yaw ($u_\psi$) \\
+        \hline
+    \end{tabular}
+\end{table}
+
+Trong điều kiện lý tưởng, mục tiêu điều khiển có thể biểu diễn bởi:
+\[
+e_x \rightarrow 0, \qquad e_s \rightarrow 0, \qquad e_z \rightarrow 0, \qquad e_\psi \rightarrow 0
+\]
+
+Tuy nhiên, trong hệ thống thực tế, tín hiệu camera và cảm biến luôn tồn tại nhiễu. Vì vậy, hệ thống không yêu cầu các sai lệch bằng chính xác 0 mà sử dụng các vùng chết:
+\[
+|e_x| \leq \delta_x, \qquad |e_s| \leq \delta_s
+\]
+
+Khi sai lệch nằm trong vùng chết, lệnh điều khiển tương ứng được đưa về 0 nhằm hạn chế dao động và tránh việc các thruster liên tục thay đổi trạng thái do nhiễu nhỏ.
+
+\subsection{Yêu cầu và giới hạn của hệ thống}
+
+Để thực hiện bài toán đã nêu, chức năng bám giữ mục tiêu cần đáp ứng các yêu cầu chức năng trong Bảng \ref{tab:yeucau_trangthai}. Bảng này phân biệt giữa phần đã tham gia đường chạy hiện tại, phần mới có ở tầng xử lý và phần chưa triển khai đầy đủ. Cách trình bày này tránh xem một biến cấu hình hoặc endpoint thử nghiệm là một chức năng hoàn chỉnh của hệ thống.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Yêu cầu chức năng chính và trạng thái triển khai}
+    \label{tab:yeucau_trangthai}
+    \renewcommand{\arraystretch}{1.25}
+    \begin{tabular}{|p{0.46\linewidth}|p{0.46\linewidth}|}
+        \hline
+        \textbf{Yêu cầu} & \textbf{Trạng thái triển khai hiện tại} \\
+        \hline
+        Lựa chọn mục tiêu trên ảnh & Giao diện hiện tại nhận thao tác click chọn điểm. Edge agent tự tạo bounding box vuông quanh điểm đó. Khởi tạo trực tiếp bằng bounding box được hỗ trợ ở tầng xử lý nhưng chưa có thao tác kéo bounding box trên giao diện. \\
+        \hline
+        Lưu trạng thái tham chiếu của mục tiêu & Đã triển khai. Tracker lưu tâm, kích thước ban đầu, template và tập điểm đặc trưng của bounding box chính. \\
+        \hline
+        Theo dõi mục tiêu qua các khung hình & Đã triển khai bằng Shi--Tomasi, Pyramidal Lucas--Kanade, affine RANSAC, confidence và template matching. \\
+        \hline
+        Ước lượng sai lệch ngang và sai lệch tỷ lệ & Đã triển khai. Sai lệch dọc cũng được tính nhưng chỉ dùng để giám sát trong phiên bản hiện tại. \\
+        \hline
+        Tái bắt mục tiêu khi mất tracking & Đã triển khai ở mức template matching cục bộ và toàn khung hình. ROV chưa có chuyển động tìm kiếm chủ động. \\
+        \hline
+        Truyền dữ liệu thị giác tới controller & Đã triển khai bằng packet gồm cờ hợp lệ, confidence, sai lệch ngang, sai lệch dọc và sai lệch tỷ lệ. Agent gửi sai lệch chuẩn hóa; lệnh surge/sway được tính trong controller. \\
+        \hline
+        Điều khiển surge và sway từ thị giác & Đã triển khai. Sway dùng bộ PD, surge dùng bộ P theo sai lệch tỷ lệ. \\
+        \hline
+        Phối hợp Hold Vision với Hold Heading và Hold Depth & Hold Vision tự bật Hold Heading và lưu yaw hiện tại. Hold Depth là vòng độc lập, chỉ hoạt động khi được kích hoạt riêng. \\
+        \hline
+    \end{tabular}
+\end{table}
+
+Các chức năng hỗ trợ và các giới hạn của phiên bản hiện tại được tóm tắt trong Bảng \ref{tab:hotro_gioihan}. Những nội dung này cần được trình bày rõ vì chúng ảnh hưởng trực tiếp đến cách đánh giá kết quả ở Chương 8.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Chức năng hỗ trợ và giới hạn triển khai}
+    \label{tab:hotro_gioihan}
+    \renewcommand{\arraystretch}{1.25}
+    \begin{tabular}{|p{0.46\linewidth}|p{0.46\linewidth}|}
+        \hline
+        \textbf{Nội dung} & \textbf{Trạng thái hiện tại} \\
+        \hline
+        Reset, pause và hiển thị điểm đặc trưng & Reset đã có trên giao diện hỗ trợ. Pause và toggle points có endpoint và logic xử lý ở backend, nhưng chưa phải thao tác UI hoàn chỉnh trong giao diện hiện tại. \\
+        \hline
+        Ưu tiên điều khiển thủ công & Đã triển khai. Gate thủ công kiểm tra cả bốn kênh joystick; bất kỳ kênh nào vượt deadband đều tạm dừng vision trên surge/sway trong thời gian holdoff. \\
+        \hline
+        Chặn tiến khi bounding box quá lớn & Mới có biến cấu hình, chưa nối đầy đủ vào packet và controller; không được xem là cơ chế an toàn đang hoạt động. \\
+        \hline
+        Freshness riêng cho heading/depth và watchdog tiến trình & Chưa triển khai đầy đủ trong controller tracking hiện tại. Packet vision có timeout riêng. \\
+        \hline
+    \end{tabular}
+\end{table}
+
+Bên cạnh các chức năng chính, hệ thống phải đáp ứng một số yêu cầu về độ trễ và an toàn:
+\begin{itemize}
+    \item Quá trình theo dõi và điều khiển phải được thực hiện trực tiếp trên máy tính nhúng của ROV;
+    \item Đường truyền dữ liệu điều khiển phải được tách khỏi đường truyền ảnh phục vụ giao diện;
+    \item Gói dữ liệu thị giác chỉ được sử dụng khi còn nằm trong giới hạn timeout;
+    \item Lệnh tự động chỉ được kích hoạt khi độ tin cậy đạt ngưỡng yêu cầu;
+    \item Biên độ và tốc độ thay đổi của lệnh điều khiển phải được giới hạn;
+    \item Khi mất mục tiêu, mất camera hoặc mất gói điều khiển, lệnh từ thị giác phải được đưa về trạng thái an toàn;
+    \item Các vòng điều khiển phải được reset khi chuyển chế độ để hạn chế hiện tượng lệnh tồn dư;
+    \item Hold Vision không được ghi đè lệnh của người vận hành khi phát hiện thao tác joystick.
+\end{itemize}
+
+Hệ thống được xây dựng với các giả thiết sau:
+\begin{itemize}
+    \item Camera được gắn cố định tương đối với thân ROV trong thời gian bám mục tiêu;
+    \item Mục tiêu có đủ đặc trưng ảnh để thực hiện Optical Flow;
+    \item Mục tiêu đứng yên hoặc chuyển động chậm so với tốc độ cập nhật của hệ thống;
+    \item Độ dịch chuyển giữa hai khung hình không vượt quá khả năng tìm kiếm của bộ theo dõi;
+    \item Roll và pitch của ROV không thay đổi quá lớn;
+    \item Các cảm biến heading và độ sâu cung cấp dữ liệu liên tục;
+    \item Hệ thống thruster đã được arm và hoạt động bình thường.
+\end{itemize}
+
+Phiên bản hiện tại vẫn tồn tại một số giới hạn. Chức năng thị giác chưa xác định khoảng cách tuyệt đối đến mục tiêu và chưa ước lượng đầy đủ pose ba chiều. Sai lệch dọc của mục tiêu được tính toán và truyền về controller nhưng chưa được dùng để điều khiển heave do \texttt{VISION\_ENABLE\_ASCEND = False}. Việc giữ độ sâu vẫn dựa trên cảm biến áp suất. Ngoài ra, hệ thống chưa kết hợp dữ liệu DVL với dữ liệu thị giác, chưa có freshness gate riêng cho IMU/depth và chưa thực hiện hành vi tự động tìm kiếm rộng khi mục tiêu rời hoàn toàn khỏi khung hình.
+
+Các giới hạn trên không ảnh hưởng tới mục tiêu chính của đồ án là xây dựng và kiểm chứng một pipeline bám giữ mục tiêu chạy trực tuyến trên ROV, nhưng cần được xem xét khi mở rộng hệ thống cho các nhiệm vụ tự hành phức tạp hơn.
+
+
+\section{Cơ sở lý thuyết trực tiếp phục vụ hệ thống}
+
+Chức năng bám giữ mục tiêu được xây dựng từ hai nhóm kỹ thuật chính: điều khiển phản hồi và theo dõi mục tiêu trong chuỗi khung hình. Phần điều khiển sử dụng sai lệch từ IMU/EKF, cảm biến áp suất và bộ xử lý thị giác để tạo lệnh chuyển động cho ROV. Phần thị giác sử dụng các điểm đặc trưng, Optical Flow và phép ước lượng chuyển động bền vững để duy trì trạng thái của vùng mục tiêu giữa các khung hình. Mục này chỉ trình bày những cơ sở lý thuyết được sử dụng trực tiếp trong thiết kế và hiện thực hệ thống; các nội dung điều khiển mức thấp như ma trận trộn, ánh xạ kênh động cơ và chuyển đổi PWM đã được trình bày tại Chương 4.
+
+\subsection{Chuyển động của ROV và cấu trúc điều khiển vòng kín}
+
+Chuyển động của phương tiện dưới nước có thể được mô tả theo sáu bậc tự do, gồm ba chuyển động tịnh tiến và ba chuyển động quay. Vectơ vận tốc trong hệ tọa độ gắn với thân phương tiện được biểu diễn bởi \cite{fossen2021}:
+\[
+\boldsymbol{\nu} = 
 \begin{bmatrix}
-1 & -1 & 0 & -0.7071 \\
--1 & -1 & 0 & -0.7071 \\
-1 & 1 & 0 & -0.7071 \\
-1 & -1 & 0 & 0.7071 \\
-0 & 0 & 1 & 0 \\
-0 & 0 & -1 & 0 \\
-0 & 0 & -1 & 0 \\
-0 & 0 & 1 & 0
-\end{bmatrix}
+u & v & w & p & q & r
+\end{bmatrix}^{T}
+\]
+trong đó:
+\begin{itemize}
+    \item $u$, $v$, $w$ lần lượt là vận tốc surge, sway và heave;
+    \item $p$, $q$, $r$ lần lượt là vận tốc góc roll, pitch và yaw.
+\end{itemize}
+
+Trạng thái vị trí và tư thế của phương tiện trong hệ tọa độ cố định có thể biểu diễn bởi:
+\[
+\boldsymbol{\eta} = 
 \begin{bmatrix}
-u_f \\
-u_l \\
-u_z \\
-u_{\psi}
-\end{bmatrix}
-\end{equation}
+x & y & z & \phi & \theta & \psi
+\end{bmatrix}^{T}
+\]
 
-Từ phép nhân ma trận trên, lệnh của từng động cơ được tính như sau:
+Mối quan hệ động học giữa hai hệ tọa độ được viết dưới dạng:
+\[
+\dot{\boldsymbol{\eta}} = \boldsymbol{J}(\boldsymbol{\eta})\boldsymbol{\nu}
+\]
 
-\begin{equation}
-t_1 = u_f - u_l - 0.7071u_{\psi}
-\end{equation}
+Trong mô hình tổng quát của phương tiện biển, phương trình động lực học có dạng \cite{fossen2021}:
+\[
+\boldsymbol{M}\dot{\boldsymbol{\nu}} + \boldsymbol{C}(\boldsymbol{\nu})\boldsymbol{\nu} + \boldsymbol{D}(\boldsymbol{\nu})\boldsymbol{\nu} + \boldsymbol{g}(\boldsymbol{\eta}) = \boldsymbol{\tau}
+\]
+trong đó:
+\begin{itemize}
+    \item $\boldsymbol{M}$ là ma trận khối lượng và khối lượng nước kèm;
+    \item $\boldsymbol{C}(\boldsymbol{\nu})$ biểu diễn lực Coriolis và lực ly tâm;
+    \item $\boldsymbol{D}(\boldsymbol{\nu})$ biểu diễn lực cản thủy động;
+    \item $\boldsymbol{g}(\boldsymbol{\eta})$ biểu diễn trọng lực và lực nổi;
+    \item $\boldsymbol{\tau}$ là vectơ lực và mô-men tác động lên phương tiện.
+\end{itemize}
 
-\begin{equation}
-t_2 = -u_f - u_l - 0.7071u_{\psi}
-\end{equation}
+Việc xác định đầy đủ các tham số trên đòi hỏi mô hình cơ khí chính xác và các thí nghiệm nhận dạng thủy động lực học. Trong phạm vi đồ án, hệ thống không xây dựng bộ điều khiển dựa trên mô hình động lực đầy đủ mà sử dụng điều khiển phản hồi từ các đại lượng đo trực tiếp. Cách tiếp cận này phù hợp với bài toán duy trì trạng thái cục bộ ở tốc độ thấp, đồng thời giảm sự phụ thuộc vào các tham số khó xác định như lực cản, ảnh hưởng của tether và sự sai khác giữa các thruster.
 
-\begin{equation}
-t_3 = u_f + u_l - 0.7071u_{\psi}
-\end{equation}
-
-\begin{equation}
-t_4 = u_f - u_l + 0.7071u_{\psi}
-\end{equation}
-
-\begin{equation}
-t_5 = u_z
-\end{equation}
-
-\begin{equation}
-t_6 = -u_z
-\end{equation}
-
-\begin{equation}
-t_7 = -u_z
-\end{equation}
-
-\begin{equation}
-t_8 = u_z
-\end{equation}
-
-Các phương trình trên cho thấy lệnh của từng động cơ là tổ hợp tuyến tính của các thành phần điều khiển cấp cao. Điều này có nghĩa là một động cơ có thể đồng thời tham gia tạo ra nhiều loại chuyển động khác nhau. Chẳng hạn, các động cơ ngang vừa có thể tham gia tạo chuyển động tiến/lùi, vừa tạo chuyển động dịch ngang, vừa tạo mô-men quay yaw.
-
-\subsubsection{Ý nghĩa vật lý của các cột trong ma trận trộn}
-
-Mỗi cột trong ma trận trộn biểu diễn mức đóng góp của các động cơ đối với một trục chuyển động cụ thể.
-
-Cột thứ nhất tương ứng với lệnh tiến/lùi $u_f$:
-
-\begin{equation}
-M_f =
+Hệ thống hiện tại điều khiển bốn thành phần chuyển động chính:
+\[
+\mathbf{u} = 
 \begin{bmatrix}
-1 \\
--1 \\
-1 \\
-1 \\
-0 \\
-0 \\
-0 \\
-0
-\end{bmatrix}
-\end{equation}
+u_f & u_l & u_z & u_\psi
+\end{bmatrix}^{T}
+\]
+trong đó $u_f$, $u_l$, $u_z$ và $u_\psi$ lần lượt tương ứng với surge, sway, heave và yaw. Roll và pitch không được điều khiển chủ động mà được hạn chế chủ yếu nhờ cấu trúc cơ khí, vị trí trọng tâm và tâm nổi của ROV.
 
-Cột này cho thấy chuyển động tiến/lùi được tạo ra bởi nhóm động cơ ngang. Các động cơ thẳng đứng không tham gia vào chuyển động tiến/lùi nên hệ số của chúng bằng 0.
+Cấu trúc điều khiển phản hồi tổng quát được mô tả bởi:
+\[
+e(t) = r(t) - y(t)
+\]
+\[
+u(t) = C\left[e(t)\right]
+\]
+trong đó $r(t)$ là giá trị đặt, $y(t)$ là đại lượng đo, $e(t)$ là sai lệch và $C$ là luật điều khiển. Đầu ra $u(t)$ tác động lên ROV thông qua hệ thống thruster, sau đó trạng thái mới tiếp tục được cảm biến hoặc camera đo lại để khép kín vòng phản hồi.
 
-Cột thứ hai tương ứng với lệnh dịch ngang $u_l$:
+Trong hệ thống được xây dựng, giá trị phản hồi có thể đến từ ba nguồn:
+\begin{itemize}
+    \item Góc yaw từ IMU và EKF;
+    \item Độ sâu từ cảm biến áp suất;
+    \item Vị trí và kích thước biểu kiến của mục tiêu từ bộ xử lý thị giác.
+\end{itemize}
 
-\begin{equation}
-M_l =
-\begin{bmatrix}
--1 \\
--1 \\
-1 \\
--1 \\
-0 \\
-0 \\
-0 \\
-0
-\end{bmatrix}
-\end{equation}
+\begin{figure}[htbp]
+    \centering
+    \begin{tikzpicture}[
+        >=Latex,
+        block/.style={rectangle, draw=black, thick, fill=blue!3, minimum height=0.95cm, minimum width=2.2cm, align=center, rounded corners=2pt},
+        sum/.style={circle, draw=black, thick, fill=white, minimum size=0.55cm}
+    ]
 
-Tương tự như chuyển động tiến/lùi, chuyển động dịch ngang cũng được tạo bởi các động cơ ngang. Tổ hợp dấu khác nhau giữa các động cơ giúp tạo ra lực tổng theo phương ngang thân ROV.
+        % =========================================================
+        % TẦNG 1: HÌNH (a) HỆ TỌA ĐỘ ROV 3D (Ở trên cùng)
+        % =========================================================
+        \begin{scope}[shift={(0, 0)}]
+            % Vẽ thân ROV đậm nét, tạo khối 3D rõ ràng
+            \filldraw [draw=black, thick, fill=teal!25] (-1.6,0.6) -- (1.6,0.6) -- (2.6,1.2) -- (-0.6,1.2) -- cycle; % Mặt trên
+            \filldraw [draw=black, thick, fill=teal!40] (1.6,-0.6) -- (1.6,0.6) -- (2.6,1.2) -- (2.6,0.0) -- cycle; % Mặt bên
+            \filldraw [draw=black, thick, fill=teal!10] (-1.6,-0.6) rectangle (1.6,0.6); % Mặt trước
 
-Cột thứ ba tương ứng với lệnh lên/xuống $u_z$:
+            % Chi tiết "mặt robot" dưới nước
+            \filldraw [fill=black!85, draw=black, thick] (0.6, 0) circle (0.28cm); % Kính camera
+            \fill [white, opacity=0.45] (0.68, 0.08) circle (0.08cm); % Điểm loá kính
+            \filldraw [fill=yellow!85!orange, draw=black] (-0.8, 0.28) circle (0.11cm); % Đèn pha trái
+            \filldraw [fill=yellow!85!orange, draw=black] (-0.8,-0.28) circle (0.11cm); % Đèn pha phải
 
-\begin{equation}
-M_z =
-\begin{bmatrix}
-0 \\
-0 \\
-0 \\
-0 \\
-1 \\
--1 \\
--1 \\
-1
-\end{bmatrix}
-\end{equation}
+            % 3 Trục tọa độ (Được phóng thẳng ra vùng trắng bao la bên ngoài hộp)
+            \draw [->, ultra thick, red!85!black]   (0,0) -- (4.2, 0)    node[right, text=black] {$x_b\ (u)$};
+            \draw [->, ultra thick, green!50!black] (0,0) -- (3.2, 1.92) node[right, text=black] {$y_b\ (v)$};
+            \draw [->, ultra thick, blue!80!black]  (0,0) -- (0, -2.6)   node[left=3pt, text=black] {$z_b\ (w)$}; % Chữ nằm bên trái!
 
-Cột này cho thấy chuyển động thẳng đứng chỉ được tạo bởi các động cơ thẳng đứng. Các động cơ ngang không tham gia vào chuyển động lên/xuống nên hệ số của chúng bằng 0.
+            % Chấm Trọng tâm O
+            \fill [red] (0,0) circle (2.5pt);
+            \node at (-0.3, 0.25) {\textbf{\textit{O}}};
 
-Cột thứ tư tương ứng với lệnh quay yaw $u_{\psi}$:
+            % 3 Cung mũi tên góc quay (Bay lơ lửng hoàn toàn ngoài không gian)
+            \draw [->, thick] (3.2, 0.75) arc [start angle=90, end angle=-90, radius=0.45cm] node[midway, right] {$\phi$};
+            \draw [->, thick] (-0.3, 1.5) arc [start angle=150, end angle=30, radius=0.6cm]  node[midway, above] {$\theta$};
+            \draw [->, thick] (-0.5,-1.5) arc [start angle=180, end angle=360, x radius=0.5cm, y radius=0.18cm] node[right=3pt] {$\psi$}; % Chữ nằm bên phải!
 
-\begin{equation}
-M_{\psi} =
-\begin{bmatrix}
--0.7071 \\
--0.7071 \\
--0.7071 \\
-0.7071 \\
-0 \\
-0 \\
-0 \\
-0
-\end{bmatrix}
-\end{equation}
+            % Tiêu đề hình (a) hạ thấp xuống y = -3.3
+            \node at (0.5, -3.3) [font=\bfseries] {(a) Hệ tọa độ ROV sáu bậc tự do};
+        \end{scope}
 
-Chuyển động yaw được tạo bởi mô-men xoắn quanh trục đứng. Các động cơ ngang tạo ra các lực có phương và vị trí phù hợp để sinh mô-men quay cho ROV. Hệ số $0.7071$ xấp xỉ $sin(45^{o})$, thường xuất hiện trong các cấu hình động cơ đặt chéo góc $45^\circ$. Khi động cơ được đặt chéo, lực đẩy của nó có thể được phân rã thành các thành phần theo phương dọc và phương ngang. Với góc $45^\circ$, hai thành phần này có độ lớn bằng nhau và bằng $\frac{\sqrt{2}}{2}$ lần lực tổng.
 
-\subsubsection{Tổng hợp nhiều lệnh chuyển động}
+        % =========================================================
+        % TẦNG 2: HÌNH (b) SƠ ĐỒ VÒNG PHẢN HỒI (Hạ hẳn xuống y = -6.5)
+        % =========================================================
+        \begin{scope}[shift={(0, -6.5)}]
+            % Lưới ngang định vị cố định (Tổng chiều ngang 11.8cm - cực kỳ an toàn cho A4)
+            \node (alloc) at (0, 0)      [block] {\textbf{Phân bổ lực}\\ \footnotesize Ma trận $\mathbf{M}$};
+            \node (ctrl)  at (-3.5, 0)   [block] {\textbf{Bộ điều khiển}\\ \footnotesize PID / Vision};
+            \node (sum)   at (-5.8, 0)   [sum]   {$\Sigma$};
+            \node (r)     at (-7.1, 0)           {$\mathbf{r}(t)$};
 
-Ma trận trộn cho phép ROV tổng hợp nhiều lệnh chuyển động cùng lúc. Do quan hệ giữa vector điều khiển và lệnh động cơ là tuyến tính, lệnh cuối cùng của mỗi động cơ là tổng đóng góp từ nhiều thành phần điều khiển.
+            \node (plant) at (3.5, 0)    [block] {\textbf{ROV}\\ \footnotesize Động lực học};
+            \node (y)     at (5.3, 0)            {$\mathbf{y}(t)$};
 
-Ví dụ, khi ROV vừa tiến vừa quay yaw, vector điều khiển có dạng:
+            % Khối Cảm biến nằm dưới y = -1.7
+            \node (sens)  at (0, -1.7)   [block, minimum width=5.2cm] {\textbf{Khối Cảm nhận \& Đo lường}\\ \footnotesize (IMU / MS5837 / Camera Optical Flow)};
 
-\begin{equation}
-\mathbf{u}
-=
-\begin{bmatrix}
-u_f \\
-0 \\
-0 \\
-u_{\psi}
-\end{bmatrix}
-\end{equation}
+            % Các đường dây tín hiệu
+            \draw [->, thick] (r) -- node[pos=0.6, above=-1pt] {\footnotesize $+$} (sum);
+            \draw [->, thick] (sum) -- node[midway, above] {\small $\mathbf{e}$} (ctrl);
+            \draw [->, thick] (ctrl) -- node[midway, above] {\small $\mathbf{u}$} (alloc);
+            \draw [->, thick] (alloc) -- node[midway, above] {\small $\boldsymbol{\tau}$} (plant);
+            \draw [->, thick] (plant) -- (y);
 
-Khi đó:
+            % Đường phản hồi móc vuông góc dưới tầng hầm
+            \draw [->, thick] (4.6, 0) |- (sens.east);
+            \draw [->, thick] (sens.west) -| node[pos=0.85, left] {\footnotesize $-$} (sum.south);
 
-\begin{equation}
-\mathbf{t}
-=
-M
-\begin{bmatrix}
-u_f \\
-0 \\
-0 \\
-u_{\psi}
-\end{bmatrix}
-=
-u_f M_f + u_{\psi}M_{\psi}
-\end{equation}
+            \node at (0, -2.8) [font=\bfseries] {(b) Cấu trúc vòng điều khiển phản hồi};
+        \end{scope}
 
-Điều này có nghĩa là mỗi động cơ ngang sẽ nhận một lệnh tổng hợp từ yêu cầu tiến/lùi và yêu cầu quay yaw. Chẳng hạn, với động cơ thứ nhất:
+    \end{tikzpicture}
+    \caption{Hệ tọa độ ROV và cấu trúc vòng điều khiển phản hồi}
+    \label{fig:hetoado_vongdieukhien}
+\end{figure}
 
-\begin{equation}
-t_1 = u_f - 0.7071u_{\psi}
-\end{equation}
+\subsection{Bộ điều khiển PID}
 
-Nếu vừa có lệnh tiến, vừa có lệnh quay, động cơ thứ nhất sẽ nhận giá trị là tổng đại số của hai thành phần này. Nhờ đó, ROV có thể thực hiện các chuyển động phức hợp như vừa tiến vừa quay, vừa dịch ngang vừa giữ độ sâu, hoặc vừa bám mục tiêu vừa ổn định hướng.
+PID là bộ điều khiển phản hồi kết hợp ba thành phần tỉ lệ, tích phân và vi phân. Dạng liên tục của bộ điều khiển được biểu diễn bởi \cite{astrom_hagglund1995}:
+\[
+u(t) = K_P e(t) + K_I \int_{0}^{t} e(\tau)\mathrm{d}\tau + K_D \frac{\mathrm{d}e(t)}{\mathrm{d}t}
+\]
+Thành phần tỉ lệ quyết định mức phản ứng tức thời với sai lệch; thành phần tích phân bù sai lệch xác lập; thành phần vi phân tạo tác dụng hãm dựa trên tốc độ thay đổi của sai lệch. Do controller được thực thi trên máy tính số, bộ PID được cài đặt theo dạng rời rạc. Với chu kỳ lấy mẫu $\Delta t_k$, thành phần tích phân và vi phân được tính:
 
-\subsubsection{Chuẩn hóa và giới hạn lệnh động cơ}
+\[
+I_k = I_{k-1} + e_k \Delta t_k
+\]
+\[
+D_k = \frac{e_k - e_{k-1}}{\Delta t_k}
+\]
+Đầu ra điều khiển là:
+\[
+u_k = K_P e_k + K_I I_k + K_D D_k
+\]
 
-Sau khi tính được vector lệnh động cơ $\mathbf{t}$, mỗi giá trị $t_i$ cần được giới hạn trong khoảng cho phép trước khi chuyển thành tín hiệu điều khiển thực tế. Trong hệ thống này, lệnh động cơ được chuẩn hóa trong khoảng $[-1,1]$:
+Không phải mọi vòng trong hệ thống đều sử dụng đủ ba thành phần. Hold Heading và Hold Depth sử dụng dạng PID. Vòng điều khiển dịch ngang theo thị giác có $K_I = 0$, vì vậy hoạt động như bộ PD. Vòng điều khiển tiến--lùi theo thay đổi tỷ lệ mục tiêu có $K_I = K_D = 0$, tương ứng với bộ P. Việc giảm bậc bộ điều khiển ở các vòng thị giác nhằm hạn chế khuếch đại nhiễu và tránh tích lũy sai lệch từ một đại lượng chỉ biểu diễn quan hệ tương đối trong ảnh.
 
-\begin{equation}
-t_i^{clip} = clip(t_i, -1, 1)
-\end{equation}
+\begin{table}[htbp]
+    \centering
+    \caption{Cấu hình bộ điều khiển theo từng vòng phản hồi}
+    \label{tab:cauhinh_pid_vong}
+    \renewcommand{\arraystretch}{1.25}
+    \begin{tabular}{|l|p{0.36\linewidth}|l|}
+        \hline
+        \textbf{Vòng điều khiển} & \textbf{Nguồn phản hồi} & \textbf{Cấu hình hiện tại} \\
+        \hline
+        Hold Heading & Góc yaw từ IMU/EKF & PID \\
+        \hline
+        Hold Depth & Độ sâu từ cảm biến áp suất & PID \\
+        \hline
+        Vision lateral & Dịch chuyển ngang của mục tiêu & PD \\
+        \hline
+        Vision range & Thay đổi tỷ lệ bounding box & P \\
+        \hline
+    \end{tabular}
+\end{table}
 
-Trong đó hàm $clip$ được định nghĩa như sau:
+\subsection{Các ràng buộc trong bộ điều khiển thực tế}
 
-\begin{equation}
-clip(t_i, -1, 1)
-=
+Trong điều kiện thực tế, tín hiệu ảnh và cảm biến chứa nhiễu, chu kỳ cập nhật có thể không đều và cơ cấu chấp hành có giới hạn. Vì vậy, luật PID được bổ sung các cơ chế ràng buộc nhằm tránh phản ứng với nhiễu nhỏ và hạn chế thay đổi lệnh đột ngột.
+
+Vùng chết được áp dụng theo:
+\[
+e_{\mathrm{db}} =
 \begin{cases}
--1, & t_i < -1 \\
-t_i, & -1 \leq t_i \leq 1 \\
-1, & t_i > 1
+0, & |e| < \delta \\
+e, & |e| \geq \delta
 \end{cases}
-\end{equation}
+\]
+Khi sai lệch nằm trong vùng chết, lệnh tương ứng được đưa về 0. Cơ chế này hạn chế việc thruster liên tục thay đổi quanh trạng thái cân bằng do dao động nhỏ của điểm đặc trưng.
 
-Việc giới hạn này giúp tránh trường hợp lệnh điều khiển vượt quá khả năng đáp ứng của động cơ hoặc ESC. Nếu không có bước giới hạn, khi nhiều lệnh chuyển động được cộng lại, một số giá trị $t_i$ có thể vượt quá biên cho phép, gây ra lệnh điều khiển không hợp lệ hoặc làm hệ thống hoạt động không ổn định.
+Đầu ra chưa giới hạn $u^{*}$ được chặn trong miền an toàn:
+\[
+u_{\mathrm{sat}} = \operatorname{clip}\left(u^{*}, -u_{\max}, u_{\max}\right)
+\]
+Ngoài giới hạn biên độ, tốc độ thay đổi lệnh được giới hạn bởi:
+\[
+u_k = u_{k-1} + \operatorname{clip}\left(u_k^{*} - u_{k-1}, -\Delta u_{\max}, \Delta u_{\max}\right)
+\]
+Cơ chế này làm đầu ra tăng hoặc giảm theo từng bước, giảm chuyển động giật khi sai lệch thị giác thay đổi đột ngột giữa hai khung hình.
 
-\subsubsection{Chuyển đổi lệnh động cơ sang tín hiệu PWM}
+\begin{table}[htbp]
+    \centering
+    \caption{Các ràng buộc và phạm vi áp dụng trong phiên bản hiện tại}
+    \label{tab:rangbuoc_dieukhien}
+    \renewcommand{\arraystretch}{1.2}
+    \begin{tabular}{|p{0.22\linewidth}|p{0.34\linewidth}|p{0.34\linewidth}|}
+        \hline
+        \textbf{Cơ chế} & \textbf{Mục đích} & \textbf{Phạm vi áp dụng hiện tại} \\
+        \hline
+        Vùng chết & Loại bỏ phản ứng với nhiễu nhỏ & Vision lateral, vision range \\
+        \hline
+        Giới hạn đầu ra & Chặn lệnh quá lớn & Vision lateral, vision range; yaw khi vision hoạt động \\
+        \hline
+        Slew-rate limiting & Làm mượt thay đổi lệnh & Vision lateral, vision range \\
+        \hline
+        Lọc đạo hàm & Giảm nhiễu đạo hàm & Vision lateral; cấu trúc cũng tồn tại ở vision range nhưng $K_D = 0$ \\
+        \hline
+        Lệnh tối thiểu & Vượt vùng lệnh chưa đủ lực & Vision lateral \\
+        \hline
+        Integral clamp & Hạn chế tích lũy tích phân & Có trong cấu trúc vision; $K_I = 0$ nên chưa tác động \\
+        \hline
+        Anti-windup & Hoàn tác tích phân khi bão hòa & Có điều kiện trong code; chưa tác động khi $K_I = 0$ \\
+        \hline
+        Kiểm tra $\Delta t$ & Tránh xung đạo hàm sau độ trễ & Hai vòng vision \\
+        \hline
+        Timeout/manual override & Không dùng dữ liệu cũ và ưu tiên người vận hành & Khối tổng hợp điều khiển \\
+        \hline
+    \end{tabular}
+\end{table}
 
-Các động cơ đẩy của ROV được điều khiển thông qua ESC. ESC nhận tín hiệu PWM để xác định chiều quay và mức công suất của động cơ. Sau khi có lệnh động cơ chuẩn hóa $t_i^{clip}$, hệ thống chuyển đổi lệnh này sang xung PWM theo công thức:
+Các cơ chế trên không thay thế việc hiệu chỉnh thực nghiệm. Các ngưỡng vùng chết, giới hạn đầu ra và giới hạn bước được xem là tham số cấu hình ban đầu; mức độ phù hợp của chúng phải được đánh giá bằng các chỉ số sai số, thời gian xác lập và độ dao động trong Chương 8. Chức năng relay autotune của controller được xem là công cụ tạo tham số khởi đầu cho Hold Heading và Hold Depth, không phải nội dung trọng tâm của vòng thị giác.
 
-\begin{equation}
-PWM_i = PWM_{neutral} + t_i^{clip} \cdot G_{ESC} \cdot P_{max}
-\end{equation}
+\subsection{Chuẩn hóa sai lệch góc heading}
 
-Trong đó:
+Không giống độ sâu hoặc sai lệch vị trí ảnh, góc heading là một đại lượng tuần hoàn. Hai góc $\psi_1$ và $\psi_2$ có thể có giá trị số khác nhau nhiều nhưng lại biểu diễn hai hướng gần nhau. 
+
+Ví dụ:
+\[
+\psi_d = 179^{\circ}, \qquad \psi = -179^{\circ}
+\]
+Nếu tính bằng phép trừ trực tiếp:
+\[
+\psi_d - \psi = 358^{\circ}
+\]
+trong khi sai lệch thực tế chỉ là $2^{\circ}$. Sử dụng trực tiếp kết quả trên sẽ làm ROV quay theo hướng dài hơn. Để giải quyết vấn đề này, sai lệch góc được chuẩn hóa:
+\[
+e_\psi = \operatorname{atan2}\left(\sin(\psi_d-\psi), \cos(\psi_d-\psi)\right)
+\]
+Kết quả luôn nằm trong miền:
+\[
+-\pi \leq e_\psi \leq \pi
+\]
+Do đó, bộ điều khiển chọn chiều quay có độ lớn góc nhỏ nhất. Trong cài đặt thực tế, biểu thức được nhân thêm hệ số dấu:
+\[
+e_\psi = S_\psi \operatorname{atan2}\left(\sin(\psi_d-\psi), \cos(\psi_d-\psi)\right)
+\]
+với $S_\psi = -1$ theo quy ước chiều yaw hiện tại. Hệ số dấu không làm thay đổi độ lớn sai lệch mà chỉ bảo đảm chiều đầu ra PID phù hợp với chiều mô-men do cụm thruster tạo ra. Việc chuẩn hóa góc đặc biệt quan trọng khi ROV hoạt động gần biên $-180^{\circ}$ và $180^{\circ}$, nơi phép trừ thông thường tạo ra sự gián đoạn.
+
+
+\subsection{Điều khiển servo thị giác}
+
+Visual servoing là phương pháp sử dụng thông tin thu được từ camera trong vòng phản hồi để điều khiển chuyển động của robot \cite{chaumette_hutchinson2006}. Thay vì chỉ dùng ảnh để quan sát, các đặc trưng trong ảnh được so sánh với giá trị mong muốn và chuyển thành tín hiệu điều khiển. Vectơ đặc trưng ảnh có thể biểu diễn tổng quát:
+\[
+\mathbf{s} = 
+\begin{bmatrix}
+s_1 & s_2 & \cdots & s_n
+\end{bmatrix}^{T}
+\]
+Giá trị mong muốn được ký hiệu:
+\[
+\mathbf{s}^{*}
+\]
+Sai lệch thị giác là:
+\[
+\mathbf{e}_v = \mathbf{s} - \mathbf{s}^{*}
+\]
+
+Trong điều khiển servo thị giác dựa trên ảnh, quan hệ giữa tốc độ thay đổi đặc trưng và vận tốc camera thường được biểu diễn:
+\[
+\dot{\mathbf{s}} = \boldsymbol{L}_{s}\mathbf{v}_c
+\]
+trong đó $\boldsymbol{L}_{s}$ là ma trận tương tác ảnh và $\mathbf{v}_c$ là vận tốc camera. Một luật điều khiển điển hình có dạng:
+\[
+\mathbf{v}_c = -\lambda \widehat{\boldsymbol{L}}_{s}^{+}\mathbf{e}_v
+\]
+với $\lambda > 0$, $\widehat{\boldsymbol{L}}_{s}^{+}$ là giả nghịch đảo của ma trận tương tác ước lượng.
+
+Hệ thống trong đồ án không xây dựng đầy đủ ma trận tương tác ảnh. Thay vào đó, do camera được gắn cố định với ROV và phương tiện hoạt động ở tốc độ thấp, sai lệch ảnh được ánh xạ trực tiếp sang các trục chuyển động có quan hệ rõ ràng. Vectơ đặc trưng được sử dụng:
+\[
+\mathbf{s} = 
+\begin{bmatrix}
+x & y & \sigma
+\end{bmatrix}^{T}
+\]
+trong đó:
 \begin{itemize}
-    \item $PWM_i$ là giá trị xung PWM gửi tới ESC của động cơ thứ $i$;
-    \item $PWM_{neutral}$ là giá trị PWM trung tính, tại đó động cơ không tạo lực đẩy;
-    \item $G_{ESC}$ là hệ số khuếch đại giới hạn biên điều khiển của ESC;
-    \item $P_{max}$ là biên độ PWM tối đa được sử dụng trong điều khiển;
-    \item $t_i^{clip}$ là lệnh động cơ đã được giới hạn trong khoảng $[-1,1]$.
+    \item $(x, y)$ là tọa độ tâm vùng mục tiêu;
+    \item $\sigma$ là tỷ lệ kích thước biểu kiến của mục tiêu.
 \end{itemize}
 
-Trong hệ thống, giá trị trung tính của PWM là:
-
-\begin{equation}
-PWM_{neutral} = 1500
-\end{equation}
-
-Khi $t_i^{clip} = 0$, ta có:
-
-\begin{equation}
-PWM_i = 1500
-\end{equation}
-
-Khi đó động cơ ở trạng thái trung tính. Nếu $t_i^{clip} > 0$, PWM lớn hơn 1500 và động cơ quay theo một chiều. Nếu $t_i^{clip} < 0$, PWM nhỏ hơn 1500 và động cơ quay theo chiều ngược lại.
-
-Với hệ số khuếch đại ESC là $G_{ESC}$ và biên PWM cực đại $P_{max}$, khoảng PWM thực tế được xác định bởi:
-
-\begin{equation}
-PWM_i \in 
-\left[
-PWM_{neutral} - G_{ESC}P_{max},
-PWM_{neutral} + G_{ESC}P_{max}
-\right]
-\end{equation}
-
-Ví dụ, nếu $PWM_{neutral}=1500$, $G_{ESC}=0.5$ và $P_{max}=400$, ta có:
-
-\begin{equation}
-PWM_i \in [1300, 1700]
-\end{equation}
-
-Khoảng này đảm bảo động cơ có thể tạo lực theo cả hai chiều nhưng vẫn được giới hạn trong biên điều khiển an toàn.
-
-\subsection{Ánh xạ động cơ logic sang kênh PWM thực tế}
-
-Trong phần mềm điều khiển, các động cơ được đánh số logic từ $T_1$ đến $T_8$. Tuy nhiên, các động cơ này không nhất thiết được nối với các kênh PWM có cùng thứ tự trên mạch điều khiển. Vì vậy, hệ thống cần một bảng ánh xạ giữa thứ tự động cơ trong mô hình điều khiển và kênh PWM thực tế.
-
-Bảng ánh xạ có dạng:
-
-\begin{equation}
+Giá trị tham chiếu:
+\[
+\mathbf{s}^{*} = 
 \begin{bmatrix}
-T_1 & T_2 & T_3 & T_4 & T_5 & T_6 & T_7 & T_8
-\end{bmatrix}
-\rightarrow
-\begin{bmatrix}
-9 & 10 & 4 & 6 & 7 & 8 & 5 & 11
-\end{bmatrix}
-\end{equation}
+x_0 & y_0 & 1
+\end{bmatrix}^{T}
+\]
+Trong phiên bản hiện tại:
+\[
+e_x \rightarrow u_l, \qquad e_s \rightarrow u_f
+\]
+Sai lệch ngang điều khiển sway, còn sai lệch tỷ lệ điều khiển surge. Sai lệch dọc được theo dõi nhưng chưa sử dụng để điều khiển heave. Heading và độ sâu được khép vòng bằng IMU/EKF và cảm biến áp suất.
 
-Điều này có nghĩa là lệnh của động cơ logic $T_1$ được gửi tới kênh PWM số 9, lệnh của $T_2$ được gửi tới kênh PWM số 10, lệnh của $T_3$ được gửi tới kênh PWM số 4, và tương tự cho các động cơ còn lại. Việc sử dụng bảng ánh xạ giúp phần mềm điều khiển không phụ thuộc trực tiếp vào cách đi dây phần cứng, đồng thời giúp dễ hiệu chỉnh khi thay đổi kết nối động cơ.
+Cách thiết kế này có thể được xem là một cấu trúc visual servoing đơn giản hóa và phân tách theo trục. Ưu điểm là dễ hiệu chỉnh, không cần biết chính xác khoảng cách đến mục tiêu và phù hợp với hệ thống hiện có. Hạn chế là quan hệ giữa đặc trưng ảnh và chuyển động ROV chỉ mang tính gần đúng; khi camera bị nghiêng, ROV quay mạnh hoặc mục tiêu thay đổi hình dạng, các trục có thể xuất hiện tương tác chéo.
 
-\subsubsection{Mối quan hệ giữa bộ điều khiển PID và ma trận trộn}
-
-Bộ điều khiển PID không trực tiếp điều khiển từng động cơ riêng lẻ. Thay vào đó, PID được sử dụng để sinh ra các thành phần trong vector điều khiển cấp cao $\mathbf{u}$. Ví dụ, một bộ điều khiển giữ hướng có thể sinh ra thành phần $u_{\psi}$, một bộ điều khiển giữ độ sâu có thể sinh ra thành phần $u_z$, còn một bộ điều khiển bám mục tiêu bằng thị giác có thể sinh ra các thành phần $u_f$ và $u_l$.
-
-Sau khi các thành phần điều khiển cấp cao được xác định, chúng đều được đưa qua cùng một ma trận trộn để tạo ra lệnh cho từng động cơ:
-
-\begin{equation}
-\mathbf{u}
-=
-\begin{bmatrix}
-u_f \\
-u_l \\
-u_z \\
-u_{\psi}
-\end{bmatrix}
-\quad
-\Rightarrow
-\quad
-\mathbf{t} = M\mathbf{u}
-\quad
-\Rightarrow
-\quad
-PWM_i = PWM_{neutral} + clip(t_i,-1,1)G_{ESC}P_{max}
-\end{equation}
-
-Như vậy, có thể xem bộ điều khiển PID là khối tạo lệnh chuyển động, còn ma trận trộn là khối phân bổ lệnh chuyển động xuống các cơ cấu chấp hành. Sự tách biệt này giúp hệ thống có cấu trúc rõ ràng: các thuật toán điều khiển chỉ cần quan tâm đến việc ROV cần di chuyển theo hướng nào, trong khi ma trận trộn chịu trách nhiệm xác định từng động cơ phải hoạt động ra sao để tạo ra chuyển động đó.
-
-\subsubsection{Ý nghĩa đối với bài toán điều khiển ROV trong đồ án}
-
-Trong bài toán của đồ án, ROV cần thực hiện các chuyển động ổn định và có khả năng phối hợp nhiều trục điều khiển cùng lúc. Ví dụ, khi bám theo mục tiêu, ROV có thể cần tiến/lùi để giữ khoảng cách, dịch ngang để đưa mục tiêu về vị trí mong muốn trong khung hình, đồng thời giữ độ sâu và hướng quay ổn định. Nếu điều khiển trực tiếp từng động cơ, việc phối hợp các chuyển động này sẽ phức tạp và khó mở rộng.
-
-Việc sử dụng vector điều khiển cấp cao kết hợp với ma trận trộn giải quyết vấn đề này bằng cách chuẩn hóa giao diện giữa thuật toán điều khiển và phần cứng động cơ. Mọi thuật toán điều khiển đều chỉ cần sinh ra lệnh theo bốn trục cơ bản gồm tiến/lùi, dịch ngang, lên/xuống và yaw. Sau đó, ma trận trộn tự động chuyển đổi các lệnh này thành lệnh tương ứng cho 8 động cơ đẩy.
-
-Cách tiếp cận này có ba ưu điểm chính. Thứ nhất, nó giúp đơn giản hóa quá trình thiết kế thuật toán điều khiển, vì bộ điều khiển không cần trực tiếp tính toán lệnh cho từng động cơ. Thứ hai, nó cho phép kết hợp nhiều chế độ điều khiển khác nhau trong cùng một hệ thống, chẳng hạn điều khiển thủ công, giữ hướng, giữ độ sâu và bám mục tiêu bằng thị giác. Thứ ba, nó giúp hệ thống dễ bảo trì và hiệu chỉnh, vì khi thay đổi cấu hình động cơ hoặc thứ tự kết nối phần cứng, có thể chỉ cần điều chỉnh ma trận trộn hoặc bảng ánh xạ kênh PWM mà không cần thay đổi toàn bộ thuật toán điều khiển cấp cao.
-
-Tóm lại, cơ sở lý thuyết của khối điều khiển chuyển động ROV trong đồ án dựa trên ba bước chính: biểu diễn lệnh chuyển động bằng vector điều khiển cấp cao, phân bổ lệnh xuống từng động cơ bằng ma trận trộn, và chuyển đổi lệnh động cơ chuẩn hóa thành tín hiệu PWM gửi tới ESC. Chuỗi xử lý này có thể được tóm tắt như sau:
-
-\begin{equation}
-\boxed{
-\mathbf{u}
-=
-\begin{bmatrix}
-u_f \\
-u_l \\
-u_z \\
-u_{\psi}
-\end{bmatrix}
-}
-\end{equation}
-
-\begin{equation}
-\boxed{
-\mathbf{t} = M\mathbf{u}
-}
-\end{equation}
-
-\begin{equation}
-\boxed{
-PWM_i = PWM_{neutral} + clip(t_i,-1,1)G_{ESC}P_{max}
-}
-\end{equation}
-
-Đây là nền tảng để triển khai các chế độ điều khiển cao hơn của ROV, bao gồm điều khiển thủ công, ổn định tư thế, giữ độ sâu và bám mục tiêu tự động.
-
-
-\subsection{Thuật toán Optical Flow}
-\label{subsection:5.1.2}
-
-Trong bài toán bám mục tiêu của ROV, hệ thống cần xác định sự thay đổi vị trí của đối tượng trong chuỗi ảnh thu được từ camera. Sau khi người vận hành chọn một mục tiêu trên khung hình, thuật toán thị giác cần tiếp tục theo dõi mục tiêu đó trong các frame kế tiếp và ước lượng sự dịch chuyển của mục tiêu trong ảnh. Thông tin dịch chuyển này sau đó được chuyển thành sai số thị giác, làm đầu vào cho bộ điều khiển chuyển động của ROV.
-
-Optical Flow là một phương pháp thị giác máy tính dùng để ước lượng chuyển động biểu kiến của các điểm ảnh giữa hai frame liên tiếp trong một chuỗi ảnh. Chuyển động biểu kiến ở đây là chuyển động quan sát được trên mặt phẳng ảnh, không nhất thiết là chuyển động thật trong không gian ba chiều. Nguyên nhân tạo ra Optical Flow có thể đến từ chuyển động của vật thể, chuyển động của camera, hoặc đồng thời cả hai. Đối với hệ thống ROV, camera được gắn trên phương tiện, vì vậy chuyển động trong ảnh có thể phản ánh cả chuyển động của mục tiêu và chuyển động tương đối giữa ROV với mục tiêu.
-
-Trong đồ án này, Optical Flow được sử dụng nhằm giải quyết yêu cầu theo dõi mục tiêu đã chọn trong luồng hình ảnh thời gian thực. Thay vì nhận dạng lại vật thể ở mỗi frame bằng một mô hình học sâu, thuật toán theo dõi sự dịch chuyển của các điểm đặc trưng thuộc vùng mục tiêu giữa các frame liên tiếp. Cách tiếp cận này phù hợp với hệ thống nhúng và xử lý thời gian thực vì không yêu cầu tập dữ liệu huấn luyện lớn, chi phí tính toán tương đối thấp và có thể áp dụng cho mục tiêu do người dùng chọn tùy ý.
-
-\subsubsection{Khái niệm chuyển động biểu kiến trong ảnh}
-
-Một camera ghi lại cảnh ba chiều của môi trường dưới dạng ảnh hai chiều. Khi vật thể trong môi trường chuyển động hoặc khi camera chuyển động, vị trí chiếu của các điểm vật lý lên mặt phẳng ảnh cũng thay đổi. Sự thay đổi vị trí này tạo thành trường chuyển động trong ảnh.
-
-Giả sử một điểm vật lý $P$ trên mục tiêu được camera quan sát tại thời điểm $t$. Điểm này được chiếu lên ảnh tại vị trí:
-
-\begin{equation}
-\mathbf{p}(t) =
-\begin{bmatrix}
-x(t) \\
-y(t)
-\end{bmatrix}
-\end{equation}
-
-Tại thời điểm kế tiếp $t + \Delta t$, do chuyển động tương đối giữa camera và mục tiêu, điểm $P$ có thể xuất hiện tại vị trí mới:
-
-\begin{equation}
-\mathbf{p}(t+\Delta t) =
-\begin{bmatrix}
-x(t+\Delta t) \\
-y(t+\Delta t)
-\end{bmatrix}
-\end{equation}
-
-Vector dịch chuyển của điểm ảnh giữa hai frame là:
-
-\begin{equation}
-\Delta \mathbf{p}
-=
-\mathbf{p}(t+\Delta t) - \mathbf{p}(t)
-=
-\begin{bmatrix}
-\Delta x \\
-\Delta y
-\end{bmatrix}
-\end{equation}
-
-Trong đó:
-
-\begin{equation}
-\Delta x = x(t+\Delta t) - x(t)
-\end{equation}
-
-\begin{equation}
-\Delta y = y(t+\Delta t) - y(t)
-\end{equation}
-
-Nếu chia độ dịch chuyển cho khoảng thời gian giữa hai frame, ta thu được vận tốc biểu kiến của điểm ảnh:
-
-\begin{equation}
-\mathbf{v}
-=
-\frac{\Delta \mathbf{p}}{\Delta t}
-=
-\begin{bmatrix}
-u \\
-v
-\end{bmatrix}
-\end{equation}
-
-Trong đó $u$ là thành phần vận tốc theo phương ngang của ảnh và $v$ là thành phần vận tốc theo phương dọc của ảnh. Tập hợp các vector vận tốc của các điểm ảnh trong toàn bộ ảnh được gọi là trường Optical Flow.
-
-\subsubsection{Phân biệt chuyển động thật và Optical Flow}
-
-Cần phân biệt giữa chuyển động thật trong không gian ba chiều và Optical Flow trong ảnh. Chuyển động thật của vật thể diễn ra trong hệ tọa độ không gian, có thể được biểu diễn bằng các đại lượng như vị trí, vận tốc và gia tốc trong hệ tọa độ 3D. Trong khi đó, Optical Flow chỉ mô tả sự thay đổi vị trí của các điểm ảnh trên mặt phẳng ảnh 2D.
-
-Một điểm quan trọng là cùng một chuyển động trên ảnh có thể được tạo ra bởi nhiều nguyên nhân khác nhau. Ví dụ, nếu mục tiêu dịch sang phải trong ảnh, nguyên nhân có thể là:
+Cần phân biệt ba chức năng:
 \begin{itemize}
-    \item mục tiêu thật sự di chuyển sang phải so với camera;
-    \item ROV hoặc camera di chuyển sang trái;
-    \item ROV quay yaw làm toàn bộ cảnh dịch chuyển trong ảnh;
-    \item kết hợp của nhiều nguyên nhân trên.
+    \item Optical Flow xác định đặc trưng đã dịch chuyển như thế nào;
+    \item Visual servoing xác định sai lệch ảnh phải tạo chuyển động ROV theo hướng nào;
+    \item Khối phân bổ lực đẩy chuyển lệnh chuyển động thành lệnh cho từng thruster.
 \end{itemize}
 
-Vì vậy, Optical Flow không trực tiếp cung cấp tọa độ 3D hay vận tốc thật của mục tiêu. Tuy nhiên, trong bài toán điều khiển bám mục tiêu, hệ thống không nhất thiết cần khôi phục đầy đủ chuyển động 3D. Mục tiêu điều khiển là làm cho đối tượng đã chọn duy trì vị trí mong muốn trong ảnh và duy trì kích thước tương đối phù hợp. Do đó, sai lệch ảnh do Optical Flow cung cấp là đủ để tạo phản hồi điều khiển cho ROV.
+\subsection{Optical Flow và Pyramidal Lucas--Kanade}
 
-\subsubsection{Giả thiết bảo toàn độ sáng}
+Optical Flow biểu diễn chuyển động biểu kiến của các điểm ảnh giữa những khung hình liên tiếp. Phương pháp này không trực tiếp cung cấp vận tốc vật lý của ROV hoặc tọa độ ba chiều của mục tiêu, mà chỉ ước lượng sự thay đổi vị trí trong mặt phẳng ảnh.
 
-Cơ sở quan trọng nhất của Optical Flow là giả thiết bảo toàn độ sáng. Giả thiết này cho rằng cường độ sáng của cùng một điểm vật lý gần như không đổi giữa hai frame liên tiếp trong một khoảng thời gian rất ngắn.
-
-Gọi cường độ sáng tại vị trí ảnh $(x,y)$ và thời điểm $t$ là:
-
-\begin{equation}
-I(x,y,t)
-\end{equation}
-
-Nếu điểm ảnh tại $(x,y)$ ở thời điểm $t$ dịch chuyển đến vị trí $(x+\Delta x, y+\Delta y)$ ở thời điểm $t+\Delta t$, giả thiết bảo toàn độ sáng được viết như sau:
-
-\begin{equation}
-I(x,y,t)
-=
-I(x+\Delta x, y+\Delta y, t+\Delta t)
-\end{equation}
-
-Ý nghĩa của phương trình này là: mặc dù vị trí của điểm ảnh thay đổi, giá trị cường độ sáng của điểm vật lý tương ứng được xem là gần như không đổi.
-
-Giả thiết này thường hợp lý khi:
-\begin{itemize}
-    \item khoảng thời gian giữa hai frame nhỏ;
-    \item vật thể không thay đổi màu sắc đột ngột;
-    \item điều kiện chiếu sáng không thay đổi quá nhanh;
-    \item camera không bị rung hoặc mờ quá mạnh.
-\end{itemize}
-
-Tuy nhiên, trong môi trường dưới nước, giả thiết này có thể bị ảnh hưởng bởi ánh sáng yếu, nhiễu, phản xạ, tán xạ ánh sáng và độ đục của nước. Vì vậy, hệ thống cần kết hợp Optical Flow với các cơ chế kiểm tra độ tin cậy để tránh sử dụng các kết quả theo dõi sai.
-
-\subsubsection{Khai triển Taylor và phương trình ràng buộc Optical Flow}
-
-Để xây dựng phương trình cơ bản của Optical Flow, xét biểu thức:
-
-\begin{equation}
-I(x+\Delta x, y+\Delta y, t+\Delta t)
-\end{equation}
-
-Khai triển Taylor bậc nhất quanh điểm $(x,y,t)$:
-
-\begin{equation}
-I(x+\Delta x, y+\Delta y, t+\Delta t)
-\approx
-I(x,y,t)
-+
-I_x\Delta x
-+
-I_y\Delta y
-+
-I_t\Delta t
-\end{equation}
-
-Trong đó:
-\begin{itemize}
-    \item $I_x = \frac{\partial I}{\partial x}$ là đạo hàm riêng của cường độ ảnh theo phương ngang;
-    \item $I_y = \frac{\partial I}{\partial y}$ là đạo hàm riêng của cường độ ảnh theo phương dọc;
-    \item $I_t = \frac{\partial I}{\partial t}$ là đạo hàm riêng của cường độ ảnh theo thời gian.
-\end{itemize}
-
-Từ giả thiết bảo toàn độ sáng:
-
-\begin{equation}
-I(x,y,t)
-=
-I(x+\Delta x, y+\Delta y, t+\Delta t)
-\end{equation}
-
-Thay khai triển Taylor vào, ta có:
-
-\begin{equation}
-I(x,y,t)
-=
-I(x,y,t)
-+
-I_x\Delta x
-+
-I_y\Delta y
-+
-I_t\Delta t
-\end{equation}
-
-Rút gọn hai vế:
-
-\begin{equation}
+\paragraph{a. Giả thiết bảo toàn độ sáng}
+Xét một điểm ảnh có cường độ:
+\[
+I(x, y, t)
+\]
+Sau khoảng thời gian $\Delta t$, điểm vật lý tương ứng dịch chuyển tới:
+\[
+(x+\Delta x, y+\Delta y)
+\]
+Giả thiết bảo toàn độ sáng được biểu diễn:
+\[
+I(x, y, t) = I(x+\Delta x, y+\Delta y, t+\Delta t)
+\]
+Giả thiết này phù hợp khi khoảng cách thời gian giữa hai khung hình nhỏ và điều kiện chiếu sáng không thay đổi quá nhanh. Khai triển Taylor bậc nhất:
+\[
+I(x+\Delta x, y+\Delta y, t+\Delta t) \approx I(x, y, t) + I_x\Delta x + I_y\Delta y + I_t\Delta t
+\]
+Thay vào giả thiết bảo toàn độ sáng:
+\[
 I_x\Delta x + I_y\Delta y + I_t\Delta t = 0
-\end{equation}
+\]
+Chia cho $\Delta t$, đặt:
+\[
+u = \frac{\Delta x}{\Delta t}, \qquad v = \frac{\Delta y}{\Delta t}
+\]
+thu được phương trình Optical Flow:
+\[
+I_x u + I_y v + I_t = 0
+\]
+Phương trình chỉ chứa một ràng buộc nhưng có hai ẩn $u$ và $v$. Vì vậy, chuyển động của một điểm không thể được xác định duy nhất chỉ từ đạo hàm cường độ tại điểm đó. Đây là \textit{aperture problem}.
 
-Chia cả hai vế cho $\Delta t$:
-
-\begin{equation}
-I_x\frac{\Delta x}{\Delta t}
-+
-I_y\frac{\Delta y}{\Delta t}
-+
-I_t
+\paragraph{b. Phương pháp Lucas--Kanade}
+Lucas và Kanade giả thiết rằng các điểm trong một vùng lân cận nhỏ có chuyển động gần giống nhau \cite{lucas_kanade1981}. Với $n$ điểm trong cửa sổ, hệ phương trình được viết:
+\[
+\begin{bmatrix}
+I_{x1} & I_{y1} \\
+I_{x2} & I_{y2} \\
+\vdots & \vdots \\
+I_{xn} & I_{yn}
+\end{bmatrix}
+\begin{bmatrix}
+u \\ v
+\end{bmatrix}
 =
-0
-\end{equation}
-
+\begin{bmatrix}
+I_{t1} \\
+I_{t2} \\
+\vdots \\
+I_{tn}
+\end{bmatrix}
+\]
 Đặt:
+\[
+\boldsymbol{A} = 
+\begin{bmatrix}
+I_{x1} & I_{y1} \\
+\vdots & \vdots \\
+I_{xn} & I_{yn}
+\end{bmatrix},
+\qquad
+\mathbf{b} = 
+\begin{bmatrix}
+I_{t1} \\
+\vdots \\
+I_{tn}
+\end{bmatrix}
+\]
+Nghiệm bình phương tối thiểu:
+\[
+\begin{bmatrix}
+u \\ v
+\end{bmatrix}
+= \left(\boldsymbol{A}^{T}\boldsymbol{A}\right)^{-1}\boldsymbol{A}^{T}\mathbf{b}
+\]
+Nghiệm ổn định khi ma trận $\boldsymbol{A}^{T}\boldsymbol{A}$ có đủ thông tin gradient theo cả hai hướng. Đây là lý do các điểm góc phù hợp với tracking hơn các vùng phẳng hoặc các điểm nằm trên một cạnh đơn.
 
-\begin{equation}
-u = \frac{\Delta x}{\Delta t}
-\end{equation}
+\paragraph{c. Pyramidal Lucas--Kanade}
+Lucas--Kanade cơ bản giả thiết chuyển động giữa hai khung hình tương đối nhỏ. Khi camera hoặc ROV dịch chuyển nhanh, điểm ảnh có thể di chuyển ra ngoài cửa sổ tìm kiếm. Pyramidal Lucas--Kanade giải quyết vấn đề bằng cách xây dựng tháp ảnh nhiều mức \cite{opencv_optical_flow}. Tại mức $l$, ảnh được giảm kích thước so với ảnh gốc. Một chuyển động lớn trên ảnh gốc trở thành chuyển động nhỏ hơn ở mức thô.
 
-\begin{equation}
-v = \frac{\Delta y}{\Delta t}
-\end{equation}
-
-Ta thu được phương trình ràng buộc Optical Flow:
-
-\begin{equation}
-I_xu + I_yv + I_t = 0
-\end{equation}
-
-Phương trình này mô tả quan hệ giữa gradient không gian của ảnh, biến thiên thời gian của ảnh và vận tốc biểu kiến của điểm ảnh. Đây là phương trình nền tảng của nhiều thuật toán Optical Flow.
-
-\subsubsection{Ý nghĩa của các thành phần $I_x$, $I_y$, $I_t$}
-
-Trong phương trình:
-
-\begin{equation}
-I_xu + I_yv + I_t = 0
-\end{equation}
-
-mỗi thành phần có một ý nghĩa riêng.
-
-Thành phần $I_x$ cho biết cường độ ảnh thay đổi nhanh hay chậm theo phương ngang. Nếu ảnh có biên dọc rõ ràng, giá trị $I_x$ thường lớn. Thành phần $I_y$ cho biết cường độ ảnh thay đổi theo phương dọc. Nếu ảnh có biên ngang rõ ràng, giá trị $I_y$ thường lớn. Thành phần $I_t$ cho biết sự thay đổi cường độ ảnh giữa hai frame liên tiếp.
-
-Nếu một vùng ảnh hoàn toàn phẳng, tức là cường độ gần như không đổi theo cả phương ngang và phương dọc, ta có:
-
-\begin{equation}
-I_x \approx 0, \quad I_y \approx 0
-\end{equation}
-
-Khi đó, rất khó xác định chuyển động của vùng ảnh vì không có đủ thông tin đặc trưng để theo dõi. Đây là lý do Optical Flow thường hoạt động tốt hơn trên các vùng có texture, góc, cạnh hoặc hoa văn rõ ràng.
-
-\subsubsection{Vấn đề aperture problem}
-
-Phương trình ràng buộc Optical Flow có dạng:
-
-\begin{equation}
-I_xu + I_yv + I_t = 0
-\end{equation}
-
-Trong phương trình này, hai ẩn số cần tìm là $u$ và $v$, nhưng chỉ có một phương trình. Do đó, nếu chỉ xét một điểm ảnh riêng lẻ, không thể xác định duy nhất vector chuyển động hai chiều của điểm ảnh đó. Đây được gọi là vấn đề thiếu ràng buộc trong Optical Flow, hay aperture problem.
-
-Aperture problem có thể hiểu trực quan như sau: nếu chỉ quan sát một đoạn cạnh thẳng thông qua một cửa sổ nhỏ, ta chỉ thấy rõ chuyển động vuông góc với cạnh, còn chuyển động dọc theo cạnh rất khó xác định. Vì vậy, để ước lượng chuyển động ổn định, thuật toán cần xét thêm thông tin từ các điểm ảnh lân cận hoặc áp dụng thêm giả thiết về tính trơn của trường chuyển động.
-
-Các phương pháp Optical Flow thường giải quyết vấn đề này bằng một trong hai hướng:
+Quy trình coarse-to-fine gồm:
 \begin{itemize}
-    \item giả định các điểm lân cận có chuyển động giống nhau trong một cửa sổ nhỏ;
-    \item giả định trường chuyển động thay đổi trơn trong toàn ảnh.
+    \item Xây dựng tháp ảnh cho khung hình trước và khung hình hiện tại;
+    \item Ước lượng chuyển động tại mức có độ phân giải thấp nhất;
+    \item Phóng đại kết quả lên mức ảnh kế tiếp;
+    \item Sử dụng kết quả làm giá trị khởi tạo;
+    \item Tiếp tục tinh chỉnh cho tới mức ảnh gốc.
 \end{itemize}
 
-Phương pháp Lucas--Kanade thuộc nhóm thứ nhất, trong khi các phương pháp dense Optical Flow toàn cục như Horn--Schunck thuộc nhóm thứ hai.
+Nếu chuyển động ước lượng tại mức $l+1$ là $\mathbf{d}^{l+1}$, giá trị khởi tạo tại mức $l$ được xấp xỉ:
+\[
+\mathbf{d}_{0}^{l} = 2\mathbf{d}^{l+1}
+\]
+Sau khi tinh chỉnh:
+\[
+\mathbf{d}^{l} = \mathbf{d}_{0}^{l} + \Delta\mathbf{d}^{l}
+\]
 
-\subsubsection{Sparse Optical Flow và Dense Optical Flow}
+Trong mã nguồn, OpenCV thực hiện quy trình này thông qua hàm \texttt{calcOpticalFlowPyrLK}, trả về vị trí mới, trạng thái tìm thấy và sai số của từng điểm \cite{opencv_optical_flow}. Việc tăng kích thước cửa sổ và số mức pyramid giúp xử lý chuyển động lớn tốt hơn nhưng làm tăng chi phí tính toán và có thể giảm khả năng phân biệt các chuyển động cục bộ gần nhau. Các tham số cụ thể được trình bày tại Mục 6.4.
 
-Optical Flow có thể được chia thành hai nhóm chính: sparse Optical Flow và dense Optical Flow.
+\begin{figure}[htbp]
+    \centering
+    \begin{tikzpicture}[
+        >=Latex,
+        img_box/.style={rectangle, draw=black, thick, fill=white, align=center, rounded corners=1pt},
+        flow_arrow/.style={->, thick, blue!80!black},
+        down_arrow/.style={->, dashed, thick, red!85!black}
+    ]
 
-Dense Optical Flow ước lượng vector chuyển động cho hầu hết hoặc toàn bộ các điểm ảnh trong ảnh. Kết quả là một trường vector dày đặc biểu diễn chuyển động tại mỗi pixel. Cách tiếp cận này cung cấp thông tin chuyển động chi tiết, nhưng thường có chi phí tính toán cao hơn.
+        % =========================================================
+        % 1. VẼ NỀN KIM TỰ THÁP (Tạo hiệu ứng thị giác tháp ảnh)
+        % =========================================================
+        % Tháp ảnh I (Bên trái) - Tâm x = -3.6
+        \filldraw[fill=gray!8, draw=gray!60, dashed] (-4.6, 3.8) -- (-2.6, 3.8) -- (-1.7, -2.1) -- (-5.5, -2.1) -- cycle;
+        \node at (-3.6, 4.1) [font=\bfseries] {Tháp ảnh $I(t)$};
 
-Sparse Optical Flow chỉ ước lượng chuyển động cho một tập điểm đặc trưng được chọn trước. Các điểm này thường là góc, cạnh hoặc vùng có texture rõ ràng. Vì chỉ theo dõi một số lượng điểm nhất định, sparse Optical Flow có chi phí tính toán thấp hơn và phù hợp với các hệ thống cần xử lý thời gian thực.
+        % Tháp ảnh J (Bên phải) - Tâm x = +3.6
+        \filldraw[fill=gray!8, draw=gray!60, dashed] (2.6, 3.8) -- (4.6, 3.8) -- (5.5, -2.1) -- (1.7, -2.1) -- cycle;
+        \node at (3.6, 4.1) [font=\bfseries] {Tháp ảnh $J(t+1)$};
 
-Trong bài toán bám mục tiêu của ROV, sparse Optical Flow là lựa chọn phù hợp vì hệ thống chỉ cần theo dõi vùng mục tiêu đã chọn, không cần tính trường chuyển động cho toàn bộ ảnh. Việc tập trung vào các điểm đặc trưng trong bounding box giúp giảm tải tính toán và tăng khả năng chạy thời gian thực trên phần cứng nhúng.
 
-\subsubsection{Phương pháp Lucas--Kanade}
+        % =========================================================
+        % 2. CÁC TẦNG ẢNH (Từ trên xuống dưới: Nhỏ -> To)
+        % =========================================================
+        % --- TẦNG 2 (Top - Độ phân giải thấp nhất) ---
+        \node (I2) at (-3.6,  2.8) [img_box, minimum width=1.6cm, minimum height=0.7cm] {$I^2$};
+        \node (J2) at ( 3.6,  2.8) [img_box, minimum width=1.6cm, minimum height=0.7cm] {$J^2$};
+        
+        % --- TẦNG 1 (Middle) ---
+        \node (I1) at (-3.6,  0.5) [img_box, minimum width=2.4cm, minimum height=1.0cm] {$I^1$};
+        \node (J1) at ( 3.6,  0.5) [img_box, minimum width=2.4cm, minimum height=1.0cm] {$J^1$};
 
-Phương pháp Lucas--Kanade là một phương pháp phổ biến để tính sparse Optical Flow. Ý tưởng chính của phương pháp này là trong một vùng ảnh nhỏ, các điểm ảnh lân cận được giả định có cùng vector chuyển động. Nhờ đó, từ nhiều phương trình ràng buộc Optical Flow của các điểm trong vùng lân cận, ta có thể tìm được vector chuyển động chung theo nghĩa bình phương tối thiểu.
+        % --- TẦNG 0 (Bottom - Ảnh gốc độ phân giải cao nhất) ---
+        \node (I0) at (-3.6, -1.3) [img_box, minimum width=3.4cm, minimum height=1.3cm] {$I^0$ \footnotesize (Gốc)};
+        \node (J0) at ( 3.6, -1.3) [img_box, minimum width=3.4cm, minimum height=1.3cm] {$J^0$ \footnotesize (Gốc)};
 
-Giả sử xét một cửa sổ nhỏ gồm $n$ điểm ảnh quanh điểm cần theo dõi. Với điểm ảnh thứ $i$, phương trình Optical Flow là:
 
-\begin{equation}
-I_{x_i}u + I_{y_i}v + I_{t_i} = 0
-\end{equation}
+        % =========================================================
+        % 3. LUỒNG TÍNH TOÁN OPTICAL FLOW (Ở giữa)
+        % =========================================================
+        % Tầng 2: LK cơ bản
+        \draw [flow_arrow] (I2) -- node[midway, above] {\footnotesize LK thô} node[midway, below] {$\mathbf{d}^2$} (J2);
 
-Hay:
+        % Truyền xuống Tầng 1 (Upsample x2)
+        \coordinate (mid2) at (0, 2.8);
+        \coordinate (mid1) at (0, 0.5);
+        \coordinate (mid0) at (0, -1.3);
 
-\begin{equation}
-I_{x_i}u + I_{y_i}v = -I_{t_i}
-\end{equation}
+        \draw [down_arrow] (mid2) -- node[right=2pt] {\footnotesize $\mathbf{g}^1 = 2\mathbf{d}^2$} (mid1);
 
-Với $n$ điểm ảnh, ta thu được hệ phương trình:
+        % Tầng 1: Tinh chỉnh
+        \draw [flow_arrow] (I1) -- node[midway, above] {\footnotesize Tinh chỉnh} node[midway, below] {$\mathbf{d}^1 = \mathbf{g}^1 + \Delta\mathbf{d}^1$} (J1);
 
-\begin{equation}
-\begin{cases}
-I_{x_1}u + I_{y_1}v = -I_{t_1} \\
-I_{x_2}u + I_{y_2}v = -I_{t_2} \\
-\cdots \\
-I_{x_n}u + I_{y_n}v = -I_{t_n}
-\end{cases}
-\end{equation}
+        % Truyền xuống Tầng 0
+        \draw [down_arrow] (mid1) -- node[right=2pt] {\footnotesize $\mathbf{g}^0 = 2\mathbf{d}^1$} (mid0);
 
-Viết dưới dạng ma trận:
+        % Tầng 0: Flow cuối cùng
+        \draw [flow_arrow] (I0) -- node[midway, above, font=\bfseries] {Flow cuối cùng} node[midway, below, font=\bfseries] {$\mathbf{d}^0 = \mathbf{g}^0 + \Delta\mathbf{d}^0$} (J0);
 
-\begin{equation}
-A\mathbf{d} = \mathbf{b}
-\end{equation}
 
-Trong đó:
+        % =========================================================
+        % 4. TRỤC CHỈ THỊ COARSE-TO-FINE (Ngoài cùng bên trái)
+        % =========================================================
+        \draw [->, thick, black!70] (-6.2, 3.3) -- (-6.2, -1.8);
+        \node at (-6.2, 0.7) [rotate=90, above, font=\bfseries\footnotesize, text=black!70] {Coarse-to-Fine (Tăng độ chính xác)};
 
-\begin{equation}
-A =
-\begin{bmatrix}
-I_{x_1} & I_{y_1} \\
-I_{x_2} & I_{y_2} \\
-\vdots & \vdots \\
-I_{x_n} & I_{y_n}
-\end{bmatrix}
-\end{equation}
+    \end{tikzpicture}
+    \caption{Nguyên lý coarse-to-fine của Pyramidal Lucas--Kanade}
+    \label{fig:pyramidal_lucas_kanade}
+\end{figure}
 
-\begin{equation}
-\mathbf{d}
-=
-\begin{bmatrix}
-u \\
-v
-\end{bmatrix}
-\end{equation}
+\subsection{Lựa chọn đặc trưng, ước lượng chuyển động bền vững và tái bắt mục tiêu}
 
-\begin{equation}
-\mathbf{b}
-=
--
-\begin{bmatrix}
-I_{t_1} \\
-I_{t_2} \\
-\vdots \\
-I_{t_n}
-\end{bmatrix}
-\end{equation}
-
-Vì số phương trình thường lớn hơn số ẩn, hệ được giải theo nghĩa bình phương tối thiểu:
-
-\begin{equation}
-\mathbf{d}
-=
-(A^TA)^{-1}A^T\mathbf{b}
-\end{equation}
-
-Trong đó:
-
-\begin{equation}
-A^TA =
-\begin{bmatrix}
-\sum I_{x_i}^2 & \sum I_{x_i}I_{y_i} \\
-\sum I_{x_i}I_{y_i} & \sum I_{y_i}^2
-\end{bmatrix}
-\end{equation}
-
-Ma trận $A^TA$ còn được gọi là ma trận cấu trúc cục bộ của vùng ảnh. Để điểm đặc trưng có thể theo dõi tốt, ma trận này cần khả nghịch và có hai trị riêng đủ lớn. Điều đó có nghĩa là vùng ảnh cần có biến thiên cường độ theo cả hai phương, chẳng hạn như các điểm góc. Nếu vùng ảnh chỉ có một cạnh thẳng, một trị riêng có thể nhỏ, khiến việc ước lượng chuyển động theo một hướng trở nên không ổn định. Nếu vùng ảnh phẳng, cả hai trị riêng đều nhỏ và điểm đó không phù hợp để theo dõi.
-
-\subsubsection{Lựa chọn điểm đặc trưng}
-
-Trước khi áp dụng Lucas--Kanade, hệ thống cần chọn các điểm đặc trưng phù hợp trong vùng mục tiêu. Điểm đặc trưng tốt là điểm có thể được nhận ra và theo dõi ổn định qua các frame liên tiếp. Trong thực tế, các điểm góc thường được ưu tiên vì chúng có sự thay đổi cường độ rõ ràng theo cả hai phương ngang và dọc.
-
-Một tiêu chí thường được sử dụng để đánh giá điểm đặc trưng là dựa trên ma trận cấu trúc:
-
-\begin{equation}
-G =
-\sum_{(x,y)\in W}
+\paragraph{a. Đặc trưng Shi--Tomasi}
+Chất lượng của Lucas--Kanade phụ thuộc vào tập điểm được lựa chọn. Shi và Tomasi đề xuất tiêu chí chọn các điểm có khả năng được theo dõi ổn định qua nhiều khung hình \cite{shi_tomasi1994}. Ma trận cấu trúc tại một vùng ảnh được biểu diễn:
+\[
+\boldsymbol{G} = \sum_{(x,y)\in\Omega}
 \begin{bmatrix}
 I_x^2 & I_xI_y \\
 I_xI_y & I_y^2
 \end{bmatrix}
-\end{equation}
+\]
+Gọi $\lambda_1$, $\lambda_2$ là hai trị riêng của $\boldsymbol{G}$. Tiêu chí Shi--Tomasi:
+\[
+R = \min(\lambda_1, \lambda_2)
+\]
+Nếu cả hai trị riêng lớn, cường độ ảnh thay đổi đáng kể theo hai hướng và điểm được xem là một góc tốt. Nếu chỉ một trị riêng lớn, điểm nằm trên cạnh và chuyển động dọc theo cạnh khó xác định. Nếu cả hai trị riêng nhỏ, vùng ảnh gần như phẳng và không phù hợp để theo dõi.
 
-Trong đó $W$ là cửa sổ lân cận quanh điểm đang xét. Gọi $\lambda_1$ và $\lambda_2$ là hai trị riêng của ma trận $G$. Một điểm được coi là dễ theo dõi nếu cả hai trị riêng đều đủ lớn:
+Trong hệ thống, các điểm được phát hiện bên trong bounding box của mục tiêu bằng \texttt{goodFeaturesToTrack}. Vùng sát biên bounding box và các pixel quá sáng được loại khỏi mặt nạ để giảm khả năng chọn điểm thuộc nền hoặc vùng phản xạ mạnh.
 
-\begin{equation}
-\lambda_1 > \lambda_{min}, \quad \lambda_2 > \lambda_{min}
-\end{equation}
+\paragraph{b. Dịch chuyển trung vị và MAD}
+Kết quả Optical Flow có thể chứa các điểm ngoại lai do nhiễu, che khuất hoặc điểm bị trôi sang nền. Với các cặp điểm cũ và mới, vectơ dịch chuyển được tính:
+\[
+\mathbf{d}_i = \mathbf{p}'_i - \mathbf{p}_i
+\]
+Dịch chuyển đại diện được ước lượng bằng trung vị:
+\[
+\widetilde{\mathbf{d}} = \operatorname{median}\left(\mathbf{d}_1, \mathbf{d}_2, \ldots, \mathbf{d}_n\right)
+\]
+Khoảng cách của từng vectơ tới trung vị:
+\[
+r_i = \left\|\mathbf{d}_i - \widetilde{\mathbf{d}}\right\|_2
+\]
+Median Absolute Deviation được xác định:
+\[
+\mathrm{MAD} = \operatorname{median}\left(\left|r_i - \operatorname{median}(r)\right|\right)
+\]
+Các điểm có khoảng cách lớn hơn ngưỡng được loại khỏi tập \textit{inlier}. Trung vị và MAD ít bị ảnh hưởng bởi một số giá trị sai lớn hơn so với trung bình và độ lệch chuẩn.
 
-Nếu một trong hai trị riêng quá nhỏ, điểm đó có thể nằm trên một cạnh đơn hướng và dễ gặp aperture problem. Nếu cả hai trị riêng đều nhỏ, vùng ảnh gần như phẳng và không cung cấp đủ thông tin để theo dõi.
-
-Trong bài toán ROV, điểm đặc trưng được chọn trong bounding box của mục tiêu. Việc chọn điểm bên trong vùng mục tiêu giúp thuật toán tập trung theo dõi đối tượng quan tâm, tránh bị ảnh hưởng bởi chuyển động nền hoặc các vật thể không liên quan.
-
-\subsubsection{Pyramidal Lucas--Kanade}
-
-Lucas--Kanade cơ bản giả định chuyển động giữa hai frame là nhỏ. Giả định này phù hợp khi tốc độ frame cao và chuyển động của đối tượng không quá nhanh. Tuy nhiên, trong thực tế, ROV và mục tiêu có thể chuyển động nhanh hơn, hoặc camera có thể rung, khiến độ dịch chuyển giữa hai frame khá lớn. Khi đó, Lucas--Kanade ở một độ phân giải duy nhất có thể không theo dõi ổn định.
-
-Để xử lý chuyển động lớn hơn, phương pháp Pyramidal Lucas--Kanade sử dụng tháp ảnh đa tỉ lệ. Ý tưởng là xây dựng nhiều phiên bản của ảnh ở các độ phân giải khác nhau:
-
-\begin{equation}
-I^0, I^1, I^2, \ldots, I^L
-\end{equation}
-
-Trong đó:
-\begin{itemize}
-    \item $I^0$ là ảnh gốc;
-    \item $I^1$ là ảnh giảm kích thước từ $I^0$;
-    \item $I^2$ là ảnh tiếp tục giảm kích thước từ $I^1$;
-    \item $I^L$ là mức ảnh có độ phân giải thấp nhất.
-\end{itemize}
-
-Ở mức ảnh thấp, chuyển động lớn trong ảnh gốc trở thành chuyển động nhỏ hơn tính theo số pixel. Thuật toán bắt đầu ước lượng chuyển động ở mức thô nhất, sau đó lan truyền kết quả xuống các mức ảnh có độ phân giải cao hơn để tinh chỉnh.
-
-Quy trình tổng quát như sau:
-
-\begin{enumerate}
-    \item Xây dựng tháp ảnh cho frame trước và frame hiện tại.
-    \item Bắt đầu từ mức ảnh có độ phân giải thấp nhất.
-    \item Ước lượng chuyển động của điểm đặc trưng ở mức này.
-    \item Phóng đại vector chuyển động lên mức ảnh cao hơn.
-    \item Dùng vector đã phóng đại làm khởi tạo để tinh chỉnh ở mức tiếp theo.
-    \item Lặp lại cho tới ảnh gốc.
-\end{enumerate}
-
-Nhờ cơ chế coarse-to-fine này, Pyramidal Lucas--Kanade có thể theo dõi chuyển động lớn hơn so với Lucas--Kanade một mức ảnh. Đây là lý do phương pháp này thường được dùng trong các hệ thống tracking thời gian thực.
-
-\subsubsection{Theo dõi bounding box mục tiêu}
-
-Trong bài toán bám mục tiêu, người dùng thường chọn mục tiêu bằng một bounding box trên khung hình. Bounding box có thể được biểu diễn bởi tọa độ góc trái trên và kích thước:
-
-\begin{equation}
-B_t = (x_t, y_t, w_t, h_t)
-\end{equation}
-
-Trong đó:
-\begin{itemize}
-    \item $(x_t, y_t)$ là tọa độ góc trái trên của bounding box tại thời điểm $t$;
-    \item $w_t$ là chiều rộng bounding box;
-    \item $h_t$ là chiều cao bounding box.
-\end{itemize}
-
-Tâm của bounding box là:
-
-\begin{equation}
-c_t =
+\paragraph{c. Affine một phần và RANSAC}
+Dịch chuyển thuần túy chỉ mô tả được chuyển động ngang và dọc. Khi ROV tiến gần hoặc lùi xa mục tiêu, bounding box còn thay đổi kích thước. Vì vậy, hệ thống sử dụng biến đổi affine một phần:
+\[
 \begin{bmatrix}
-x_t + \frac{w_t}{2} \\
-y_t + \frac{h_t}{2}
+x' \\ y'
 \end{bmatrix}
-\end{equation}
-
-Khi người dùng chọn mục tiêu ban đầu, hệ thống lưu bounding box tham chiếu:
-
-\begin{equation}
-B_0 = (x_0, y_0, w_0, h_0)
-\end{equation}
-
-và tâm ban đầu:
-
-\begin{equation}
-c_0 =
-\begin{bmatrix}
-x_0 + \frac{w_0}{2} \\
-y_0 + \frac{h_0}{2}
-\end{bmatrix}
-\end{equation}
-
-Trong vùng bounding box ban đầu, hệ thống chọn một tập các điểm đặc trưng:
-
-\begin{equation}
-P_0 = \{p_1^0, p_2^0, \ldots, p_N^0\}
-\end{equation}
-
-Với mỗi frame mới, Optical Flow ước lượng vị trí mới của các điểm này:
-
-\begin{equation}
-P_t = \{p_1^t, p_2^t, \ldots, p_N^t\}
-\end{equation}
-
-Độ dịch chuyển của từng điểm là:
-
-\begin{equation}
-\Delta p_i = p_i^t - p_i^{t-1}
-\end{equation}
-
-Từ các vector dịch chuyển của nhiều điểm, hệ thống có thể ước lượng độ dịch chuyển tổng thể của mục tiêu. Một cách đơn giản là lấy trung bình:
-
-\begin{equation}
-\Delta c =
-\frac{1}{N}
-\sum_{i=1}^{N}
-\Delta p_i
-\end{equation}
-
-Tuy nhiên, trung bình có thể bị ảnh hưởng bởi các điểm theo dõi sai. Do đó, trong thực tế thường dùng trung vị để tăng tính bền vững:
-
-\begin{equation}
-\Delta x = median(\Delta x_1, \Delta x_2, \ldots, \Delta x_N)
-\end{equation}
-
-\begin{equation}
-\Delta y = median(\Delta y_1, \Delta y_2, \ldots, \Delta y_N)
-\end{equation}
-
-Sau khi có độ dịch chuyển tổng thể, tâm bounding box được cập nhật:
-
-\begin{equation}
-c_t = c_{t-1} + 
-\begin{bmatrix}
-\Delta x \\
-\Delta y
-\end{bmatrix}
-\end{equation}
-
-Từ tâm mới và kích thước hiện tại của bounding box, hệ thống suy ra vị trí bounding box mới. Như vậy, Optical Flow không nhất thiết cần nhận dạng lại toàn bộ vật thể, mà chỉ cần theo dõi sự dịch chuyển của các điểm đặc trưng đại diện cho vật thể.
-
-\subsubsection{Ước lượng thay đổi tỉ lệ mục tiêu}
-
-Ngoài vị trí tâm, kích thước của mục tiêu trong ảnh cũng là thông tin quan trọng. Khi ROV tiến lại gần mục tiêu, mục tiêu thường xuất hiện lớn hơn trong ảnh. Khi ROV lùi xa, mục tiêu thường nhỏ hơn. Vì vậy, sự thay đổi diện tích bounding box có thể được sử dụng như một tín hiệu tương đối về khoảng cách.
-
-Diện tích bounding box tại thời điểm $t$ là:
-
-\begin{equation}
-A_t = w_t h_t
-\end{equation}
-
-Diện tích ban đầu là:
-
-\begin{equation}
-A_0 = w_0 h_0
-\end{equation}
-
-Tỉ lệ thay đổi diện tích có thể được tính bằng:
-
-\begin{equation}
-r_A = \frac{A_t}{A_0}
-\end{equation}
-
-Sai lệch diện tích so với ban đầu:
-
-\begin{equation}
-e_A = \frac{A_t - A_0}{A_0}
-\end{equation}
-
-Nếu $e_A > 0$, mục tiêu đang lớn hơn so với lúc chọn ban đầu. Điều này thường tương ứng với việc ROV đang gần mục tiêu hơn. Nếu $e_A < 0$, mục tiêu nhỏ hơn so với ban đầu, thường tương ứng với việc ROV đang xa mục tiêu hơn. Nếu $e_A \approx 0$, kích thước mục tiêu gần với kích thước tham chiếu.
-
-Trong một số trường hợp, thay vì dùng trực tiếp diện tích, có thể dùng căn bậc hai của tỉ lệ diện tích để biểu diễn thay đổi tỉ lệ tuyến tính của kích thước:
-
-\begin{equation}
-s = \sqrt{\frac{A_t}{A_0}}
-\end{equation}
-
-Sai lệch tỉ lệ khi đó có thể viết:
-
-\begin{equation}
-e_s = s - 1
-\end{equation}
-
-Cách biểu diễn này hợp lý vì diện tích tỉ lệ với bình phương kích thước tuyến tính. Nếu chiều rộng và chiều cao của mục tiêu cùng tăng theo một hệ số $s$, diện tích sẽ tăng theo $s^2$.
-
-\subsubsection{Chuẩn hóa sai lệch ảnh}
-
-Sai lệch tính bằng pixel phụ thuộc vào độ phân giải ảnh. Một sai lệch 40 pixel trên ảnh rộng 320 pixel có ý nghĩa lớn hơn nhiều so với sai lệch 40 pixel trên ảnh rộng 1920 pixel. Vì vậy, để bộ điều khiển không phụ thuộc quá mạnh vào độ phân giải camera, sai lệch ảnh thường được chuẩn hóa.
-
-Giả sử ảnh có chiều rộng $W$ và chiều cao $H$. Nếu tâm ảnh là:
-
-\begin{equation}
-c_{img} =
-\begin{bmatrix}
-\frac{W}{2} \\
-\frac{H}{2}
-\end{bmatrix}
-\end{equation}
-
-và tâm mục tiêu hiện tại là:
-
-\begin{equation}
-c_t =
-\begin{bmatrix}
-x_c \\
-y_c
-\end{bmatrix}
-\end{equation}
-
-thì sai lệch so với tâm ảnh là:
-
-\begin{equation}
-\Delta x_c = x_c - \frac{W}{2}
-\end{equation}
-
-\begin{equation}
-\Delta y_c = y_c - \frac{H}{2}
-\end{equation}
-
-Sai lệch chuẩn hóa có thể được tính:
-
-\begin{equation}
-e_x = \frac{\Delta x_c}{W/2}
-\end{equation}
-
-\begin{equation}
-e_y = \frac{\Delta y_c}{H/2}
-\end{equation}
-
-Khi đó, nếu mục tiêu nằm gần biên phải của ảnh, $e_x$ gần $1$. Nếu mục tiêu nằm gần biên trái, $e_x$ gần $-1$. Nếu mục tiêu ở gần tâm ảnh, $e_x$ gần $0$. Tương tự, $e_y$ biểu diễn sai lệch theo phương dọc.
-
-Trong một số thiết kế, sai lệch không được tính so với tâm ảnh mà tính so với vị trí mục tiêu tại thời điểm người dùng chọn. Khi đó, hệ thống sẽ cố giữ mục tiêu tại vị trí được chọn ban đầu thay vì đưa mục tiêu về đúng tâm ảnh. Cách chọn điểm tham chiếu phụ thuộc vào yêu cầu điều khiển của hệ thống.
-
-\subsubsection{Sai lệch frame-to-frame và sai lệch so với điểm tham chiếu}
-
-Khi dùng Optical Flow cho tracking, cần phân biệt hai loại sai lệch:
-
-\begin{itemize}
-    \item sai lệch giữa hai frame liên tiếp;
-    \item sai lệch giữa trạng thái hiện tại và trạng thái tham chiếu.
-\end{itemize}
-
-Sai lệch giữa hai frame liên tiếp mô tả mục tiêu vừa dịch chuyển bao nhiêu trong khoảng thời gian rất ngắn:
-
-\begin{equation}
-\Delta p_{t,t-1} = p_t - p_{t-1}
-\end{equation}
-
-Sai lệch này phù hợp để cập nhật vị trí tracker theo thời gian. Tuy nhiên, nếu chỉ dùng sai lệch frame-to-frame làm đầu vào điều khiển, bộ điều khiển có thể chỉ phản ứng với vận tốc tương đối trong ảnh, không phản ánh trực tiếp việc mục tiêu đang lệch bao xa so với vị trí mong muốn.
-
-Trong khi đó, sai lệch so với điểm tham chiếu được tính:
-
-\begin{equation}
-\Delta p_{t,ref} = p_t - p_{ref}
-\end{equation}
-
-Trong đó $p_{ref}$ có thể là tâm ảnh hoặc vị trí mục tiêu tại thời điểm người dùng chọn. Sai lệch này phản ánh trực tiếp mục tiêu đang nằm lệch bao nhiêu so với vị trí mong muốn. Đối với điều khiển phản hồi, sai lệch so với điểm tham chiếu thường phù hợp hơn vì mục tiêu của bộ điều khiển là đưa sai lệch về 0.
-
-Trong bài toán ROV, nếu yêu cầu là giữ mục tiêu tại đúng vị trí ban đầu khi người dùng chọn, điểm tham chiếu nên là vị trí mục tiêu lúc khởi tạo tracking. Nếu yêu cầu là luôn đưa mục tiêu vào tâm ảnh, điểm tham chiếu nên là tâm khung hình. Việc xác định rõ điểm tham chiếu rất quan trọng vì nó quyết định ý nghĩa của tín hiệu sai số gửi cho bộ điều khiển.
-
-\subsubsection{Đánh giá độ tin cậy của tracking}
-
-Optical Flow có thể bị sai khi ảnh bị mờ, thiếu texture, mục tiêu bị che khuất, ánh sáng thay đổi hoặc camera rung mạnh. Do đó, hệ thống cần đánh giá độ tin cậy của kết quả tracking trước khi sử dụng nó cho điều khiển ROV.
-
-Một số tiêu chí đánh giá độ tin cậy gồm:
-
-\begin{itemize}
-    \item số lượng điểm đặc trưng còn theo dõi được;
-    \item tỉ lệ điểm theo dõi hợp lệ so với số điểm ban đầu;
-    \item sai số theo dõi thuận--ngược;
-    \item mức phân tán của các vector dịch chuyển;
-    \item diện tích bounding box có nằm trong khoảng hợp lý hay không;
-    \item tốc độ thay đổi vị trí hoặc kích thước bounding box có bất thường hay không.
-\end{itemize}
-
-Giả sử ban đầu có $N_0$ điểm đặc trưng và tại frame hiện tại còn $N_t$ điểm theo dõi hợp lệ. Một chỉ số đơn giản về độ tin cậy là:
-
-\begin{equation}
-c_N = \frac{N_t}{N_0}
-\end{equation}
-
-Nếu $c_N$ thấp, điều đó cho thấy nhiều điểm đặc trưng đã bị mất và kết quả tracking có thể không đáng tin cậy.
-
-Một cách khác là dùng sai số forward--backward. Thuật toán trước hết theo dõi điểm từ frame $t-1$ sang frame $t$, sau đó theo dõi ngược từ frame $t$ về frame $t-1$. Nếu điểm được theo dõi chính xác, vị trí quay ngược lại phải gần với vị trí ban đầu. Sai số forward--backward của điểm thứ $i$ là:
-
-\begin{equation}
-e_i^{fb} = \left\|p_i^{t-1} - \hat{p}_i^{t-1}\right\|
-\end{equation}
-
-Trong đó $p_i^{t-1}$ là vị trí ban đầu của điểm ở frame trước, còn $\hat{p}_i^{t-1}$ là vị trí thu được khi tracking ngược lại. Nếu $e_i^{fb}$ vượt quá một ngưỡng, điểm đó có thể bị loại bỏ.
-
-Độ tin cậy tổng thể có thể được biểu diễn bằng một giá trị:
-
-\begin{equation}
-0 \leq c \leq 1
-\end{equation}
-
-Trong đó $c$ càng gần 1 thì kết quả tracking càng đáng tin cậy. Bộ điều khiển chỉ nên sử dụng dữ liệu Optical Flow khi $c$ lớn hơn một ngưỡng nhất định:
-
-\begin{equation}
-c \geq c_{min}
-\end{equation}
-
-Nếu $c < c_{min}$, hệ thống nên coi mục tiêu là mất hoặc chưa đủ tin cậy, từ đó không gửi lệnh điều khiển tự động dựa trên vision.
-
-\subsubsection{Kiểm tra diện tích bounding box}
-
-Ngoài confidence, diện tích bounding box cũng là một tiêu chí quan trọng để kiểm tra tính hợp lệ của mục tiêu. Nếu bounding box quá nhỏ, mục tiêu có thể đang ở quá xa, bị mất hoặc không còn đủ thông tin ảnh để tracking ổn định. Nếu bounding box quá lớn, mục tiêu có thể quá gần camera, bị cắt khỏi khung hình hoặc tracker đã bị trôi sang vùng nền.
-
-Diện tích bounding box chuẩn hóa theo diện tích ảnh được tính:
-
-\begin{equation}
-\rho_A = \frac{A_t}{WH}
-\end{equation}
-
-Trong đó:
-\begin{itemize}
-    \item $A_t = w_t h_t$ là diện tích bounding box;
-    \item $W$ và $H$ là chiều rộng và chiều cao ảnh.
-\end{itemize}
-
-Bounding box được xem là hợp lệ nếu:
-
-\begin{equation}
-\rho_{min} \leq \rho_A \leq \rho_{max}
-\end{equation}
-
-Việc đặt ngưỡng dưới và ngưỡng trên giúp hệ thống loại bỏ các trường hợp tracking không đáng tin cậy. Trong môi trường dưới nước, kiểm tra này đặc biệt cần thiết vì nhiễu, bọt nước, phản xạ ánh sáng hoặc các vật thể nền có thể làm tracker bị trôi.
-
-\subsubsection{Quy trình Optical Flow trong hệ thống bám mục tiêu}
-
-Quy trình sử dụng Optical Flow cho bám mục tiêu trong hệ thống ROV có thể được mô tả như sau:
-
-\begin{enumerate}
-    \item Camera thu luồng ảnh liên tục từ môi trường phía trước ROV.
-    \item Người vận hành chọn mục tiêu cần bám trên giao diện, thường bằng một bounding box hoặc một điểm chọn trong ảnh.
-    \item Hệ thống lưu trạng thái tham chiếu ban đầu của mục tiêu, bao gồm vị trí, kích thước bounding box và tập điểm đặc trưng.
-    \item Tại mỗi frame mới, thuật toán Optical Flow ước lượng vị trí mới của các điểm đặc trưng.
-    \item Các điểm theo dõi không hợp lệ được loại bỏ dựa trên trạng thái tracking, sai số forward--backward hoặc các tiêu chí chất lượng khác.
-    \item Từ các điểm còn hợp lệ, hệ thống ước lượng độ dịch chuyển tổng thể của mục tiêu.
-    \item Bounding box được cập nhật theo độ dịch chuyển và thay đổi tỉ lệ ước lượng.
-    \item Hệ thống tính sai lệch vị trí mục tiêu và sai lệch kích thước so với trạng thái tham chiếu.
-    \item Các giá trị sai lệch, độ tin cậy và trạng thái tracking được gửi tới bộ điều khiển ROV.
-\end{enumerate}
-
-Có thể tóm tắt pipeline như sau:
-
-\begin{equation}
-Frame_{t-1}, Frame_t
-\rightarrow
-OpticalFlow
-\rightarrow
-\Delta x, \Delta y, e_s, c
-\rightarrow
-Bộ\ điều\ khiển\ ROV
-\end{equation}
-
-Trong đó $\Delta x$ và $\Delta y$ mô tả sai lệch vị trí của mục tiêu trong ảnh, $e_s$ mô tả sai lệch tỉ lệ kích thước, còn $c$ là độ tin cậy của quá trình theo dõi.
-
-\subsubsection{Biến đổi sai lệch ảnh thành sai số điều khiển}
-
-Optical Flow không trực tiếp sinh lệnh cho động cơ đẩy. Thay vào đó, nó cung cấp các đại lượng mô tả trạng thái mục tiêu trong ảnh. Các đại lượng này được chuyển thành sai số điều khiển cho ROV.
-
-Giả sử sai lệch ngang của mục tiêu trong ảnh là $\Delta x$. Sai số điều khiển theo phương ngang có thể được viết:
-
-\begin{equation}
-e_{lat} = k_x \Delta x
-\end{equation}
-
-Trong đó $k_x$ là hệ số chuyển đổi từ pixel sang sai số điều khiển. Nếu dùng sai lệch chuẩn hóa, có thể viết:
-
-\begin{equation}
-e_{lat} = k_x \frac{\Delta x}{W/2}
-\end{equation}
-
-Sai số này được dùng để sinh lệnh dịch ngang cho ROV. Nếu mục tiêu lệch sang phải, ROV cần dịch theo chiều làm giảm sai lệch đó. Dấu của lệnh điều khiển phụ thuộc vào quy ước hệ tọa độ ảnh, hướng lắp camera và quy ước chiều dương của trục lateral.
-
-Tương tự, sai lệch tỉ lệ kích thước $e_s$ có thể được dùng để tạo sai số điều khiển tiến/lùi:
-
-\begin{equation}
-e_{range} = k_s e_s
-\end{equation}
-
-Nếu mục tiêu nhỏ hơn kích thước tham chiếu, ROV có thể cần tiến lại gần. Nếu mục tiêu lớn hơn kích thước tham chiếu, ROV có thể cần lùi ra xa. Dấu của lệnh tiến/lùi cần được chọn sao cho bộ điều khiển làm giảm sai lệch kích thước về 0.
-
-Như vậy, đầu ra của Optical Flow có thể được ánh xạ sang vector sai số điều khiển:
-
-\begin{equation}
-\mathbf{e}_{vision}
 =
 \begin{bmatrix}
-e_{range} \\
-e_{lat}
+a & -b \\
+b & a
 \end{bmatrix}
-\end{equation}
+\begin{bmatrix}
+x \\ y
+\end{bmatrix}
++
+\begin{bmatrix}
+t_x \\ t_y
+\end{bmatrix}
+\]
+Mô hình trên có bốn bậc tự do, gồm tịnh tiến, quay trong mặt phẳng và tỷ lệ đồng nhất. Hệ số tỷ lệ được xác định:
+\[
+s = \sqrt{a^2 + b^2}
+\]
+Để giảm ảnh hưởng của các cặp điểm sai, RANSAC được sử dụng khi ước lượng mô hình \cite{fischler_bolles1981}. Trong mỗi vòng lặp, một tập con tối thiểu được lựa chọn để xây dựng mô hình. Các điểm có sai số chiếu lại nhỏ hơn ngưỡng được xem là \textit{inlier}. Mô hình có tập \textit{inlier} tốt nhất được sử dụng làm kết quả.
 
-Trong đó:
+OpenCV cung cấp hàm \texttt{estimateAffinePartial2D} với tùy chọn RANSAC, đồng thời trả về mặt nạ chỉ ra các điểm \textit{inlier} \cite{opencv_calib3d}. Thành phần tịnh tiến của ma trận affine không hoàn toàn tương đương với dịch chuyển tâm mục tiêu khi có quay và thay đổi tỷ lệ. Vì vậy, hệ thống sử dụng trung vị dịch chuyển của các affine \textit{inlier} để cập nhật tâm bounding box, còn hệ số $s$ được dùng để cập nhật chiều rộng và chiều cao.
+
+\paragraph{d. Template matching}
+Optical Flow phù hợp với quá trình cập nhật nhanh giữa các khung hình liên tiếp nhưng có thể tích lũy sai lệch. Khi số điểm giảm hoặc confidence thấp, template matching được sử dụng để hỗ trợ tìm lại mục tiêu. Template $T$ được lấy từ vùng mục tiêu khi khởi tạo. Với mỗi vị trí trong vùng tìm kiếm, template được so sánh với vùng ảnh tương ứng. Hệ thống sử dụng hệ số tương quan chuẩn hóa \texttt{TM\_CCOEFF\_NORMED}:
+\[
+R(x, y) = \frac{\displaystyle\sum_{x',y'} T'(x',y')I'(x+x',y+y')}{\sqrt{\displaystyle\sum_{x',y'} T'(x',y')^2 \sum_{x',y'} I'(x+x',y+y')^2}}
+\]
+trong đó $T'$ và $I'$ là các giá trị đã loại bỏ trung bình cục bộ. Giá trị $R$ càng gần 1 thì mức tương đồng càng cao.
+
+Template được tìm trước trong vùng lân cận của vị trí cuối cùng. Nếu mục tiêu bị mất qua nhiều khung hình, vùng tìm kiếm được mở rộng ra toàn ảnh. Hệ thống đồng thời thay đổi kích thước template theo nhiều tỷ lệ để xử lý trường hợp ROV đã thay đổi khoảng cách so với mục tiêu. OpenCV thực hiện phép so sánh này bằng \texttt{matchTemplate} \cite{opencv_template_matching}.
+
+Sau khi tìm lại được vị trí phù hợp, hệ thống:
 \begin{itemize}
-    \item $e_{range}$ liên quan đến chuyển động tiến/lùi;
-    \item $e_{lat}$ liên quan đến chuyển động dịch ngang.
+    \item Cập nhật bounding box;
+    \item Khởi tạo lại các điểm Shi--Tomasi;
+    \item Reset vận tốc dự đoán;
+    \item Reset số khung hình bị mất;
+    \item Khôi phục trạng thái tracking.
 \end{itemize}
 
-Sau đó, bộ điều khiển sẽ biến sai số này thành lệnh chuyển động cấp cao của ROV.
+\paragraph{e. Ước lượng khoảng cách tương đối từ kích thước ảnh}
+Trong mô hình camera lỗ kim, kích thước biểu kiến của một vật thể có kích thước thực không đổi tỉ lệ nghịch với khoảng cách:
+\[
+h_{\mathrm{image}} = \frac{f H_{\mathrm{real}}}{Z}
+\]
+trong đó $f$ là tiêu cự, $H_{\mathrm{real}}$ là kích thước thật và $Z$ là khoảng cách tới camera. Nếu kích thước thật và tiêu cự không đổi:
+\[
+\frac{Z_k}{Z_0} \approx \frac{h_0}{h_k}
+\]
 
-\subsubsection{Liên hệ với điều khiển phản hồi}
+Tuy nhiên, hệ thống không biết kích thước thực của mục tiêu và chưa hiệu chuẩn để đo khoảng cách tuyệt đối. Vì vậy, thay đổi khoảng cách chỉ được biểu diễn bằng tỷ lệ bounding box:
+\[
+\sigma_k = \frac{1}{2}\left(\frac{w_k}{w_0} + \frac{h_k}{h_0}\right)
+\]
+Sai lệch tỷ lệ:
+\[
+e_s(k) = \sigma_k - 1
+\]
+Nếu $e_s > 0$, mục tiêu lớn hơn trạng thái ban đầu và ROV có xu hướng ở gần hơn. Nếu $e_s < 0$, mục tiêu nhỏ hơn và ROV có xu hướng ở xa hơn. Để giảm dao động, sai lệch tỷ lệ có thể được lọc:
+\[
+\bar{e}_s(k) = \beta \bar{e}_s(k-1) + (1-\beta)e_s(k)
+\]
+Đại lượng này chỉ là khoảng cách tương đối thay thế. Nó có thể bị ảnh hưởng bởi thay đổi góc quan sát, biến dạng phối cảnh hoặc chuyển động của chính mục tiêu. Vì vậy, vòng điều khiển tiến--lùi sử dụng gain và giới hạn đầu ra nhỏ hơn vòng điều khiển dịch ngang.
 
-Trong hệ thống điều khiển phản hồi, mục tiêu là làm cho sai số giữa trạng thái hiện tại và trạng thái mong muốn tiến về 0. Với bám mục tiêu bằng camera, trạng thái mong muốn không nhất thiết là tọa độ 3D của mục tiêu, mà có thể là vị trí và kích thước mong muốn của mục tiêu trong ảnh.
+Các thành phần lý thuyết trên tạo cơ sở cho việc xây dựng kiến trúc xử lý và thuật toán thực tế. Mục 6.3 trình bày cách các module camera, tracker, giao diện và controller được bố trí trong hệ thống; Mục 6.4 trình bày chi tiết quy trình theo dõi; Mục 6.5 trình bày luật điều khiển cho từng trục.
 
-Có thể định nghĩa vector trạng thái ảnh của mục tiêu:
+\section{Kiến trúc chức năng điều khiển tự động}
 
-\begin{equation}
-\mathbf{s}_t =
-\begin{bmatrix}
-x_c \\
-y_c \\
-A_t
-\end{bmatrix}
-\end{equation}
+Chức năng bám giữ mục tiêu được triển khai theo kiến trúc phân tán, trong đó các tác vụ cần phản hồi nhanh được đặt trên máy tính nhúng của ROV, còn thao tác lựa chọn mục tiêu và giám sát trạng thái được thực hiện từ phía giao diện topside. Kiến trúc này kế thừa mô hình phân tầng đã trình bày tại Chương 3, nhưng chỉ tập trung vào các thành phần trực tiếp tham gia vào vòng điều khiển thị giác.
 
-Trong đó:
+Về mặt xử lý, hệ thống được chia thành bốn lớp. Lớp thu nhận dữ liệu tiếp nhận khung hình camera, góc yaw và độ sâu. Lớp nhận thức thị giác theo dõi vùng mục tiêu và tạo các đại lượng sai lệch. Lớp giám sát và điều khiển kiểm tra điều kiện hợp lệ, quản lý chế độ và tính toán lệnh chuyển động. Lớp chấp hành phân bổ vectơ điều khiển tới các thruster thông qua ma trận trộn đã trình bày tại Chương 4.
+
+\subsection{Kiến trúc triển khai tổng thể}
+
+Theo kiến trúc mục tiêu, các thành phần xử lý trực tiếp trên ROV được đặt trên máy tính nhúng QCS8550, bao gồm:
 \begin{itemize}
-    \item $x_c$ là tọa độ ngang của tâm mục tiêu;
-    \item $y_c$ là tọa độ dọc của tâm mục tiêu;
-    \item $A_t$ là diện tích bounding box hiện tại.
+    \item Module thu nhận và phát luồng camera \texttt{mjpeg\_server.py};
+    \item Module điều phối \texttt{edge\_tracker\_agent.py};
+    \item Bộ theo dõi mục tiêu \texttt{tracker\_core.py};
+    \item Bộ điều khiển chuyển động \texttt{rov\_controller\_pid\_tracking.py};
+    \item Các driver cảm biến và cơ cấu chấp hành.
 \end{itemize}
 
-Trạng thái mong muốn:
+Phía topside bao gồm phần mềm GCS, joystick và giao diện web hỗ trợ tracking. Trong phiên bản nguyên mẫu, giao diện này được hiện thực bởi \texttt{host\_web\_server.py}. Module này chủ yếu phục vụ hiển thị preview, trạng thái tracking, thao tác click chọn điểm và reset trong quá trình thử nghiệm; nó không thay thế GCS chính đã trình bày tại Chương 5.
 
-\begin{equation}
-\mathbf{s}^* =
+Kiến trúc tổng thể có thể biểu diễn theo chuỗi xử lý:
+\[
+\text{Camera} \longrightarrow \text{Camera server} \longrightarrow \text{Edge agent} \longrightarrow \text{Tracker} \longrightarrow \text{ROV controller} \longrightarrow \text{Thruster}
+\]
+
+Song song với đường xử lý trên, giao diện topside trao đổi lệnh và trạng thái với edge agent:
+\[
+\text{Người vận hành/GCS} \longleftrightarrow \text{Host interface} \longleftrightarrow \text{Edge agent}
+\]
+
+Trong khi đó, lệnh điều khiển thủ công và lệnh chuyển chế độ được truyền trực tiếp từ GCS tới controller thông qua MAVLink:
+\[
+\text{Joystick} \longrightarrow \text{GCS} \xrightarrow{\text{MAVLink}} \text{ROV controller}
+\]
+
+Cách bố trí trên bảo đảm vòng điều khiển không phải truyền khung hình lên topside rồi chờ kết quả xử lý quay trở lại. Sau khi mục tiêu đã được lựa chọn, việc theo dõi, tạo sai lệch và tính lệnh được thực hiện trên ROV. Điều này làm giảm phụ thuộc vào độ trễ của tether và duy trì khả năng phản hồi khi luồng hiển thị phía người dùng bị chậm.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{tikzpicture}[
+        scale=0.95, transform shape,
+        >=Latex,
+        % Tăng min width để chữ không bị sát lề
+        box/.style={rectangle, draw=black, thick, fill=white, minimum width=2.8cm, minimum height=1.1cm, align=center, rounded corners=2pt, font=\small},
+        sens/.style={rectangle, draw=black!75, fill=black!4, minimum width=2.2cm, minimum height=0.8cm, align=center, rounded corners=1pt, font=\footnotesize}
+    ]
+
+        % =========================================================
+        % 1. VÙNG TRẠM MẶT NƯỚC (Topside)
+        % =========================================================
+        \filldraw [fill=orange!4, draw=orange!70!black, dashed, rounded corners=6pt] (-5.6, -2.0) rectangle (-1.8, 2.5);
+        \node at (-3.7, 2.5) [above, font=\bfseries\small, text=orange!80!black] {Topside};
+
+        \node (gcs) at (-3.7, 0.2) [draw=black, ultra thick, fill=white, rounded corners=4pt, minimum width=3.2cm, minimum height=3.2cm, align=center] {
+            \textbf{GCS TOPSIDE}\\[4pt]
+            \scriptsize $\bullet$ Hiển thị Web GUI\\
+            \scriptsize $\bullet$ Click chọn / Reset mục tiêu\\
+            \scriptsize $\bullet$ Đọc tay cầm Joystick\\
+            \scriptsize $\bullet$ Quản lý chế độ ROV
+        };
+
+        % =========================================================
+        % 2. VÙNG ROV DƯỚI NƯỚC
+        % =========================================================
+        \filldraw [fill=cyan!4, draw=cyan!70!black, dashed, rounded corners=6pt] (0.8, -4.0) rectangle (10.0, 3.2);
+        \node at (5.4, 3.2) [above, font=\bfseries\small, text=cyan!80!black] {ROV};
+
+        % Cột camera & xử lý (Dịch sang phải để lấy không gian cho chữ V4L2)
+        \node (cam)     at (2.0,  2.2) [sens] {\textbf{Camera USB}};
+        \node (srv)     at (5.6,  2.2) [box]  {\textbf{Camera Server}\\ \scriptsize \texttt{mjpeg\_server}};
+        
+        \node (agent)   at (5.6,  0.3) [box, minimum height=1.3cm] {\textbf{Edge Agent}\\ \scriptsize \texttt{edge\_tracker}};
+        
+        \node (ctrl)    at (5.6, -1.8) [box]  {\textbf{ROV Controller}\\ \scriptsize \texttt{rov\_controller}};
+        \node (thrust)  at (5.6, -3.4) [sens, fill=red!10, draw=red!70!black, thick] {\textbf{Hệ thống Thrusters}};
+
+        % Tracker Core dịch sang phải hẳn (x=8.8) để chữ Frame/BBox hiển thị đẹp
+        \node (tracker) at (8.8,  0.3) [box, fill=green!6] {\textbf{Tracker Core}\\ \scriptsize \texttt{OpticalFlow}};
+
+        % =========================================================
+        % 3. DÂY CHUYỀN THÔNG TIN
+        % =========================================================
+        \draw [->, thick] (cam) -- node[above, font=\tiny, fill=white, inner sep=1pt] {V4L2} (srv);
+        \draw [->, thick] (srv) -- node[right, font=\tiny] {MJPEG} (agent);
+        % Khoảng cách giữa Agent và Tracker hiện tại là 3.2cm, rất thoải mái
+        \draw [<->, thick] (agent) -- node[above, font=\scriptsize, fill=white, inner sep=2pt] {Frame / BBox} (tracker);
+        \draw [->, thick] (ctrl) -- node[right, font=\tiny] {PWM} (thrust);
+
+        % Các đường dữ liệu chính
+        \draw [->, thick, blue!70!black] ($(agent.west)+(0, 0.3)$) -- node[above, sloped, font=\scriptsize] {HTTP: View} ($(gcs.east)+(0, 0.5)$);
+        \draw [->, thick, blue!70!black] ($(gcs.east)+(0, -0.1)$) -- node[below, sloped, font=\scriptsize] {HTTP: Select / Reset CMD} ($(agent.west)+(0, -0.1)$);
+        \draw [->, ultra thick, green!50!black] (agent.south) -- node[right=2pt, font=\scriptsize] {Packet $\mathbf{p}_v$ (20Hz)} (ctrl.north);
+        \draw [->, thick, dashed, red!80!black] ($(gcs.east)+(0, -1.0)$) -- node[below, sloped, font=\scriptsize] {MAVLink: Override / Mode} ($(ctrl.west)+(0, 0.1)$);
+
+    \end{tikzpicture}
+    \caption{Kiến trúc triển khai chức năng bám giữ mục tiêu}
+    \label{fig:kientruc_trienkhai}
+\end{figure}
+
+Trong Hình \ref{fig:kientruc_trienkhai} thể hiện ba nhóm đường truyền bằng ký hiệu khác nhau:
+\begin{itemize}
+    \item Đường ảnh và trạng thái giám sát;
+    \item Đường dữ liệu điều khiển thị giác;
+    \item Đường MAVLink điều khiển thủ công và chuyển chế độ.
+\end{itemize}
+
+\subsection{Các luồng dữ liệu chính}
+
+\paragraph{a. Luồng thu nhận và xử lý hình ảnh}
+Module \texttt{mjpeg\_server.py} mở camera USB thông qua giao diện V4L2. Một luồng riêng liên tục đọc khung hình, mã hóa mỗi khung hình thành JPEG và lưu bản mới nhất vào vùng nhớ dùng chung. Thay vì để từng client mở camera độc lập, server chỉ thu nhận và mã hóa ảnh một lần, sau đó phát cùng khung hình dưới định dạng MJPEG cho các client đang kết nối.
+
+Luồng ảnh được cung cấp tại cổng HTTP 8080 theo định dạng \texttt{multipart/x-mixed-replace}. Mỗi client được phục vụ bởi một luồng riêng, trong khi dữ liệu \texttt{latest\_frame} và số thứ tự \texttt{latest\_seq} được bảo vệ bằng khóa. Cấu trúc này cho phép edge agent nhận ảnh mà không xung đột với các client giám sát khác.
+
+Trong \texttt{edge\_tracker\_agent.py}, khối nhận ảnh kết nối tới luồng MJPEG, giải mã khung hình và chỉ chuyển frame mới cho vòng tracking. Cách tổ chức này tránh việc tracker xử lý lặp lại cùng một ảnh khi tốc độ đọc camera và tốc độ xử lý không hoàn toàn trùng nhau.
+
+Edge agent chuyển từng khung hình mới sang \texttt{OpticalFlowTracker} trong \texttt{tracker\_core.py}. Tracker trả về trạng thái gồm mode, bounding box, tâm mục tiêu, độ dịch chuyển so với vị trí tham chiếu, sai lệch tỷ lệ, số điểm đặc trưng, confidence và FPS. Chi tiết quá trình này được trình bày tại Mục 6.4.
+
+Luồng hình ảnh có thể tóm tắt:
+\[
+\text{Camera V4L2} \longrightarrow \text{JPEG/MJPEG} \longrightarrow \text{Edge agent} \longrightarrow \text{Tracker}
+\]
+
+\paragraph{b. Luồng lựa chọn mục tiêu và lệnh giao diện}
+Trên giao diện, người vận hành click vào vị trí mục tiêu trong ảnh. Do ảnh được co giãn theo kích thước cửa sổ trình duyệt, tọa độ click được chuyển từ hệ tọa độ hiển thị sang hệ tọa độ khung hình thực:
+\[
+x_f = x_d \frac{W_f}{W_d}
+\]
+\[
+y_f = y_d \frac{H_f}{H_d}
+\]
+trong đó $(x_d, y_d)$ là tọa độ trên phần tử hiển thị, $(W_d, H_d)$ là kích thước hiển thị và $(W_f, H_f)$ là kích thước khung hình thực.
+
+\texttt{host\_web\_server.py} tiếp nhận tọa độ qua API lựa chọn và đưa lệnh \texttt{select\_point} vào hàng đợi tương ứng với \texttt{agent\_id}. Mỗi lệnh có một chỉ số tăng dần. Edge agent định kỳ gọi API lấy các lệnh có chỉ số lớn hơn lệnh cuối đã xử lý, sau đó đưa chúng vào \texttt{command\_queue} nội bộ.
+
+Khi vòng xử lý nhận được khung hình mới, edge agent lấy các lệnh đang chờ và thực hiện trên chính khung hình đó. Đối với \texttt{select\_point}, điểm lựa chọn được chuyển thành bounding box vuông có kích thước giới hạn, sau đó truyền tới tracker để khởi tạo mục tiêu. Lệnh reset đã được tích hợp vào giao diện hỗ trợ; pause và toggle points có endpoint và logic xử lý nhưng chưa được xem là chức năng UI hoàn chỉnh trong phiên bản hiện tại.
+
+Luồng lựa chọn mục tiêu được biểu diễn:
+\[
+\text{Click trên giao diện} \longrightarrow \text{Host command queue} \longrightarrow \text{Edge command queue} \longrightarrow \text{Khởi tạo tracker}
+\]
+
+%\begin{figure}[htbp]
+    %\centering
+    % \includegraphics[width=0.85\linewidth]{images/hinh6_7.pdf}
+    %\caption{Sơ đồ tuần tự quá trình lựa chọn mục tiêu}
+    %\label{fig:sodotuantu_muctieu}
+%\end{figure}
+
+\paragraph{c. Luồng dữ liệu điều khiển thị giác}
+Sau mỗi lần xử lý frame, edge agent tạo gói dữ liệu điều khiển từ trạng thái tracker. Gói có cấu trúc:
+\[
+\mathbf{p}_v = \big\{ \text{valid},\ C,\ e_x,\ e_y,\ e_s \big\}
+\]
+trong đó:
+\begin{itemize}
+    \item \texttt{vision\_valid} cho biết kết quả có đủ điều kiện sử dụng;
+    \item \texttt{confidence} ($C$) là độ tin cậy tracking;
+    \item \texttt{dx\_normalized} ($e_x$) là sai lệch ngang chuẩn hóa;
+    \item \texttt{dy\_normalized} ($e_y$) là sai lệch dọc chuẩn hóa;
+    \item \texttt{scale\_error\_normalized} ($e_s$) là sai lệch tỷ lệ chuẩn hóa.
+\end{itemize}
+
+Edge agent chỉ đặt \texttt{vision\_valid = true} khi tracker ở trạng thái \texttt{TRACKING}, bounding box tồn tại và confidence không thấp hơn ngưỡng cấu hình. Nếu một trong các điều kiện không được thỏa mãn, ba sai lệch được đưa về 0 trước khi gửi.
+
+Gói điều khiển được truyền ưu tiên bằng UDP tới cổng 17002 của controller. UDP được lựa chọn cho đường điều khiển cục bộ vì gói nhỏ, không cần thiết lập kết nối và có độ trễ thấp. Một API HTTP tại cổng 17001 được giữ lại để kiểm tra hoặc tương thích ngược. Tần số gửi danh định là tối đa 20 Hz và chỉ gửi khi có kết quả xử lý khung hình mới; tần số thực tế cần được đo trong Chương 8.
+
+Controller tiếp nhận gói, cập nhật trạng thái vision và ghi nhận thời điểm nhận. Vòng điều khiển tự động chạy độc lập ở tần số danh định 20 Hz, kiểm tra đồng thời:
+\begin{itemize}
+    \item Hold Vision đang được kích hoạt;
+    \item Dữ liệu vision hợp lệ;
+    \item Gói chưa vượt timeout;
+    \item Người vận hành không tác động joystick;
+    \item Khoảng holdoff sau thao tác thủ công đã kết thúc.
+\end{itemize}
+
+Nếu các điều kiện được đáp ứng, sai lệch ngang và sai lệch tỷ lệ được chuyển sang bộ điều khiển thị giác. Lệnh sinh ra ghi đè hai thành phần surge và sway trong vectơ điều khiển. Heading và depth được tính từ các vòng cảm biến riêng trước khi vectơ tổng hợp được đưa tới ma trận trộn.
+
+Luồng điều khiển được biểu diễn:
+\[
+\text{Tracker output} \longrightarrow \text{Vision packet} \xrightarrow{\text{UDP}} \text{Validity check} \longrightarrow \text{PID/PD/P} \longrightarrow \text{Mixing matrix} \longrightarrow \text{PWM}
+\]
+
+\paragraph{d. Luồng giám sát và phản hồi người dùng}
+Đường giám sát được xử lý độc lập với đường điều khiển. Edge agent chỉ tạo ảnh preview theo tần số upload đã cấu hình, mặc định 10 FPS danh định. Ảnh preview và trạng thái rút gọn được gửi tới API \texttt{/api/agent/upload} của host server. Trạng thái giao diện gồm mode, confidence, FPS, thông báo và tọa độ tâm mục tiêu.
+
+Host server lưu frame và trạng thái mới nhất theo \texttt{agent\_id}, sau đó:
+\begin{itemize}
+    \item Phát lại ảnh dưới dạng MJPEG qua \texttt{/video\_feed};
+    \item Trả trạng thái JSON qua \texttt{/api/status};
+    \item Nhận lệnh lựa chọn và reset từ giao diện; các lệnh pause/toggle points hiện ở mức endpoint hỗ trợ.
+\end{itemize}
+Việc giảm tần số preview giúp hạn chế chi phí mã hóa JPEG và băng thông, trong khi tracker và gói điều khiển vẫn có thể cập nhật ở tần số cao hơn.
+
+\paragraph{e. Luồng điều khiển thủ công và phản hồi cảm biến}
+Joystick được đọc tại GCS và truyền tới controller bằng các gói MAVLink. Các kênh thủ công tương ứng với surge, sway, heave và yaw. Lệnh \texttt{SET\_MODE} được sử dụng để kích hoạt Manual, Hold Heading, Hold Depth hoặc Hold Vision.
+
+Trên ROV, dữ liệu heading và depth được cập nhật trong các luồng cảm biến riêng. Các dữ liệu này được controller đọc trực tiếp, không phải truyền lên topside rồi quay trở lại ROV. Vì vậy, Hold Heading và Hold Depth vẫn có thể hoạt động mà không phụ thuộc vào luồng ảnh giám sát.
+
+\subsection{Vai trò của các mô-đun phần mềm}
+
+Các mô-đun trong chức năng bám giữ mục tiêu được thiết kế theo nguyên tắc phân tách trách nhiệm. Bảng \ref{tab:vaitro_modun} tổng hợp vai trò và dữ liệu trao đổi chính.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Vai trò các mô-đun trong chức năng bám giữ mục tiêu}
+    \label{tab:vaitro_modun}
+    \renewcommand{\arraystretch}{1.3}
+    % Tổng hệ số: 0.22 + 0.12 + 0.30 + 0.12 + 0.12 = 0.88\linewidth (Khít 100% trang A4)
+    \begin{tabular}{|p{0.22\linewidth}|p{0.12\linewidth}|p{0.30\linewidth}|p{0.12\linewidth}|p{0.12\linewidth}|}
+        \hline
+        \textbf{Mô-đun} & \textbf{Vị trí} & \textbf{Vai trò chính} & \textbf{Đầu vào} & \textbf{Đầu ra} \\
+        \hline
+        \texttt{\seqsplit{mjpeg\_server.py}} & ROV & Mở camera, mã hóa JPEG và phát MJPEG cho nhiều client & Camera V4L2 & Luồng MJPEG \\
+        \hline
+        \texttt{\seqsplit{tracker\_core.py}} & ROV & Khởi tạo mục tiêu, theo dõi điểm, cập nhật bounding box, tính confidence và tái bắt & Khung hình, lệnh chọn/ reset & Trạng thái tracking và sai lệch \\
+        \hline
+        \texttt{\seqsplit{edge\_tracker\_agent.py}} & ROV & Điều phối camera, tracker, host và controller; chuẩn hóa sai lệch; gửi packet vision & MJPEG, lệnh giao diện, tracker output & Preview/ status và vision packet \\
+        \hline
+        \texttt{\seqsplit{rov\_controller\_pid\_tracking.py}} & ROV & Nhận MAVLink, vision và cảm biến; quản lý mode; tính lệnh điều khiển; gọi khối chấp hành & Joystick, mode, vision packet, IMU/EKF, depth & Vectơ điều khiển và lệnh thruster \\
+        \hline
+        \texttt{\seqsplit{host\_web\_server.py}} & Topside/ giao diện & Hiển thị preview, trạng thái và tiếp nhận thao tác chọn mục tiêu & Upload từ edge agent, thao tác người dùng & Command queue và dữ liệu hiển thị \\
+        \hline
+        GCS chính & Topside & Điều khiển thủ công, chuyển chế độ và giám sát tổng thể ROV & Joystick và telemetry & Gói MAVLink \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\texttt{mjpeg\_server.py} được tách khỏi edge agent nhằm bảo đảm camera chỉ bị mở bởi một tiến trình. Thiết kế này tránh xung đột thiết bị khi nhiều thành phần cùng cần ảnh và cho phép thay đổi hoặc khởi động lại tracker mà không phải đóng camera.
+
+\texttt{tracker\_core.py} không thực hiện giao tiếp mạng và không điều khiển phần cứng. Module chỉ quản lý trạng thái thị giác và xử lý frame. Nhờ đó, thuật toán có thể được kiểm thử độc lập bằng video hoặc ảnh mà không cần chạy toàn bộ hệ thống ROV.
+
+\texttt{edge\_tracker\_agent.py} đóng vai trò middleware. Module không trực tiếp xuất PWM và cũng không chứa toàn bộ thuật toán tracking. Nó chuyển đổi giữa các miền dữ liệu: MJPEG thành frame, thao tác giao diện thành lệnh tracker, trạng thái tracker thành packet điều khiển, đồng thời tạo preview cho người dùng.
+
+\texttt{rov\_controller\_pid\_tracking.py} là điểm hợp nhất các nguồn điều khiển. Module tiếp nhận lệnh manual, dữ liệu vision, heading và depth; sau đó quyết định nguồn nào có quyền điều khiển từng trục. Việc phân quyền này được thực hiện trước khối mixing matrix, vì vậy cơ cấu phân bổ lực đẩy không cần biết lệnh đến từ joystick hay vòng tự động.
+
+\texttt{host\_web\_server.py} chỉ lưu trạng thái mới nhất và chuyển tiếp lệnh theo \texttt{agent\_id}. Kiến trúc này cho phép về sau thay giao diện web thử nghiệm bằng thành phần tương đương trong GCS mà không cần thay đổi thuật toán tracker hoặc controller.
+
+Các giao tiếp mặc định được tổng hợp trong Bảng \ref{tab:giaotiep_chucnang}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Các giao tiếp của chức năng bám giữ mục tiêu}
+    \label{tab:giaotiep_chucnang}
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{|p{0.18\linewidth}|p{0.20\linewidth}|p{0.22\linewidth}|p{0.28\linewidth}|}
+        \hline
+        \textbf{Giao tiếp} & \textbf{Giao thức / cổng} & \textbf{Hướng dữ liệu} & \textbf{Nội dung} \\
+        \hline
+        Camera stream & HTTP/MJPEG, cổng 8080 & Camera server $\to$ Edge agent & Khung hình JPEG liên tiếp \\
+        \hline
+        Upload giao diện & HTTP, cổng 5000 & Edge agent $\to$ Host interface & Preview JPEG và trạng thái \\
+        \hline
+        Lệnh giao diện & HTTP, cổng 5000 & Host interface $\to$ Edge agent & Select point, reset; pause/toggle points ở mức endpoint \\
+        \hline
+        Vision control & UDP, cổng 17002 & Edge agent $\to$ Controller & Validity, confidence và sai lệch chuẩn hóa \\
+        \hline
+        Vision debug/ fallback & HTTP, cổng 17001 & Edge agent $\to$ Controller & Gói vision dạng JSON \\
+        \hline
+        Điều khiển ROV & MAVLink/UDP & GCS $\leftrightarrow$ Controller & Manual control, mode và telemetry \\
+        \hline
+    \end{tabular}
+\end{table}
+
+Các địa chỉ và cổng trên là giá trị cấu hình mặc định trong phiên bản hiện tại. Địa chỉ host server và controller có thể được thay đổi qua tham số dòng lệnh, cho phép triển khai trên cùng máy trong quá trình thử nghiệm hoặc trên hai đầu ROV--topside trong cấu hình thực tế.
+
+\subsection{Kiến trúc đa luồng và tách đường điều khiển--giám sát}
+
+Hệ thống phải đồng thời đọc camera, xử lý ảnh, truyền trạng thái, nhận lệnh, đọc cảm biến và cập nhật thruster. Nếu toàn bộ công việc được thực hiện tuần tự trong một vòng lặp, một yêu cầu mạng chậm hoặc quá trình mã hóa ảnh có thể làm gián đoạn điều khiển. Vì vậy, các tác vụ được tách thành nhiều luồng có tần số và mức ưu tiên khác nhau.
+
+\paragraph{a. Đa luồng tại camera server}
+Camera server gồm một \texttt{camera\_loop} duy nhất và một luồng phục vụ cho mỗi client. \texttt{camera\_loop} chịu trách nhiệm đọc camera và cập nhật frame mới nhất. Các luồng client chỉ lấy bản JPEG đã mã hóa từ vùng nhớ chung và gửi qua socket. Khóa \texttt{frame\_lock} bảo vệ cặp dữ liệu frame--sequence trong thời gian đọc và ghi.
+
+Thiết kế này có hai lợi ích. Thứ nhất, chi phí đọc và mã hóa camera không tăng theo số client. Thứ hai, một client chậm hoặc mất kết nối không làm dừng luồng camera và các client còn lại.
+
+\paragraph{b. Đa luồng tại edge agent}
+Edge agent có ba nhánh xử lý chính:
+\begin{itemize}
+    \item Luồng đọc MJPEG, giải mã ảnh và cập nhật frame mới nhất;
+    \item Vòng capture/tracking, thực thi lệnh đang chờ và gọi tracker với từng frame mới;
+    \item \texttt{network\_worker}, gửi preview, đẩy gói vision và polling lệnh từ host.
+\end{itemize}
+
+Các thành phần chia sẻ dữ liệu qua \texttt{SharedState}, được bảo vệ bởi \texttt{shared\_lock}. \texttt{frame\_seq} tăng sau mỗi frame được xử lý, trong khi \texttt{jpeg\_seq} chỉ tăng khi một preview mới được mã hóa. Việc dùng hai sequence number riêng giúp đường điều khiển không bị ràng buộc bởi tần số upload giao diện.
+
+Lệnh nhận từ host được đưa vào \texttt{queue.Queue}. Vòng tracking chỉ áp dụng lệnh tại thời điểm đã có một frame hợp lệ, tránh việc khởi tạo bounding box trên dữ liệu ảnh chưa sẵn sàng. Lớp đọc MJPEG sử dụng \texttt{Condition} để chờ frame mới thay vì liên tục kiểm tra trong vòng lặp bận.
+
+\paragraph{c. Đa luồng tại controller}
+Controller sử dụng các luồng độc lập cho:
+\begin{itemize}
+    \item Đọc cảm biến độ sâu;
+    \item Đọc IMU và cập nhật EKF;
+    \item Đọc nhiệt độ và độ ẩm;
+    \item Nhận gói vision qua UDP;
+    \item Phục vụ API HTTP vision;
+    \item Chạy vòng điều khiển tự động;
+    \item Nhận MAVLink từ GCS;
+    \item Gửi heartbeat và telemetry.
+\end{itemize}
+
+Trạng thái vision được bảo vệ bởi \texttt{vision\_lock}, còn việc tính và xuất lệnh thruster được bảo vệ bởi \texttt{control\_lock}. Vòng \texttt{auto\_control\_loop} gọi hàm điều khiển theo chu kỳ danh định 20 Hz, độc lập với thời điểm gói vision hoặc MAVLink đến. Cách tổ chức này tạo một nhịp điều khiển xác định hơn so với việc xuất lệnh trực tiếp trong hàm nhận mạng.
+
+\paragraph{d. Đa luồng tại host interface}
+Host server chạy Flask ở chế độ \textit{threaded}. Frame, trạng thái và hàng đợi lệnh của từng agent được bảo vệ bằng một khóa chung. Trình duyệt nhận ảnh qua luồng MJPEG, đồng thời polling trạng thái định kỳ và gửi thao tác người dùng qua các API riêng. Việc tách các API giúp một kết nối video kéo dài không chặn các yêu cầu chọn hoặc reset mục tiêu.
+
+\paragraph{e. Tách đường điều khiển và đường giám sát}
+Một quyết định kiến trúc quan trọng là không sử dụng cùng một luồng dữ liệu cho điều khiển và hiển thị. 
+
+Đường điều khiển gồm các gói JSON nhỏ chứa sai lệch và confidence, được gửi bằng UDP ở tần số cao. Đường này không truyền ảnh và không chờ phản hồi từ host. Mục tiêu là giảm độ trễ và hạn chế ảnh hưởng của băng thông tether.
+
+Đường giám sát gồm ảnh preview JPEG và trạng thái, được truyền bằng HTTP với tần số thấp hơn. Mục tiêu của đường này là cung cấp thông tin trực quan cho người vận hành; một số frame bị bỏ qua không làm thay đổi bản chất của vòng điều khiển.
+
+Có thể biểu diễn hai đường như sau:
+\[
+\begin{aligned}
+\textbf{Đường điều khiển: } & \text{Tracker} \longrightarrow \text{UDP packet} \longrightarrow \text{Controller} \longrightarrow \text{Thruster} \\
+\textbf{Đường giám sát: } & \text{Tracker preview} \longrightarrow \text{HTTP upload} \longrightarrow \text{Host/GCS} \longrightarrow \text{Người vận hành}
+\end{aligned}
+\]
+
+Nhờ sự tách biệt này, việc giảm FPS giao diện, trình duyệt tạm thời mất kết nối hoặc host xử lý chậm không trực tiếp làm giảm tần số vòng điều khiển trên ROV. Ngược lại, khi dữ liệu vision trên đường điều khiển không còn được cập nhật, controller phát hiện thông qua timestamp và timeout, sau đó ngừng sử dụng lệnh thị giác. Cơ chế giám sát tính hợp lệ và quyền ưu tiên thủ công được trình bày chi tiết tại Mục 6.5.
+
+Kiến trúc trên tạo ranh giới rõ giữa lớp thu nhận ảnh, lớp nhận thức, lớp điều khiển và lớp giao diện. Nhờ đó, từng mô-đun có thể được kiểm thử hoặc thay thế độc lập, đồng thời các tác vụ điều khiển quan trọng vẫn được thực hiện trực tiếp trên ROV.
+
+\section{Thiết kế thuật toán theo dõi mục tiêu}
+
+Bộ theo dõi mục tiêu được hiện thực trong module \texttt{tracker\_core.py}. Thuật toán sử dụng một bounding box chính để biểu diễn vùng mục tiêu, kết hợp các điểm đặc trưng Shi--Tomasi, Pyramidal Lucas--Kanade, ước lượng affine một phần bằng RANSAC và template matching. Thiết kế này hướng tới ba yêu cầu: duy trì tốc độ xử lý phù hợp với vòng điều khiển danh định, chịu được một mức dịch chuyển và thay đổi tỷ lệ giữa các khung hình, đồng thời cung cấp độ tin cậy đủ rõ để controller quyết định có sử dụng dữ liệu thị giác hay không.
+
+Khác với bộ nhận dạng đối tượng dựa trên học sâu, tracker không gán nhãn cho mục tiêu. Mục tiêu được xác định trực tiếp từ vùng ảnh do người vận hành lựa chọn. Sau thời điểm khởi tạo, thuật toán chỉ duy trì quan hệ hình học và mức tương đồng của vùng đó qua các khung hình tiếp theo.
+
+\subsection{Lựa chọn và khởi tạo mục tiêu}
+
+Giao diện hiện tại cho phép người vận hành click vào một điểm trên ảnh. Từ điểm này, \texttt{edge\_tracker\_agent.py} tạo một bounding box vuông có tâm tại điểm được chọn. Ở tầng xử lý, tracker vẫn hỗ trợ khởi tạo trực tiếp bằng bounding box, nhưng phiên bản giao diện hiện tại chưa có thao tác kéo chọn bounding box. Kích thước cạnh của bounding box tạo từ điểm được tính theo:
+\[
+L = \operatorname{clip}\left(0.12\min(W, H),\ 48,\ 120\right)
+\]
+trong đó $W$ và $H$ là chiều rộng và chiều cao của khung hình, còn đơn vị của $L$ là pixel. Bounding box được giới hạn trong biên ảnh để bảo đảm toàn bộ vùng lựa chọn tồn tại trên khung hình.
+
+Với điểm chọn $(x_s, y_s)$, góc trên bên trái của bounding box được xác định:
+\[
+x_b = \operatorname{clip}\left(x_s - \frac{L}{2},\ 0,\ W-L\right)
+\]
+\[
+y_b = \operatorname{clip}\left(y_s - \frac{L}{2},\ 0,\ H-L\right)
+\]
+Bounding box ban đầu có dạng:
+\[
+B_0 = (x_b, y_b, L, L)
+\]
+
+Khi nhận bounding box, tracker chuyển khung hình sang ảnh xám và thực hiện các bước khởi tạo sau:
+\begin{itemize}
+    \item Kiểm tra và cắt bounding box theo biên ảnh;
+    \item Trích xuất vùng ảnh mẫu làm template;
+    \item Phát hiện các điểm đặc trưng bên trong bounding box;
+    \item Lưu tâm và kích thước ban đầu làm trạng thái tham chiếu;
+    \item Lưu ảnh xám hiện tại làm khung hình trước cho Optical Flow;
+    \item Khởi tạo trạng thái tracking và các biến confidence, vận tốc dự đoán, tỷ lệ và bộ đếm mất mục tiêu.
+\end{itemize}
+
+Tracker hiện chỉ sử dụng một vùng chính có tên \texttt{main}. Các trường dữ liệu liên quan tới hai vùng trái--phải được giữ lại để tương thích với phiên bản cũ nhưng không tham gia vào quá trình tracking và ước lượng khoảng cách của phiên bản hiện tại. Tâm tham chiếu được lưu:
+\[
+c_{x,0} = x_b + \frac{w_0}{2}, \qquad c_{y,0} = y_b + \frac{h_0}{2}
+\]
+trong đó $w_0$ và $h_0$ là chiều rộng và chiều cao của bounding box ban đầu. Hai kích thước này đồng thời được dùng làm mốc để tính thay đổi tỷ lệ trong các khung hình tiếp theo.
+
+\paragraph{a. Tạo mặt nạ đặc trưng}
+Điểm đặc trưng chỉ được phát hiện trong vùng bounding box. Để giảm khả năng chọn nhầm điểm thuộc nền, vùng sát biên được loại bỏ theo tỷ lệ 10\% chiều rộng và chiều cao của bounding box. Nếu vùng trong còn quá nhỏ, tracker sử dụng toàn bộ bounding box. Ngoài ra, các pixel có cường độ xám lớn hơn hoặc bằng 242 bị loại khỏi mặt nạ. Cơ chế này hạn chế việc Shi--Tomasi lựa chọn các điểm thuộc vùng lóe sáng, gạch sáng hoặc phản xạ mạnh trên bề mặt dưới nước. Mặt nạ cuối cùng có thể biểu diễn:
+\[
+M(x,y) = M_{\mathrm{bbox}}(x,y) \land M_{\mathrm{inner}}(x,y) \land M_{\mathrm{brightness}}(x,y)
+\]
+
+\paragraph{b. Khởi tạo điểm Shi--Tomasi}
+Các điểm được phát hiện bằng hàm \texttt{goodFeaturesToTrack} với các tham số chính:
+\begin{itemize}
+    \item Số điểm tối đa: 140;
+    \item \texttt{qualityLevel}: 0.01;
+    \item Khoảng cách tối thiểu giữa hai điểm: 5 pixel;
+    \item Kích thước khối: $7 \times 7$ pixel.
+\end{itemize}
+
+Gọi $N_0$ là số điểm được phát hiện. Tracker yêu cầu tối thiểu:
+\[
+N_0 \geq N_{\min} = 6
+\]
+để bắt đầu ở trạng thái \texttt{TRACKING}. Nếu số điểm thấp hơn ngưỡng này, bounding box và template vẫn được lưu nhưng tracker chuyển sang trạng thái \texttt{LOST} để chờ vùng ảnh có đặc trưng mạnh hơn hoặc được tái khởi tạo.
+
+Khi đủ điểm, confidence ban đầu được đặt ở mức cao để phản ánh việc mục tiêu vừa được người vận hành xác định trực tiếp. Nếu số điểm chưa đủ, confidence ban đầu được đặt thấp hơn. Cách khởi tạo này tránh việc phát ngay lệnh điều khiển từ một vùng ảnh không có đủ texture.
+
+\subsection{Theo dõi chuyển động và cập nhật bounding box}
+
+Với mỗi khung hình mới, tracker thực hiện một chu kỳ cập nhật. Nếu hệ thống đang \texttt{PAUSED}, ảnh xám hiện tại chỉ được lưu làm khung hình trước mà không cập nhật mục tiêu. Nếu chưa có vùng mục tiêu, tracker duy trì trạng thái \texttt{IDLE}. Khi mục tiêu đã được khởi tạo, quy trình cập nhật gồm bốn bước chính: dự đoán vị trí điểm, tính Pyramidal Lucas--Kanade, ước lượng chuyển động bền vững và cập nhật bounding box.
+
+\paragraph{a. Dự đoán vị trí điểm}
+Tracker duy trì vận tốc ảnh đã được làm mượt:
+\[
+\mathbf{v}_{k-1} = 
 \begin{bmatrix}
-x_c^* \\
-y_c^* \\
-A^*
+v_{x,k-1} & v_{y,k-1}
+\end{bmatrix}^{T}
+\]
+Vị trí dự đoán của mỗi điểm ở khung hình mới được tính:
+\[
+\widehat{\mathbf{p}}_{i,k} = \mathbf{p}_{i,k-1} + \mathbf{v}_{k-1}
+\]
+Giá trị dự đoán được truyền cho \texttt{calcOpticalFlowPyrLK} thông qua cờ \texttt{OPTFLOW\_USE\_INITIAL\_FLOW}. Cách làm này giúp thuật toán hội tụ tốt hơn khi mục tiêu có xu hướng chuyển động đều qua nhiều frame. Nếu số điểm tìm được sau lần chạy có dự đoán thấp hơn ngưỡng, tracker thực hiện lại Pyramidal Lucas--Kanade một lần mà không sử dụng initial flow. Cơ chế retry làm giảm nguy cơ mất mục tiêu do dự đoán vận tốc trước đó không còn phù hợp.
+
+\paragraph{b. Tính Pyramidal Lucas--Kanade}
+Các tham số được sử dụng trong phiên bản hiện tại gồm:
+\[
+\mathrm{winSize} = 41 \times 41, \qquad \mathrm{maxLevel} = 5, \qquad \mathrm{maxIterations} = 30, \qquad \varepsilon = 0.01
+\]
+Hàm Optical Flow trả về vị trí mới, trạng thái hợp lệ và sai số của từng điểm. Chỉ các điểm có cờ trạng thái bằng 1 được giữ lại. Nếu số điểm hợp lệ nhỏ hơn 6, tập điểm được xóa, confidence giảm và tracker chuyển dần sang trạng thái mất mục tiêu. Khi số điểm giảm xuống dưới 10, tracker thử phát hiện lại đặc trưng trong bounding box hiện tại nhằm duy trì khả năng theo dõi. Việc tái khởi tạo chỉ được chấp nhận khi số điểm mới đạt ngưỡng tối thiểu.
+
+\paragraph{c. Ước lượng chuyển động bằng affine một phần}
+Từ các cặp điểm cũ và mới, tracker ước lượng phép biến đổi affine một phần:
+\[
+\begin{bmatrix}
+x'_i \\ y'_i
 \end{bmatrix}
-\end{equation}
-
-Sai số thị giác:
-
-\begin{equation}
-\mathbf{e}_t =
-\mathbf{s}_t - \mathbf{s}^*
 =
 \begin{bmatrix}
-x_c - x_c^* \\
-y_c - y_c^* \\
-A_t - A^*
+a & -b \\
+b & a
 \end{bmatrix}
-\end{equation}
+\begin{bmatrix}
+x_i \\ y_i
+\end{bmatrix}
++
+\begin{bmatrix}
+t_x \\ t_y
+\end{bmatrix}
+\]
+Mô hình được ước lượng bằng RANSAC với ngưỡng sai số chiếu lại 3 pixel, tối đa 200 vòng lặp, độ tin cậy 0.98 và 5 vòng tinh chỉnh. Hệ số tỷ lệ được xác định:
+\[
+s_k = \sqrt{a^2 + b^2}
+\]
+Để tránh một kết quả affine lỗi làm bounding box thay đổi quá mạnh trong một frame, tỷ lệ được giới hạn:
+\[
+0.80 \leq s_k \leq 1.25
+\]
+Thành phần tịnh tiến của ma trận affine không được sử dụng trực tiếp để cập nhật tâm bounding box. Khi phép biến đổi chứa quay hoặc thay đổi tỷ lệ, $(t_x, t_y)$ không đồng nhất với chuyển động thực của tâm vùng mục tiêu. Vì vậy, tracker lấy trung vị dịch chuyển của các affine \textit{inlier}:
+\[
+\Delta x_k = \operatorname{median}\left(x'_{i} - x_i\right), \qquad \Delta y_k = \operatorname{median}\left(y'_{i} - y_i\right)
+\]
+Nếu affine RANSAC không tạo được đủ \textit{inlier}, tracker chuyển sang phương án dự phòng dựa trên trung vị và MAD như trình bày tại Mục 6.4.3. Trong trường hợp đó, tỷ lệ được giữ bằng 1 và chỉ cập nhật chuyển động tịnh tiến.
 
-Trong bài toán điều khiển ROV, có thể chỉ sử dụng một số thành phần của vector sai số này. Ví dụ, sai lệch ngang $x_c - x_c^*$ dùng cho điều khiển lateral, còn sai lệch diện tích $A_t - A^*$ dùng cho điều khiển tiến/lùi. Thành phần sai lệch dọc $y_c - y_c^*$ có thể dùng cho điều khiển lên/xuống nếu hệ thống muốn bám mục tiêu theo cả phương dọc ảnh, hoặc có thể không dùng nếu độ sâu được giữ bởi một bộ điều khiển riêng.
-
-\subsubsection{Ưu điểm của Optical Flow trong hệ thống ROV}
-
-Optical Flow có một số ưu điểm phù hợp với bài toán Track and Catch ROV.
-
-Thứ nhất, Optical Flow không yêu cầu mô hình nhận dạng vật thể được huấn luyện trước. Người vận hành có thể chọn bất kỳ mục tiêu nào trong khung hình, miễn là mục tiêu có đủ đặc trưng ảnh để theo dõi. Điều này giúp hệ thống linh hoạt hơn so với các phương pháp chỉ nhận diện được một số lớp vật thể cố định.
-
-Thứ hai, Optical Flow có chi phí tính toán tương đối thấp nếu sử dụng dạng sparse. Hệ thống chỉ cần theo dõi một số điểm đặc trưng trong vùng mục tiêu, thay vì xử lý toàn bộ ảnh bằng mạng neural lớn. Điều này phù hợp với các nền tảng tính toán hạn chế trên ROV.
-
-Thứ ba, Optical Flow tận dụng tính liên tục thời gian của video. Vì camera cung cấp chuỗi frame liên tiếp, vị trí mục tiêu ở frame hiện tại thường gần với vị trí ở frame trước. Thuật toán có thể khai thác đặc điểm này để tracking thời gian thực.
-
-Thứ tư, đầu ra của Optical Flow có dạng sai lệch pixel và sai lệch kích thước, rất phù hợp để đưa vào bộ điều khiển phản hồi. Bộ điều khiển không cần biết mục tiêu là loại vật thể gì, mà chỉ cần biết mục tiêu đang lệch bao nhiêu so với vị trí mong muốn trong ảnh.
-
-\subsubsection{Giới hạn của Optical Flow trong môi trường dưới nước}
-
-Mặc dù phù hợp với bài toán bám mục tiêu thời gian thực, Optical Flow cũng có các giới hạn cần được phân tích trong đồ án.
-
-Thứ nhất, Optical Flow phụ thuộc mạnh vào texture của mục tiêu. Nếu mục tiêu có bề mặt trơn, ít chi tiết hoặc màu sắc đồng nhất, thuật toán khó chọn được các điểm đặc trưng ổn định.
-
-Thứ hai, Optical Flow nhạy với thay đổi ánh sáng. Trong môi trường dưới nước, ánh sáng có thể thay đổi do phản xạ, tán xạ, đèn chiếu của ROV hoặc sự thay đổi hướng camera. Những thay đổi này có thể làm giả thiết bảo toàn độ sáng không còn đúng.
-
-Thứ ba, ảnh dưới nước thường bị nhiễu, mờ và giảm tương phản. Điều này làm giảm chất lượng gradient ảnh, khiến việc tính $I_x$, $I_y$ và $I_t$ kém ổn định hơn.
-
-Thứ tư, Optical Flow có thể mất mục tiêu khi vật thể chuyển động quá nhanh giữa hai frame. Nếu độ dịch chuyển quá lớn, điểm đặc trưng ở frame trước có thể không còn nằm gần vị trí tìm kiếm ở frame sau.
-
-Thứ năm, thuật toán có thể bị drift. Drift là hiện tượng tracker dần dần trôi khỏi mục tiêu ban đầu do tích lũy sai số qua nhiều frame. Khi drift xảy ra, bounding box có thể bám sang nền hoặc vật thể khác.
-
-Thứ sáu, Optical Flow chỉ cung cấp chuyển động biểu kiến trong ảnh, không trực tiếp cung cấp khoảng cách thật đến mục tiêu. Việc suy luận khoảng cách từ kích thước bounding box chỉ mang tính tương đối và phụ thuộc vào hình dạng, hướng nhìn và kích thước thật của vật thể.
-
-Vì các lý do trên, hệ thống cần kết hợp Optical Flow với các cơ chế kiểm tra độ tin cậy, ngưỡng diện tích bounding box, giới hạn tốc độ thay đổi và cơ chế mất mục tiêu để đảm bảo an toàn khi đưa dữ liệu vision vào điều khiển ROV.
-
-\subsubsection{Các trường hợp lỗi thường gặp}
-
-Trong quá trình vận hành, một hệ thống tracking dựa trên Optical Flow có thể gặp một số trường hợp lỗi sau.
-
-Trường hợp thứ nhất là mất đặc trưng. Khi số điểm đặc trưng còn lại quá ít, hệ thống không còn đủ thông tin để ước lượng chuyển động của mục tiêu. Khi đó, confidence cần giảm xuống và bộ điều khiển không nên tiếp tục dùng dữ liệu vision.
-
-Trường hợp thứ hai là tracking nhầm nền. Điều này xảy ra khi các điểm đặc trưng ban đầu không nằm hoàn toàn trên mục tiêu, hoặc khi mục tiêu rời khỏi vùng ảnh nhưng các điểm trên nền vẫn được theo dõi. Kết quả là tracker vẫn báo có chuyển động, nhưng chuyển động đó không còn đại diện cho mục tiêu.
-
-Trường hợp thứ ba là biến dạng bounding box. Nếu một số điểm theo dõi sai lệch quá lớn, kích thước bounding box có thể tăng hoặc giảm bất thường. Kiểm tra diện tích bounding box và giới hạn tỉ lệ thay đổi giúp phát hiện trường hợp này.
-
-Trường hợp thứ tư là sai lệch do camera rung. Khi toàn bộ ảnh dịch chuyển vì camera rung hoặc ROV quay nhanh, Optical Flow có thể ghi nhận chuyển động lớn dù mục tiêu không thật sự di chuyển tương đối theo cách mong muốn. Trong trường hợp này, cần phối hợp với dữ liệu IMU hoặc giới hạn tốc độ lệnh điều khiển để tránh phản ứng quá mạnh.
-
-Trường hợp thứ năm là thay đổi ánh sáng đột ngột. Khi đèn ROV thay đổi công suất, hoặc mục tiêu đi qua vùng phản xạ mạnh, cường độ ảnh thay đổi làm vi phạm giả thiết bảo toàn độ sáng. Điều này có thể làm tracker mất ổn định.
-
-\subsubsection{Vai trò của tiền xử lý ảnh}
-
-Để Optical Flow hoạt động ổn định hơn, ảnh đầu vào thường được tiền xử lý trước khi tracking. Các bước tiền xử lý có thể gồm:
-
-\begin{itemize}
-    \item chuyển ảnh màu sang ảnh xám;
-    \item giảm nhiễu bằng bộ lọc làm mượt nhẹ;
-    \item cân bằng sáng hoặc tăng tương phản;
-    \item giới hạn vùng xử lý trong bounding box;
-    \item loại bỏ các frame lỗi hoặc quá mờ.
-\end{itemize}
-
-Việc chuyển sang ảnh xám giúp giảm số kênh xử lý và phù hợp với công thức Optical Flow dựa trên cường độ ảnh $I(x,y,t)$. Làm mượt nhẹ giúp giảm nhiễu cao tần, từ đó làm gradient ảnh ổn định hơn. Tuy nhiên, nếu làm mượt quá mạnh, các chi tiết và góc quan trọng có thể bị mất, làm giảm số điểm đặc trưng tốt.
-
-Trong môi trường dưới nước, tăng tương phản có thể cải thiện khả năng phát hiện đặc trưng, nhưng cũng cần tránh khuếch đại nhiễu quá mức. Do đó, tiền xử lý ảnh cần được lựa chọn cân bằng giữa giảm nhiễu và giữ lại chi tiết mục tiêu.
-
-\subsubsection{Tái khởi tạo điểm đặc trưng}
-
-Trong quá trình tracking dài, số lượng điểm đặc trưng có thể giảm dần do mất tracking, che khuất hoặc mục tiêu thay đổi hình dạng. Nếu không bổ sung điểm mới, hệ thống có thể mất khả năng theo dõi sau một thời gian.
-
-Do đó, một cơ chế thường được sử dụng là tái khởi tạo điểm đặc trưng trong bounding box hiện tại. Khi số điểm hợp lệ giảm dưới một ngưỡng:
-
-\begin{equation}
-N_t < N_{min}
-\end{equation}
-
-hệ thống có thể phát hiện lại các điểm đặc trưng mới trong vùng bounding box hiện tại. Điều này giúp duy trì đủ số điểm để tracking. Tuy nhiên, cần cẩn thận vì nếu bounding box đã bị drift sang nền, việc tái khởi tạo sẽ củng cố lỗi tracking. Vì vậy, tái khởi tạo nên được thực hiện khi confidence vẫn đủ cao hoặc khi có thêm tiêu chí xác nhận mục tiêu.
-
-\subsubsection{Sử dụng thống kê bền vững để giảm ảnh hưởng của outlier}
-
-Không phải mọi điểm được Optical Flow theo dõi đều chính xác. Một số điểm có thể trôi sang nền, bị nhiễu hoặc bị che khuất. Những điểm này được gọi là outlier. Nếu dùng trung bình cộng đơn giản để tính độ dịch chuyển tổng thể, outlier có thể làm kết quả sai lệch.
-
-Để giảm ảnh hưởng của outlier, hệ thống có thể dùng các thống kê bền vững như trung vị:
-
-\begin{equation}
-\Delta x = median(\Delta x_1, \Delta x_2, \ldots, \Delta x_N)
-\end{equation}
-
-\begin{equation}
-\Delta y = median(\Delta y_1, \Delta y_2, \ldots, \Delta y_N)
-\end{equation}
-
-Ngoài ra, có thể loại bỏ các điểm có vector dịch chuyển quá khác biệt so với phần lớn các điểm còn lại. Ví dụ, tính độ lệch của từng vector so với vector trung vị:
-
-\begin{equation}
-r_i =
-\left\|
-\Delta p_i - median(\Delta p)
-\right\|
-\end{equation}
-
+\paragraph{d. Kiểm tra bước nhảy}
+Độ lớn dịch chuyển trong một frame:
+\[
+J_k = \sqrt{\Delta x_k^2 + \Delta y_k^2}
+\]
+Ngưỡng bước nhảy được điều chỉnh theo kích thước bounding box và vận tốc dự đoán:
+\[
+J_{\max} = \max\left(30,\ 1.5\max(w_{k-1}, h_{k-1}),\ 2.5\|\mathbf{v}_{k-1}\|_2 + 12\right)
+\]
 Nếu:
+\[
+J_k > J_{\max}
+\]
+kết quả Optical Flow không được dùng để cập nhật trực tiếp. Tracker trước tiên thử tái bắt bằng template matching. Nếu tái bắt thất bại, bước nhảy bị từ chối, tập điểm bị xóa và confidence giảm. Cơ chế này hạn chế bounding box nhảy sang một vùng nền có chuyển động khác biệt.
 
-\begin{equation}
-r_i > r_{max}
-\end{equation}
+\paragraph{e. Cập nhật bounding box và vận tốc}
+Với kết quả hợp lệ, tâm bounding box mới được tính:
+\[
+c_{x,k} = c_{x,k-1} + \Delta x_k, \qquad c_{y,k} = c_{y,k-1} + \Delta y_k
+\]
+Kích thước mới:
+\[
+w_k = s_k w_{k-1}, \qquad h_k = s_k h_{k-1}
+\]
+Bounding box được tạo:
+\[
+B_k = \left(c_{x,k} - \frac{w_k}{2},\ c_{y,k} - \frac{h_k}{2},\ w_k,\ h_k\right)
+\]
+sau đó được giới hạn theo biên ảnh. Nếu bounding box không còn hợp lệ, tracker đánh dấu mục tiêu đã dịch chuyển khỏi khung hình. Vận tốc dự đoán được làm mượt:
+\[
+v_{x,k} = 0.65 v_{x,k-1} + 0.35 \Delta x_k, \qquad v_{y,k} = 0.65 v_{y,k-1} + 0.35 \Delta y_k
+\]
+Cách cập nhật này giữ lại xu hướng chuyển động nhưng giảm ảnh hưởng của nhiễu trong một frame đơn lẻ.
 
-điểm thứ $i$ có thể được xem là outlier và bị loại bỏ.
+\subsection{Loại bỏ ngoại lai và đánh giá độ tin cậy}
 
-Cách xử lý này giúp bounding box cập nhật ổn định hơn, đặc biệt trong trường hợp một phần mục tiêu bị che khuất hoặc một số điểm đặc trưng chuyển sang nền.
+Dữ liệu Optical Flow có thể chứa điểm sai do phản xạ ánh sáng, hạt lơ lửng, che khuất hoặc điểm trôi sang nền. Vì vậy, tracker không sử dụng trực tiếp toàn bộ cặp điểm mà kết hợp hai lớp lọc: thống kê bền vững và affine RANSAC.
 
-\subsubsection{Mối quan hệ giữa Optical Flow và điều khiển Track and Catch}
+\paragraph{a. Phương án dự phòng bằng trung vị và MAD}
+Với mỗi cặp điểm, vectơ dịch chuyển được tính:
+\[
+\mathbf{d}_i = \mathbf{p}'_i - \mathbf{p}_i
+\]
+Trung vị của tập vectơ:
+\[
+\widetilde{\mathbf{d}} = \operatorname{median}(\mathbf{d}_i)
+\]
+Khoảng cách tới trung vị:
+\[
+r_i = \left\|\mathbf{d}_i - \widetilde{\mathbf{d}}\right\|_2
+\]
+Độ lệch tuyệt đối trung vị:
+\[
+\mathrm{MAD} = \operatorname{median}\left(\left|r_i - \operatorname{median}(r)\right|\right)
+\]
+Ngưỡng \textit{inlier} được chọn:
+\[
+T_{\mathrm{MAD}} = \max\left(2.2,\ \operatorname{median}(r) + 2.5 \times 1.4826 \times \mathrm{MAD}\right)
+\]
+Điểm thỏa mãn:
+\[
+r_i \leq T_{\mathrm{MAD}}
+\]
+được giữ lại. Nếu số \textit{inlier} quá thấp, tracker tạm thời giữ toàn bộ điểm thay vì để ước lượng bị suy biến. Dịch chuyển cuối cùng là trung vị của tập \textit{inlier}.
 
-Mục tiêu của bài toán Track and Catch không chỉ là phát hiện mục tiêu trong ảnh, mà còn điều khiển ROV di chuyển để tiếp cận và duy trì mục tiêu ở vị trí phù hợp. Vì vậy, Optical Flow là khối cảm nhận, còn bộ điều khiển ROV là khối hành động.
+\paragraph{b. Xây dựng confidence}
+Confidence được tổng hợp từ năm thành phần, thay vì phụ thuộc vào một chỉ số duy nhất. Tỷ lệ giữ lại điểm:
+\[
+c_{\mathrm{ret}} = \min\left(1,\ \frac{N_{\mathrm{in}}}{N_{\mathrm{prev}}}\right)
+\]
+Độ tin cậy theo số điểm tuyệt đối:
+\[
+c_{\mathrm{abs}} = \min\left(1,\ \frac{N_{\mathrm{in}}}{20}\right)
+\]
+Hai đại lượng được kết hợp:
+\[
+c_{\mathrm{point}} = 0.45 c_{\mathrm{ret}} + 0.55 c_{\mathrm{abs}}
+\]
+Với $\widetilde{e}_{\mathrm{LK}}$ là trung vị sai số Lucas--Kanade:
+\[
+c_{\mathrm{error}} = \operatorname{clip}\left(1 - \frac{\widetilde{e}_{\mathrm{LK}}}{18},\ 0,\ 1\right)
+\]
+Độ hợp lý của bước nhảy:
+\[
+c_{\mathrm{motion}} = \operatorname{clip}\left(1 - \frac{J_k}{J_{\max}},\ 0,\ 1\right)
+\]
+Độ tin cậy từ số affine \textit{inlier}:
+\[
+c_{\mathrm{affine}} = \operatorname{clip}\left(\frac{N_{\mathrm{affine}}}{20},\ 0,\ 1\right)
+\]
+Mức tương đồng template được ký hiệu $c_{\mathrm{template}} \in [0, 1]$. Confidence tổng hợp:
+\[
+C_k = 0.35 c_{\mathrm{point}} + 0.25 c_{\mathrm{error}} + 0.10 c_{\mathrm{template}} + 0.10 c_{\mathrm{motion}} + 0.20 c_{\mathrm{affine}}
+\]
+Trọng số lớn nhất được đặt cho chất lượng tập điểm và sai số Optical Flow vì đây là hai nguồn thông tin chính của quá trình cập nhật từng frame. Template chỉ chiếm trọng số 0.10 do mức tương đồng ngoại hình có thể giảm khi ánh sáng hoặc tỷ lệ thay đổi, mặc dù chuyển động hình học vẫn hợp lệ. Kết quả được giới hạn:
+\[
+0 \leq C_k \leq 1
+\]
+Tracker coi kết quả đủ ổn định khi:
+\[
+C_k \geq 0.55
+\]
+và số điểm không thấp hơn 6. Khi confidence đạt từ 0.72 trở lên, template được cập nhật thích nghi:
+\[
+T_k = 0.90 T_{k-1} + 0.10 I(B_k)
+\]
+trong đó $I(B_k)$ là vùng ảnh hiện tại bên trong bounding box. Tốc độ cập nhật nhỏ giúp template thích nghi với biến đổi ánh sáng nhưng vẫn giữ phần lớn đặc trưng của mẫu cũ, qua đó hạn chế \textit{drift}. Nếu confidence thấp, bộ đếm \texttt{lost\_frames} tăng. Sau ba frame confidence thấp liên tiếp, tracker chủ động thử tái bắt thay vì tiếp tục dựa vào tập điểm đang suy giảm.
 
-Có thể mô tả quan hệ này như sau:
+\subsection{Mất mục tiêu, tái bắt và máy trạng thái}
 
-\begin{equation}
-Camera
-\rightarrow
-Optical\ Flow
-\rightarrow
-Sai\ số\ thị\ giác
-\rightarrow
-Bộ\ điều\ khiển
-\rightarrow
-Thruster
-\rightarrow
-Chuyển\ động\ ROV
-\end{equation}
+Tracker sử dụng bốn trạng thái chính. Thay vì trình bày thêm một hình máy trạng thái riêng, các điều kiện được tổng hợp trong Bảng \ref{tab:trangthai_tracker} để giảm số lượng hình minh họa.
 
-Trong chuỗi này, Optical Flow cung cấp phản hồi thị giác. Nếu mục tiêu lệch sang phải trong ảnh, sai số ngang sẽ khác 0. Bộ điều khiển dùng sai số này để tạo lệnh dịch ngang làm giảm sai lệch. Nếu mục tiêu nhỏ hơn kích thước mong muốn, sai số tỉ lệ cho biết ROV cần tiến lại gần. Khi ROV di chuyển, hình ảnh camera thay đổi, Optical Flow tiếp tục cập nhật sai số mới. Đây là một vòng điều khiển kín dựa trên thị giác.
+\begin{table}[htbp]
+    \centering
+    \caption{Các trạng thái của bộ theo dõi mục tiêu}
+    \label{tab:trangthai_tracker}
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{|l|p{0.26\linewidth}|p{0.34\linewidth}|p{0.18\linewidth}|}
+        \hline
+        \textbf{Trạng thái} & \textbf{Điều kiện điển hình} & \textbf{Hoạt động chính} & \textbf{Dữ liệu điều khiển} \\
+        \hline
+        \texttt{IDLE} & Chưa có mục tiêu hoặc vừa reset & Chờ lệnh lựa chọn & Không hợp lệ \\
+        \hline
+        \texttt{TRACKING} & Bounding box tồn tại, $C \geq 0.55$, số điểm $\geq 6$ & Cập nhật điểm, bounding box, scale và confidence & Có thể hợp lệ \\
+        \hline
+        \texttt{LOST} & Ít điểm, confidence thấp, Optical Flow lỗi hoặc box ra ngoài ảnh & Giảm confidence, tái phát hiện điểm và template matching & Không hợp lệ \\
+        \hline
+        \texttt{PAUSED} & Người dùng tạm dừng & Không cập nhật mục tiêu; chỉ làm mới frame trước & Không tạo dữ liệu hợp lệ \\
+        \hline
+    \end{tabular}
+\end{table}
 
-Về bản chất, hệ thống đang thực hiện điều khiển servo thị giác đơn giản, trong đó đặc trưng ảnh của mục tiêu được dùng làm tín hiệu phản hồi. Trạng thái cần điều khiển không phải là vị trí 3D tuyệt đối của mục tiêu, mà là vị trí và kích thước của mục tiêu trong mặt phẳng ảnh.
+\paragraph{a. Điều kiện mất mục tiêu}
+Một vùng được xem là suy giảm hoặc mất theo dõi khi xảy ra một trong các trường hợp:
+\begin{itemize}
+    \item Bounding box không hợp lệ hoặc ra khỏi khung hình;
+    \item Không còn điểm đặc trưng;
+    \item Số điểm Optical Flow hợp lệ nhỏ hơn 6;
+    \item Không ước lượng được chuyển động bền vững;
+    \item Bước nhảy vượt ngưỡng và template matching thất bại;
+    \item Confidence thấp qua nhiều frame liên tiếp.
+\end{itemize}
+Khi mất mục tiêu, tracker không xóa ngay bounding box cuối cùng. Vị trí này được sử dụng làm tâm vùng tìm kiếm cục bộ cho bước tái bắt.
 
+\paragraph{b. Tìm kiếm cục bộ và toàn ảnh}
+Vùng tìm kiếm cục bộ được mở rộng quanh bounding box cuối cùng. Phần đệm theo mỗi chiều được tính xấp xỉ:
+\[
+p_x = \max(40,\ 2.8w), \qquad p_y = \max(40,\ 2.8h)
+\]
+Template được tìm ở năm tỷ lệ:
+\[
+\mathcal{S} = \{0.75,\ 0.90,\ 1.00,\ 1.10,\ 1.25\}
+\]
+Với mỗi tỷ lệ, template được co giãn rồi so sánh bằng \texttt{TM\_CCOEFF\_NORMED}. Ngưỡng tái bắt cục bộ được đặt là 0.63. Sau ít nhất hai frame mất mục tiêu, tracker bổ sung tìm kiếm trên toàn khung hình với ngưỡng ưu tiên cao hơn là 0.72.
 
+Ngoài trường hợp \texttt{LOST} thông thường, tái bắt còn được gọi ngay khi:
+\begin{itemize}
+    \item Optical Flow tạo một bước nhảy quá lớn;
+    \item Template score cục bộ của vị trí mới thấp hơn 0.18;
+    \item Confidence thấp trong ba frame liên tiếp.
+\end{itemize}
+
+Khi tái bắt thành công, tracker:
+\begin{itemize}
+    \item Thay bounding box bằng kết quả template matching;
+    \item Phát hiện lại điểm Shi--Tomasi;
+    \item Đưa \texttt{lost\_frames} về 0;
+    \item Đặt vận tốc dự đoán về 0;
+    \item Đặt tỷ lệ bước gần nhất về 1;
+    \item Cập nhật confidence theo điểm template;
+    \item Chuyển lại trạng thái \texttt{TRACKING} khi số điểm và confidence đạt điều kiện.
+\end{itemize}
+Việc reset vận tốc sau tái bắt tránh sử dụng xu hướng chuyển động cũ cho một vùng vừa được xác định lại.
+
+%\begin{figure}[htbp]
+    %\centering
+    % \includegraphics[width=0.85\linewidth]{images/hinh6_9.pdf}
+    %\caption{Lưu đồ tổng hợp thuật toán theo dõi mục tiêu}
+    %\label{fig:luudo_theodoi}
+%\end{figure}
+
+\subsection{Chuẩn hóa đầu ra và tham số thuật toán}
+
+Sau khi cập nhật vùng chính, tracker tính đồng thời hai nhóm sai lệch vị trí. Nhóm thứ nhất là sai lệch so với tâm khung hình:
+\[
+e_{x,\mathrm{frame}} = c_{x,k} - \frac{W}{2}, \qquad e_{y,\mathrm{frame}} = c_{y,k} - \frac{H}{2}
+\]
+Các đại lượng này phục vụ hiển thị và đánh giá vị trí mục tiêu trên ảnh.
+
+Nhóm thứ hai là độ dịch chuyển so với vị trí lúc lựa chọn:
+\[
+\Delta x_k = c_{x,k} - c_{x,0}, \qquad \Delta y_k = c_{y,k} - c_{y,0}
+\]
+Đây là hai đại lượng được edge agent sử dụng để tạo packet điều khiển. Sự phân biệt này quan trọng vì hệ thống không bắt buộc đưa mục tiêu về tâm ảnh; nó đưa mục tiêu về vị trí tham chiếu do người vận hành lựa chọn. Sai lệch chuẩn hóa:
+\[
+e_x(k) = \operatorname{clip}\left(\frac{\Delta x_k}{W/2},\ -1,\ 1\right), \qquad e_y(k) = \operatorname{clip}\left(\frac{\Delta y_k}{H/2},\ -1,\ 1\right)
+\]
+Tỷ lệ kích thước thô:
+\[
+\sigma_k = \frac{1}{2}\left(\frac{w_k}{w_0} + \frac{h_k}{h_0}\right)
+\]
+Sai lệch tỷ lệ thô:
+\[
+e_{s,\mathrm{raw}}(k) = \sigma_k - 1
+\]
+Tracker dùng bộ lọc mũ:
+\[
+e_s(k) = 0.75 e_s(k-1) + 0.25 e_{s,\mathrm{raw}}(k)
+\]
+sau đó giới hạn:
+\[
+e_{s,n}(k) = \operatorname{clip}\left(e_s(k),\ -1,\ 1\right)
+\]
+
+Các giá trị gửi tới controller gồm $e_x$, $e_y$, $e_{s,n}$, confidence và cờ hợp lệ. Edge agent chỉ đặt cờ hợp lệ khi mode là \texttt{TRACKING}, bounding box tồn tại và confidence đạt ít nhất 0.50. Do trạng thái \texttt{TRACKING} của tracker yêu cầu confidence từ 0.55 trở lên, ngưỡng hiệu lực thực tế của pipeline hiện tại là 0.55.
+
+Các tham số chính của tracker được tổng hợp trong Bảng \ref{tab:thamso_tracker}.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Tham số chính của thuật toán theo dõi}
+    \label{tab:thamso_tracker}
+    \renewcommand{\arraystretch}{1.2}
+    \begin{tabular}{|l|p{0.28\linewidth}|c|p{0.36\linewidth}|}
+        \hline
+        \textbf{Nhóm} & \textbf{Tham số} & \textbf{Giá trị} & \textbf{Ý nghĩa} \\
+        \hline
+        Bounding box & Kích thước tối thiểu & 12 px & Không cho phép vùng quá nhỏ \\
+        \hline
+        Chọn điểm & Số góc tối đa & 140 & Giới hạn chi phí LK \\
+        \hline
+        Chọn điểm & Số điểm tracking tối thiểu & 6 & Điều kiện duy trì tracking \\
+        \hline
+        Chọn điểm & Ngưỡng tái khởi tạo & 10 & Thử phát hiện lại khi điểm suy giảm \\
+        \hline
+        Chọn điểm & Biên loại bỏ & 10\% & Giảm chọn điểm thuộc nền \\
+        \hline
+        Chọn điểm & Ngưỡng vùng quá sáng & 242 & Giảm ảnh hưởng của glare \\
+        \hline
+        LK & Cửa sổ & $41 \times 41$ & Tăng khả năng bắt chuyển động lớn \\
+        \hline
+        LK & Số mức pyramid & 5 & Theo dõi coarse-to-fine \\
+        \hline
+        LK & Số vòng lặp tối đa & 30 & Điều kiện hội tụ \\
+        \hline
+        LK & Sai số hội tụ & 0.01 & Điều kiện dừng \\
+        \hline
+        Affine & RANSAC threshold & 3 px & Ngưỡng inlier \\
+        \hline
+        Affine & Scale mỗi frame & 0.80--1.25 & Ngăn box biến đổi đột ngột \\
+        \hline
+        Chuyển động & Bước nhảy tối thiểu & 30 px & Thành phần nền của jump gate \\
+        \hline
+        Tái bắt & Ngưỡng cục bộ & 0.63 & Chấp nhận template matching \\
+        \hline
+        Tái bắt & Ngưỡng toàn ảnh ưu tiên & 0.72 & Hạn chế bắt nhầm xa vị trí cũ \\
+        \hline
+        Tái bắt & Bắt đầu tìm toàn ảnh & Sau 2 frame mất & Mở rộng phạm vi tìm kiếm \\
+        \hline
+        Confidence & Ngưỡng tracking & 0.55 & Chuyển sang \texttt{TRACKING} \\
+        \hline
+        Template & Ngưỡng cập nhật & 0.72 & Chỉ cập nhật khi tracking tốt \\
+        \hline
+        Scale error & Hệ số lọc cũ/mới & 0.75 / 0.25 & Làm mượt thay đổi khoảng cách \\
+        \hline
+    \end{tabular}
+\end{table}
+
+Các giá trị trong Bảng \ref{tab:thamso_tracker} là tham số hiện đang được sử dụng trong mã nguồn, không phải các hằng số phổ quát của Optical Flow. Chúng được lựa chọn để cân bằng khả năng theo dõi chuyển động, mức nhiễu của ảnh dưới nước và chi phí tính toán. Hiệu quả thực tế của các tham số sẽ được đánh giá trong Chương 8.
+
+Như vậy, đầu ra của Mục 6.4 không phải lệnh thruster mà là trạng thái thị giác đã được chuẩn hóa và kiểm tra độ tin cậy. Các đại lượng này trở thành đầu vào cho các vòng điều khiển được trình bày tại Mục 6.5.
+
+\section{Thiết kế các vòng điều khiển tự động}
+
+Sau khi bộ theo dõi tạo ra các sai lệch thị giác, controller phải xác định nguồn lệnh được sử dụng trên từng trục và chuyển các sai lệch thành vectơ điều khiển chuyển động của ROV. Thiết kế hiện tại sử dụng bốn kênh logic:
+\[
+\mathbf{u}(k) = 
+\begin{bmatrix}
+u_f(k) & u_l(k) & u_z(k) & u_\psi(k)
+\end{bmatrix}^{T}
+\]
+trong đó $u_f$, $u_l$, $u_z$ và $u_\psi$ lần lượt tương ứng với surge, sway, heave và yaw. Các vòng điều khiển không được tổ chức thành một bộ điều khiển đa biến duy nhất mà được phân tách theo trục. Hold Vision điều khiển surge và sway; Hold Depth điều khiển heave; Hold Heading điều khiển yaw. Cách phân tách này phù hợp với nguồn đo của từng vòng và làm giảm tương tác trực tiếp giữa các bộ điều khiển.
+
+\subsection{Cơ chế phối hợp chế độ và phân quyền theo trục}
+
+Controller duy trì một vectơ lệnh thủ công:
+\[
+\mathbf{u}_{m} = 
+\begin{bmatrix}
+u_{f,m} & u_{l,m} & u_{z,m} & u_{\psi,m}
+\end{bmatrix}^{T}
+\]
+được cập nhật từ gói \texttt{MANUAL\_CONTROL} của MAVLink. Tại đầu mỗi chu kỳ, vectơ điều khiển được khởi tạo bằng lệnh thủ công:
+\[
+\mathbf{u} \longleftarrow \mathbf{u}_{m}
+\]
+Sau đó, mỗi vòng tự động chỉ ghi đè thành phần thuộc quyền điều khiển của nó. Quy tắc tổng quát được biểu diễn:
+\[
+\begin{aligned}
+u_f &\longleftarrow u_{f,v} && \text{khi Hold Vision hợp lệ}, \\
+u_l &\longleftarrow u_{l,v} && \text{khi Hold Vision hợp lệ}, \\
+u_z &\longleftarrow u_{z,d} && \text{khi Hold Depth được bật}, \\
+u_\psi &\longleftarrow u_{\psi,h} && \text{khi Hold Heading được bật}.
+\end{aligned}
+\]
+
+Như vậy, các cờ chế độ có thể cùng tồn tại. Ví dụ, Hold Vision có thể hoạt động đồng thời với Hold Depth vì hai vòng điều khiển các trục khác nhau. Khi Hold Vision được kích hoạt, controller đồng thời bật Hold Heading và lưu góc yaw hiện tại làm giá trị đặt. Hold Depth không bị tắt, vì vậy nếu đã được kích hoạt trước đó thì hệ thống có thể duy trì đồng thời vị trí tương đối theo ảnh, hướng và độ sâu.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Phân quyền điều khiển theo từng trục}
+    \label{tab:phanquyen_dieukhien}
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{|p{0.18\linewidth}|p{0.15\linewidth}|p{0.22\linewidth}|p{0.31\linewidth}|}
+        \hline
+        \centering\textbf{Trục chuyển động} & \centering\textbf{Nguồn mặc định} & \centering\textbf{Vòng tự động ghi đè} & \textbf{Đại lượng phản hồi} \\
+        \hline
+        Surge ($u_f$) & \centering Joystick & \centering Hold Vision & Sai lệch tỷ lệ mục tiêu \\
+        \hline
+        Sway ($u_l$) & \centering Joystick & \centering Hold Vision & Sai lệch ngang trong ảnh \\
+        \hline
+        Heave ($u_z$) & \centering Joystick & \centering Hold Depth & Độ sâu từ MS5837 \\
+        \hline
+        Yaw ($u_\psi$) & \centering Joystick & \centering Hold Heading & Góc yaw từ IMU/EKF \\
+        \hline
+    \end{tabular}
+\end{table}
+
+Khi chuyển sang Manual, ba cờ \texttt{hold\_heading}, \texttt{hold\_depth} và \texttt{hold\_vision} được đưa về \texttt{False}, đồng thời toàn bộ bộ nhớ PID được reset. Khi kích hoạt riêng Hold Heading hoặc Hold Depth, trạng thái cảm biến tại thời điểm đó được chọn làm giá trị đặt:
+\[
+\psi_d = \psi(t_0), \qquad z_d = z(t_0)
+\]
+Việc lấy trạng thái hiện tại làm giá trị đặt giúp quá trình chuyển chế độ không tạo ra một bước nhảy đặt lớn. Các biến tích phân, sai lệch trước và thời điểm cập nhật cũng được reset để hạn chế xung đạo hàm hoặc lệnh tích lũy từ chế độ trước.
+
+Vòng điều khiển tự động chạy theo tần số danh định:
+\[
+f_c = 20\text{ Hz}
+\]
+với chu kỳ:
+\[
+T_c = \frac{1}{f_c} = 0.05\text{ s}
+\]
+Tần số này được dùng làm nhịp tổng hợp lệnh, độc lập với thời điểm gói MAVLink hoặc gói vision đến.
+
+\subsection{Điều khiển giữ hướng Hold Heading}
+
+Hold Heading sử dụng góc yaw do khối IMU/EKF cung cấp. Khi chế độ được kích hoạt, góc hiện tại được lưu:
+\[
+\psi_d = \psi(t_0)
+\]
+Do góc yaw là đại lượng tuần hoàn, sai lệch không được tính bằng phép trừ thông thường. Trong phiên bản hiện tại, controller sử dụng:
+\[
+e_\psi(k) = -\operatorname{atan2} \Big[ \sin\left(\psi_d-\psi(k)\right),\ \cos\left(\psi_d-\psi(k)\right) \Big]
+\]
+Hàm \texttt{atan2} đưa sai lệch về miền:
+\[
+-\pi \leq e_\psi \leq \pi
+\]
+nhờ đó controller luôn chọn chiều quay ngắn nhất. Dấu âm phản ánh quy ước giữa chiều yaw đo bởi khối EKF và chiều dương của thành phần yaw trong vectơ điều khiển.
+
+Với chu kỳ cập nhật $\Delta t_k$, bộ PID được tính:
+\[
+I_\psi(k) = I_\psi(k-1) + e_\psi(k)\Delta t_k
+\]
+\[
+D_\psi(k) = \frac{e_\psi(k)-e_\psi(k-1)}{\Delta t_k}
+\]
+\[
+u_{\psi,h}(k) = K_{P\psi}e_\psi(k) + K_{I\psi}I_\psi(k) + K_{D\psi}D_\psi(k)
+\]
+Các hệ số hiện tại là:
+\[
+K_{P\psi} = 2.5, \qquad K_{I\psi} = 1.0, \qquad K_{D\psi} = 0.7
+\]
+
+Thành phần tỉ lệ tạo mô-men quay ngược chiều sai lệch. Thành phần tích phân bù sai lệch tĩnh do tether, dòng nước hoặc chênh lệch lực đẩy giữa hai phía. Thành phần đạo hàm giảm tốc độ quay khi ROV tiến gần hướng đặt.
+
+Khi điều khiển thị giác đang hoạt động, đầu ra yaw được giới hạn:
+\[
+|u_{\psi,h}| \leq 0.25
+\]
+Giới hạn này tránh việc vòng giữ hướng tạo lệnh quay quá mạnh trong khi các vòng surge và sway đang đưa mục tiêu về vị trí tham chiếu. Nếu yaw thay đổi nhanh, chuyển động của mục tiêu trên ảnh có thể bị chi phối bởi chuyển động quay, làm giảm độ ổn định của Optical Flow.
+
+Phiên bản hiện tại sử dụng PID rời rạc trực tiếp cho Hold Heading. Bộ nhớ tích phân và sai lệch trước được reset khi chuyển chế độ, nhưng vòng này chưa áp dụng giới hạn tích phân hoặc lọc đạo hàm riêng như vòng vision. Vì vậy, các tham số cần được kiểm tra bằng thực nghiệm, đặc biệt trong trường hợp mất dữ liệu cảm biến hoặc chu kỳ cập nhật bất thường.
+
+\subsection{Điều khiển giữ độ sâu Hold Depth}
+
+Hold Depth sử dụng độ sâu được tính từ cảm biến áp suất MS5837. Khi chế độ được kích hoạt, độ sâu hiện tại được lưu:
+\[
+z_d = z(t_0)
+\]
+Sai lệch được xác định:
+\[
+e_z(k) = z_d - z(k)
+\]
+Cảm biến biểu diễn độ sâu tăng theo chiều đi xuống. Trong khi đó, kênh ascend của vectơ điều khiển sử dụng quy ước chiều ngược lại. Vì vậy, đầu ra PID được đổi dấu:
+\[
+I_z(k) = I_z(k-1) + e_z(k)\Delta t_k
+\]
+\[
+D_z(k) = \frac{e_z(k)-e_z(k-1)}{\Delta t_k}
+\]
+\[
+u_{z,d}(k) = -\left[ K_{Pz}e_z(k) + K_{Iz}I_z(k) + K_{Dz}D_z(k) \right]
+\]
+Các hệ số hiện tại là:
+\[
+K_{Pz} = 2.0, \qquad K_{Iz} = 1.0, \qquad K_{Dz} = 0.5
+\]
+
+Ví dụ, nếu ROV chìm sâu hơn giá trị đặt thì:
+\[
+z(k) > z_d \implies e_z(k) < 0
+\]
+Biểu thức trong ngoặc có xu hướng âm; dấu âm phía trước tạo đầu ra ascend dương để đưa ROV đi lên. Ngược lại, khi ROV nổi cao hơn độ sâu đặt, đầu ra có xu hướng đưa phương tiện đi xuống.
+
+Hold Depth ghi đè thành phần heave trong vectơ điều khiển nhưng không thay đổi surge, sway và yaw. Do đó, vòng này có thể phối hợp với Hold Vision và Hold Heading mà không cần cộng trực tiếp các đầu ra trên cùng một trục.
+
+Giống Hold Heading, vòng Hold Depth hiện sử dụng PID rời rạc cơ bản, chưa có giới hạn tích phân hoặc lọc đạo hàm riêng trong vòng điều khiển chính. Bộ nhớ PID được reset khi chuyển chế độ. Khả năng tự hiệu chỉnh bằng relay được hỗ trợ cho cả heading và depth, nhưng các hệ số cuối cùng vẫn phải được xác nhận bằng thực nghiệm.
+
+\subsection{Điều khiển dịch ngang theo thị giác}
+
+Vòng dịch ngang sử dụng sai lệch chuẩn hóa:
+\[
+e_{x,n} \in [-1, 1]
+\]
+được tạo từ độ dịch chuyển tâm mục tiêu so với vị trí lúc lựa chọn. Giá trị dương cho biết mục tiêu đã dịch chuyển sang phải trong ảnh. Để tạo lệnh đưa mục tiêu trở lại vị trí tham chiếu, controller áp dụng hệ số dấu:
+\[
+e_l(k) = S_l e_{x,n}(k), \qquad \text{với } S_l = -1
+\]
+Sau đó áp dụng vùng chết:
+\[
+\bar{e}_l(k) = 
+\begin{cases}
+0, & |e_l(k)| < \delta_l \\
+e_l(k), & |e_l(k)| \geq \delta_l
+\end{cases}
+\]
+trong đó $\delta_l = 0.035$.
+
+Đạo hàm thô:
+\[
+D_l(k) = \frac{\bar{e}_l(k)-\bar{e}_l(k-1)}{\Delta t_v}
+\]
+được lọc mũ:
+\[
+D_l^f(k) = (1-\alpha)D_l^f(k-1) + \alpha D_l(k), \qquad \text{với } \alpha = 0.25
+\]
+
+Thành phần tích phân được cập nhật và giới hạn:
+\[
+I_l(k) = \operatorname{clip}\left[ I_l(k-1)+\bar{e}_l(k)\Delta t_v,\ -I_{\max},\ I_{\max} \right], \qquad \text{với } I_{\max} = 0.20
+\]
+
+Luật điều khiển trước giới hạn:
+\[
+u_l^{*}(k) = K_{Pl}\bar{e}_l(k) + K_{Il}I_l(k) + K_{Dl}D_l^f(k)
+\]
+với các hệ số:
+\[
+K_{Pl} = 0.35, \qquad K_{Il} = 0, \qquad K_{Dl} = 0.02
+\]
+Do $K_{Il} = 0$, vòng điều khiển hiện tại hoạt động như bộ PD. Thành phần tích phân vẫn được duy trì trong cấu trúc chương trình để có thể kích hoạt sau, nhưng chưa ảnh hưởng tới đầu ra.
+
+Đầu ra được giới hạn:
+\[
+u_l^{\mathrm{sat}} = \operatorname{clip}\left(u_l^{*},\ -0.30,\ 0.30\right)
+\]
+Nếu đầu ra khác 0 nhưng có độ lớn nhỏ hơn mức tạo lực hữu ích, lệnh được nâng lên giá trị tối thiểu:
+\[
+u_l^{\min} = \operatorname{sgn}\left(u_l^{\mathrm{sat}}\right)\max\left(|u_l^{\mathrm{sat}}|,\ 0.12\right)
+\]
+Cuối cùng, tốc độ thay đổi lệnh được giới hạn:
+\[
+u_l(k) = u_l(k-1) + \operatorname{clip}\left[ u_l^{\min}(k)-u_l(k-1),\ -0.04,\ 0.04 \right]
+\]
+
+Slew-rate limiting giảm chuyển động giật khi bounding box thay đổi đột ngột giữa hai frame. Lệnh tối thiểu giúp thruster vượt qua vùng gần trung tính mà tại đó PWM đã thay đổi nhưng lực đẩy tạo ra chưa đủ lớn để dịch chuyển ROV.
+
+Vòng vision sử dụng bộ thời gian riêng $\Delta t_v$. Nếu:
+\[
+\Delta t_v \leq 0 \quad \lor \quad \Delta t_v > 0.20\text{ s}
+\]
+controller thay bằng chu kỳ danh định 0.05 s và reset tín hiệu đạo hàm đã lọc. Cơ chế này hạn chế xung đạo hàm sau khi mất gói hoặc vòng xử lý bị trễ.
+
+\subsection{Điều khiển tiến--lùi theo tỷ lệ mục tiêu}
+
+Vòng surge sử dụng sai lệch tỷ lệ đã chuẩn hóa:
+\[
+e_{s,n} \in [-1, 1]
+\]
+Theo định nghĩa của tracker: $e_{s,n} > 0$ cho biết mục tiêu có kích thước biểu kiến lớn hơn lúc lựa chọn, tức ROV có xu hướng ở gần mục tiêu hơn. Để tạo lệnh lùi, controller áp dụng:
+\[
+e_r(k) = S_r e_{s,n}(k), \qquad \text{với } S_r = -1
+\]
+Vùng chết:
+\[
+\bar{e}_r(k) = 
+\begin{cases}
+0, & |e_r(k)| < \delta_r \\
+e_r(k), & |e_r(k)| \geq \delta_r
+\end{cases}
+\]
+trong đó $\delta_r = 0.060$.
+
+Tương tự vòng lateral, controller vẫn tính đạo hàm lọc và tích phân giới hạn:
+\[
+D_r^f(k) = (1-\alpha)D_r^f(k-1) + \alpha \frac{\bar{e}_r(k)-\bar{e}_r(k-1)}{\Delta t_v}
+\]
+\[
+I_r(k) = \operatorname{clip}\left[ I_r(k-1)+\bar{e}_r(k)\Delta t_v,\ -I_{\max},\ I_{\max} \right]
+\]
+
+Luật điều khiển tổng quát:
+\[
+u_f^{*}(k) = K_{Pr}\bar{e}_r(k) + K_{Ir}I_r(k) + K_{Dr}D_r^f(k)
+\]
+Các hệ số hiện tại:
+\[
+K_{Pr} = 0.08, \qquad K_{Ir} = 0, \qquad K_{Dr} = 0
+\]
+Do đó, vòng surge thực tế là bộ điều khiển P:
+\[
+u_f^{*}(k) = 0.08 \bar{e}_r(k)
+\]
+
+Đầu ra được giới hạn:
+\[
+u_f^{\mathrm{sat}} = \operatorname{clip}\left(u_f^{*},\ -0.10,\ 0.10\right)
+\]
+và áp dụng giới hạn tốc độ thay đổi:
+\[
+u_f(k) = u_f(k-1) + \operatorname{clip}\left[ u_f^{\mathrm{sat}}(k)-u_f(k-1),\ -0.025,\ 0.025 \right]
+\]
+
+Giới hạn surge nhỏ hơn đáng kể so với sway vì sai lệch tỷ lệ chỉ là đại lượng thay thế cho khoảng cách tương đối. Kích thước mục tiêu có thể thay đổi do góc nhìn, quay trong mặt phẳng, biến dạng phối cảnh hoặc sai lệch tracker, không chỉ do ROV tiến gần hay lùi xa. Việc sử dụng P controller với gain thấp và giới hạn đầu ra nhỏ giúp giảm nguy cơ ROV tiến quá mạnh về phía mục tiêu.
+
+Sai lệch dọc $e_y$ vẫn được nhận trong packet vision nhưng không tham gia luật điều khiển heave vì:
+\[
+\texttt{VISION\_ENABLE\_ASCEND} = \texttt{False}
+\]
+Vị trí dọc trong ảnh có thể thay đổi do heave, pitch hoặc góc camera, nên chưa đủ cơ sở để ánh xạ trực tiếp sang lệnh lên--xuống. Trong phiên bản hiện tại, trục heave tiếp tục do Hold Depth điều khiển.
+
+\subsection{Kiểm tra điều kiện hoạt động và tổng hợp lệnh}
+
+Dữ liệu vision chỉ được phép ghi đè surge và sway khi thỏa mãn đồng thời các điều kiện:
+\[
+A_v = E_v \land \neg M_a \land \neg M_r \land F_v
+\]
+trong đó:
+\begin{itemize}
+    \item $E_v$: chức năng tự động thị giác được cho phép;
+    \item $M_a$: joystick hiện có ít nhất một kênh vượt deadband;
+    \item $M_r$: vừa có thao tác thủ công trong khoảng holdoff;
+    \item $F_v$: packet vision hợp lệ và còn mới.
+\end{itemize}
+
+Điều kiện joystick hoạt động:
+\[
+M_a = \big(|u_{f,m}| > 0.08\big) \lor \big(|u_{l,m}| > 0.08\big) \lor \big(|u_{z,m}| > 0.08\big) \lor \big(|u_{\psi,m}| > 0.08\big)
+\]
+Dữ liệu vision còn mới khi:
+\[
+F_v = \texttt{vision\_valid} \land \big(t_{\mathrm{now}} - t_{\mathrm{vision}} \leq 0.50\text{ s}\big)
+\]
+Sau một thao tác joystick, controller duy trì quyền ưu tiên thủ công trong:
+\[
+T_{\mathrm{holdoff}} = 0.25\text{ s}
+\]
+trước khi cho phép vision giành lại surge và sway. Khi joystick đang hoạt động, vẫn còn trong holdoff hoặc packet vision không còn mới, bộ nhớ của hai vòng vision được reset. Việc reset gồm tích phân, sai lệch trước, đạo hàm lọc, thời điểm PID và đầu ra trước. Nhờ đó, khi Hold Vision được khôi phục, slew-rate limiter bắt đầu lại từ 0 và không tái sử dụng trạng thái cũ.
+
+Cần lưu ý rằng gate thủ công hiện được kiểm tra trên toàn bộ bốn kênh joystick. Vì vậy, một thao tác lớn trên heave hoặc yaw cũng tạm thời vô hiệu việc vision ghi đè surge và sway. Hold Heading và Hold Depth vẫn tiếp tục ghi đè trục của chúng nếu các cờ tương ứng chưa bị tắt. Để tắt toàn bộ vòng tự động, người vận hành chuyển rõ ràng sang chế độ Manual.
+
+Sau khi các vòng hoàn tất, vectơ điều khiển tổng hợp có dạng:
+\[
+\mathbf{u}(k) = 
+\begin{bmatrix}
+u_f(k) \\ u_l(k) \\ u_z(k) \\ u_\psi(k)
+\end{bmatrix}
+\]
+Khối phân bổ lực đẩy tính:
+\[
+\mathbf{t}(k) = \mathbf{M}\mathbf{u}(k)
+\]
+trong đó:
+\[
+\mathbf{M} \in \mathbb{R}^{8 \times 4}, \qquad \mathbf{t} \in \mathbb{R}^{8}
+\]
+Ma trận $\mathbf{M}$, ánh xạ kênh và phép chuyển sang PWM đã được trình bày tại Chương 4, vì vậy không lặp lại trong mục này.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Tham số các vòng điều khiển trong phiên bản hiện tại}
+    \label{tab:thamso_vongdieukhien}
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{|l|c|c|c|c|p{0.24\linewidth}|p{0.18\linewidth}|}
+        \hline
+        \textbf{Vòng điều khiển} & $K_P$ & $K_I$ & $K_D$ & \textbf{Deadband} & \textbf{Giới hạn đầu ra} & \textbf{Giới hạn bước} \\
+        \hline
+        Hold Heading & 2.5 & 1.0 & 0.7 & Không & $\pm 0.25$ khi vision bật & Không \\
+        \hline
+        Hold Depth & 2.0 & 1.0 & 0.5 & Không & Theo max thruster & Không \\
+        \hline
+        Vision lateral & 0.35 & 0 & 0.02 & 0.035 & $\pm 0.30$ & 0.04 / chu kỳ \\
+        \hline
+        Vision range & 0.08 & 0 & 0 & 0.060 & $\pm 0.10$ & 0.025 / chu kỳ \\
+        \hline
+    \end{tabular}
+\end{table}
+
+Các giá trị trên là cấu hình hiện hành trong mã nguồn. Chúng không được xem là bộ thông số tối ưu cho mọi điều kiện vận hành. Kết quả thực nghiệm tại Chương 8 cần đánh giá độ quá điều chỉnh, thời gian xác lập, sai lệch xác lập và mức dao động của từng vòng trước khi chốt tham số cuối cùng.
+
+Controller còn hỗ trợ tự hiệu chỉnh Hold Heading và Hold Depth bằng relay. Quy trình này tạo dao động giới hạn, ước lượng $K_u$ và $T_u$, sau đó tính bộ hệ số theo quy tắc Ziegler--Nichols. Tuy nhiên, chức năng autotune chỉ nên được xem là công cụ tạo tham số khởi đầu; kết quả áp dụng thực tế cần được kiểm tra trong điều kiện an toàn.
+
+Sau khi hoàn tất các vòng phản hồi, controller tạo vectơ điều khiển gồm surge, sway, heave và yaw. Vectơ này được nhân với ma trận trộn $8 \times 4$ để tạo lệnh cho từng thruster; ánh xạ kênh và chuyển đổi PWM đã được trình bày tại Chương 4. Các hệ số trong Bảng \ref{tab:thamso_vongdieukhien} là cấu hình hiện hành, chưa được xem là tối ưu cho mọi điều kiện. Việc lựa chọn tham số cuối cùng dựa trên các phép đo sai số RMS, thời gian xác lập, độ quá điều chỉnh và mức dao động lệnh tại Chương 8.
+
+\section{Phương pháp kiểm thử và tiêu chí đánh giá}
+
+Các mục trước đã trình bày cách hệ thống tạo sai lệch thị giác và chuyển sai lệch đó thành lệnh điều khiển. Mục này xác định phương pháp kiểm thử để đánh giá tính đúng đắn của từng lớp trước khi kết luận về hiệu quả của toàn hệ thống. Chương này không đưa số liệu thực nghiệm giả định; các kết quả định lượng, đồ thị và nhận xét cuối cùng được trình bày tại Chương 8.
+
+Quy trình kiểm thử được tổ chức theo thứ tự tăng dần mức rủi ro: tracker độc lập, giao tiếp giữa các module, controller không tải, thử nghiệm trong nước và các tình huống lỗi. Cách chia lớp này giúp xác định nguyên nhân khi hệ thống không đạt yêu cầu, thay vì chỉ quan sát chuyển động cuối cùng của ROV.
+
+\subsection{Môi trường và dữ liệu cần ghi nhận}
+
+Trước mỗi nhóm thử nghiệm, cấu hình hệ thống cần được ghi lại cùng log để có thể tái lập kết quả. Bảng \ref{tab:kiemthu_cauhinh} tổng hợp các thông tin tối thiểu cần lưu.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Thông tin cấu hình cần ghi trong mỗi phiên kiểm thử}
+    \label{tab:kiemthu_cauhinh}
+    \renewcommand{\arraystretch}{1.25}
+    \begin{tabular}{|p{0.34\linewidth}|p{0.56\linewidth}|}
+        \hline
+        \textbf{Nhóm thông tin} & \textbf{Nội dung cần ghi} \\
+        \hline
+        Nền tảng xử lý & Máy tính nhúng sử dụng trên ROV, hệ điều hành và phiên bản phần mềm \\
+        \hline
+        Camera & Model camera, độ phân giải, FPS cấu hình và FPS thực đo \\
+        \hline
+        Môi trường & Bể thử hoặc môi trường nước thực tế, độ trong của nước, điều kiện chiếu sáng \\
+        \hline
+        Mục tiêu & Kích thước, vật liệu, hoa văn và khoảng cách ban đầu tới camera \\
+        \hline
+        Tham số tracking & Ngưỡng confidence, số điểm tối thiểu, ngưỡng tái bắt và giới hạn scale \\
+        \hline
+        Tham số controller & Deadband, giới hạn đầu ra, giới hạn bước, timeout vision và holdoff manual \\
+        \hline
+        Mã phiên chạy & Thời điểm thử nghiệm, mã kịch bản, người thực hiện và phiên bản mã nguồn \\
+        \hline
+    \end{tabular}
+\end{table}
+
+Dữ liệu log nên chứa tối thiểu thời gian monotonic, số thứ tự frame, mode tracker, confidence, số điểm đặc trưng, tâm mục tiêu, sai lệch ngang, sai lệch tỷ lệ, cờ \texttt{vision\_valid}, trạng thái manual override, các cờ Hold Vision/Hold Heading/Hold Depth và bốn thành phần lệnh điều khiển. Nếu packet vision chưa mang timestamp của frame, không nên khẳng định chính xác độ trễ end-to-end; khi đó chỉ báo cáo chu kỳ xử lý tại từng module và khoảng thời gian giữa các packet controller nhận được.
+
+\subsection{Kiểm thử tracker độc lập}
+
+Tracker được kiểm thử trước bằng video ghi sẵn hoặc luồng camera trong khi chưa phát lệnh tới thruster. Việc tách tracker khỏi controller cho phép đánh giá khả năng duy trì vùng mục tiêu mà không bị ảnh hưởng bởi chuyển động phản hồi của ROV.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Kịch bản kiểm thử tracker độc lập}
+    \label{tab:kiemthu_tracker}
+    \renewcommand{\arraystretch}{1.25}
+    \begin{tabular}{|p{0.16\linewidth}|p{0.44\linewidth}|p{0.32\linewidth}|}
+        \hline
+        \textbf{Mã} & \textbf{Kịch bản} & \textbf{Mục đích} \\
+        \hline
+        VIS-01 & Mục tiêu đứng yên, camera đứng yên & Đo độ trôi và nhiễu nền \\
+        \hline
+        VIS-02 & Camera dịch ngang chậm hoặc nhanh & Kiểm tra Optical Flow, pyramid và max-jump \\
+        \hline
+        VIS-03 & Camera tiến gần hoặc lùi xa mục tiêu & Kiểm tra ước lượng sai lệch tỷ lệ \\
+        \hline
+        VIS-04 & Che khuất mục tiêu ngắn hạn & Kiểm tra chuyển trạng thái LOST và tái bắt cục bộ \\
+        \hline
+        VIS-05 & Mục tiêu rời khung hình rồi xuất hiện lại & Kiểm tra full-frame template matching \\
+        \hline
+        VIS-06 & Nền có phản xạ mạnh hoặc hoa văn giống mục tiêu & Kiểm tra confidence và khả năng nhảy sai mục tiêu \\
+        \hline
+    \end{tabular}
+\end{table}
+
+Các chỉ số đánh giá gồm tỷ lệ khung hình ở trạng thái TRACKING, tỷ lệ LOST, FPS xử lý thực tế, số điểm đặc trưng trung bình, thời gian tái bắt và sai số tâm nếu có ground truth. Khi không có bounding box ground truth, vẫn có thể báo cáo mode, confidence, số điểm và thời gian tái bắt; tuy nhiên không nên kết luận về ``độ chính xác tracking'' nếu chưa có phương pháp gán nhãn rõ ràng.
+
+\subsection{Kiểm thử tích hợp và controller không tải}
+
+Sau khi tracker hoạt động ổn định, các module camera server, edge agent, host interface và controller được kiểm thử cùng nhau. Thruster có thể được disarm hoặc thay đầu ra phần cứng bằng logger để tránh chuyển động ngoài ý muốn. Nhóm kiểm thử này xác nhận đường truyền dữ liệu, command queue, timeout, manual override và chiều dấu của lệnh điều khiển.
+
+\begin{table}[htbp]
+    \centering
+    \caption{Kịch bản kiểm thử tích hợp và controller không tải}
+    \label{tab:kiemthu_controller}
+    \renewcommand{\arraystretch}{1.25}
+    \begin{tabular}{|p{0.16\linewidth}|p{0.42\linewidth}|p{0.34\linewidth}|}
+        \hline
+        \textbf{Mã} & \textbf{Thao tác hoặc đầu vào} & \textbf{Kết quả mong đợi} \\
+        \hline
+        INT-01 & Click chọn mục tiêu trên giao diện & Command tới edge agent, tracker khởi tạo và packet vision hợp lệ khi đủ confidence \\
+        \hline
+        INT-02 & Nhấn reset hoặc mất mục tiêu & Tracker về IDLE/LOST, \texttt{vision\_valid = False} \\
+        \hline
+        INT-03 & Làm chậm hoặc ngắt host preview & Đường điều khiển UDP cục bộ không phụ thuộc preview \\
+        \hline
+        CTL-01 & $e_x = 0$, $e_s = 0$ & Lệnh surge và sway từ vision bằng 0 \\
+        \hline
+        CTL-02 & $e_x$ vượt deadband & Lệnh sway có dấu bù đúng, không vượt $\pm 0.30$ và tăng theo giới hạn bước \\
+        \hline
+        CTL-03 & $e_s$ dương hoặc âm & Lệnh surge có xu hướng lùi hoặc tiến tương ứng, không vượt $\pm 0.10$ \\
+        \hline
+        CTL-04 & Packet cũ hơn 0,50 s & Vision không ghi đè surge/sway và bộ nhớ PID vision được reset \\
+        \hline
+        CTL-05 & Joystick vượt deadband 0,08 & Manual được ưu tiên; vision chỉ quay lại sau holdoff 0,25 s \\
+        \hline
+        CTL-06 & Chỉ bật Hold Vision & Hold Heading được bật, Hold Depth không tự bật \\
+        \hline
+        CTL-07 & $e_y$ thay đổi khi \texttt{VISION\_ENABLE\_ASCEND = False} & Không tạo lệnh heave từ vision \\
+        \hline
+    \end{tabular}
+\end{table}
+
+Mỗi ca kiểm thử cần ghi đầu vào, đầu ra kỳ vọng, đầu ra thực tế và trạng thái đạt hoặc không đạt. Các ca về chiều dấu phải được kiểm tra lại trên giá thử vì quy ước camera, ma trận trộn và chiều lắp thruster có thể làm kết quả khác với trực giác quan sát trên ảnh.
+
+\subsection{Kiểm thử trong nước và tình huống lỗi}
+
+Sau khi các kiểm thử không tải đạt yêu cầu, hệ thống được đánh giá trong bể thử. ROV được đưa tới trạng thái ổn định, người vận hành chọn mục tiêu và kích hoạt các mode cần thiết. Mỗi kịch bản nên được lặp lại nhiều lần với cùng cấu hình để đánh giá độ lặp lại.
+
+Các kịch bản trong nước gồm giữ mục tiêu khi không gây nhiễu, đẩy lệch ROV sang trái/phải, đưa ROV tiến gần hoặc lùi xa mục tiêu, kết hợp Hold Vision với Hold Heading và Hold Depth, che khuất mục tiêu tạm thời, người vận hành can thiệp joystick và dừng edge agent. Các đại lượng đánh giá chính là sai số RMS của $e_x$, $e_s$, $e_\psi$ và sai lệch độ sâu; thời gian xác lập; độ quá điều chỉnh; mức dao động lệnh; tỷ lệ thời gian vision hợp lệ; và thời gian tái bắt nếu xuất hiện LOST.
+
+Các tình huống lỗi phải được kiểm tra trước ở chế độ disarm, sau đó mới lặp lại ở công suất giới hạn trong bể thử. Với phiên bản hiện tại, cần phân biệt rõ cơ chế đã hoạt động và cơ chế mới là giới hạn cần bổ sung. Packet vision có timeout 0,50 s; manual override và holdoff đã tham gia đường điều khiển. Ngược lại, freshness gate riêng cho IMU/depth, watchdog tiến trình độc lập và chặn tiến theo diện tích bounding box chưa được xem là cơ chế an toàn hoàn chỉnh.
+
+\subsection{Tiêu chí đánh giá}
+
+Tiêu chí đánh giá được chia thành hai mức:
+\begin{table}[htbp]
+    \centering
+    \caption{Tổng hợp tiêu chí đánh giá hệ thống bám giữ mục tiêu}
+    \label{tab:tieuchi_danhgia_vision}
+    \renewcommand{\arraystretch}{1.3}
+    \begin{tabular}{|p{0.22\linewidth}|p{0.45\linewidth}|p{0.27\linewidth}|}
+        \hline
+        \textbf{Nhóm tiêu chí} & \textbf{Nội dung / Chỉ tiêu kiểm tra} & \textbf{Nguyên tắc đánh giá} \\
+        \hline
+        \textbf{Chức năng bắt buộc} & 
+        -- Chọn mục tiêu và chuyển đúng trạng thái (\texttt{IDLE / TRACKING / LOST / PAUSED}). \newline
+        -- Vô hiệu lệnh khi packet lỗi hoặc vượt timeout. \newline
+        -- Lệnh lateral/forward tuân thủ giới hạn cấu hình. \newline
+        -- Ưu tiên Joystick ngay khi tác động vượt deadband. \newline
+        -- Hold Vision cô lập với Hold Depth; $e_y$ không tác động heave khi \texttt{VISION\_ENABLE\_ASCEND = False}. & 
+        Đạt 100\% các kịch bản kiểm thử logic (Đạt / Không đạt). \\
+        \hline
+        \textbf{Hiệu năng định lượng} & 
+        -- Tỷ lệ \texttt{TRACKING} \newline
+        -- FPS trung bình \newline
+        -- Thời gian tái bắt\newline & 
+        Đối chiếu theo bộ tham số baseline hoặc yêu cầu nhiệm vụ. \\
+        \hline
+        \textbf{Phạm vi đo lường} & 
+        Khả năng đưa đặc trưng ảnh về trạng thái tham chiếu ban đầu. & 
+        Không đánh giá tọa độ mét nếu thiếu hệ tham chiếu độc lập (DVL, Motion Capture, Marker ngoại vi). \\
+        \hline
+    \end{tabular}
+\end{table}
+
+\section{Kết luận}
+
+Chương 6 đã trình bày quá trình thiết kế và triển khai chức năng bám giữ mục tiêu tương đối dựa trên thị giác cho ROV. Khác với bài toán nhận dạng lớp đối tượng, hệ thống sử dụng vùng mục tiêu do người vận hành lựa chọn và lưu vị trí cùng kích thước biểu kiến tại thời điểm khởi tạo làm trạng thái tham chiếu.
+
+Pipeline được tổ chức theo kiến trúc phân tán. Camera server cung cấp luồng MJPEG; edge agent điều phối khung hình, lệnh giao diện và packet vision; tracker sử dụng điểm Shi--Tomasi, Pyramidal Lucas--Kanade, affine RANSAC và template matching để cập nhật bounding box; controller chuyển sai lệch thị giác và dữ liệu cảm biến thành vectơ điều khiển cho ROV. Đường packet điều khiển được tách khỏi đường preview giám sát nhằm giảm phụ thuộc của vòng phản hồi vào host interface.
+
+Ở lớp điều khiển, sai lệch ngang của mục tiêu được dùng cho sway và sai lệch tỷ lệ được dùng cho surge. Hold Vision phối hợp với Hold Heading để ổn định yaw, trong khi Hold Depth là vòng độc lập sử dụng cảm biến áp suất cho heave. Hệ thống đã triển khai confidence gate, timeout packet vision, manual override, khoảng holdoff, giới hạn đầu ra, minimum command cho lateral, slew-rate và reset bộ nhớ PID vision khi dữ liệu không còn hợp lệ.
+
+Phiên bản hiện tại vẫn có các giới hạn. Giao diện hỗ trợ tracking mới tích hợp trực tiếp thao tác chọn điểm và reset; một số chức năng như kéo chọn bounding box, pause và hiển thị điểm đặc trưng chưa hoàn thiện ở phía UI. Sai lệch dọc chưa được dùng để điều khiển heave. Cơ chế chặn tiến theo diện tích bounding box, freshness gate riêng cho IMU/depth và watchdog tiến trình độc lập chưa tham gia đầy đủ vào đường chạy. Tracker có thể tái bắt bằng template matching cục bộ hoặc toàn khung hình khi mục tiêu xuất hiện lại, nhưng ROV chưa thực hiện chuyển động tìm kiếm chủ động.
+
+Phương pháp kiểm thử được xây dựng theo từng lớp, từ tracker độc lập, giao tiếp giữa các module, logic controller không tải đến thử nghiệm chuyển động trong nước. Các kết quả định lượng và phân tích giới hạn được trình bày tại Chương 8.
 
 \end{document}

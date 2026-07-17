@@ -72,17 +72,25 @@ const getPath = async (req, res, next) => {
   try {
     const tripId = req.params.id;
     const { parseTimestampFromFilename } = require('../../utils/parseTimestamp.util');
-    const trip = await Trip.findById(tripId).select('gpsLocation').lean();
+    const trip = await Trip.findById(tripId).select('gpsLocation manifestTimestamps').lean();
     if (!trip) return error(res, 'Trip not found', 404);
+
+    // .lean() returns Map fields as a plain object keyed by sourceFile
+    const manifestTimestamps = trip.manifestTimestamps || {};
 
     const raw = await DVLData.find({ trip: tripId }).lean();
 
-    // Build per-sourceFile anchor: ts0 (earliest ROV-clock ts in that file) + recordedAt (UTC from filename)
+    // Build per-sourceFile anchor: ts0 (earliest ROV-clock ts in that file) + recordedAt (UTC).
+    // Prefer the trip.json manifest (ms-accurate) when this trip was batch-uploaded with one;
+    // fall back to parsing the filename (second-accurate at best) otherwise.
     const fileMeta = {};
     for (const pt of raw) {
       const sf = pt.sourceFile ?? '__legacy__';
       if (!fileMeta[sf]) {
-        const parsed = pt.sourceFile ? parseTimestampFromFilename(pt.sourceFile) : null;
+        const fromManifest = pt.sourceFile ? manifestTimestamps[pt.sourceFile] : null;
+        const parsed = fromManifest
+          ? new Date(fromManifest)
+          : (pt.sourceFile ? parseTimestampFromFilename(pt.sourceFile) : null);
         fileMeta[sf] = { ts0: pt.ts, recordedAtMs: parsed ? parsed.getTime() : null };
       } else if (pt.ts < fileMeta[sf].ts0) {
         fileMeta[sf].ts0 = pt.ts;

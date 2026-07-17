@@ -242,4 +242,4 @@ const getDataFiles = async (req, res, next) => {
   }
 };
 
-module.exports = { upload, clear, getSensorData, getDataFiles };
+module.exports = { upload, clear, getSensorData, getDataFiles, zScoreAnomalies };

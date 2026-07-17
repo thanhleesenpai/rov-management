@@ -1,32 +1,95 @@
 \documentclass[../DoAn.tex]{subfiles}
 \begin{document}
 
-
-
 \section{Đặt vấn đề}
 \label{section:1.1}
+
 \subsection{Giới thiệu ROV và nhu cầu ứng dụng}
 \label{subsection:1.1.1}
 
+ROV (Remotely Operated Vehicle) là phương tiện không người lái hoạt động dưới nước, được điều khiển từ xa thông qua hệ thống dây tether kết nối với trạm điều khiển trên mặt nước. Khác với các phương tiện tự hành dưới nước (AUV), ROV cho phép người vận hành giám sát trực tiếp và điều khiển theo thời gian thực, phù hợp với các nhiệm vụ yêu cầu độ chính xác cao hoặc môi trường làm việc phức tạp.
+
+Trong những năm gần đây, ROV được ứng dụng rộng rãi trong nhiều lĩnh vực như khảo sát đáy biển, kiểm tra công trình ngầm, nghiên cứu hải dương học, cứu hộ cứu nạn, quốc phòng, nuôi trồng thủy sản và bảo trì các hệ thống năng lượng ngoài khơi. Tại Việt Nam, nhu cầu ứng dụng ROV ngày càng tăng trong các hoạt động khảo sát công trình thủy điện, kiểm tra thân tàu, quan trắc môi trường nước và nghiên cứu biển đảo.
+
+Một hệ thống ROV hiện đại không chỉ bao gồm phần cứng cơ khí và điện tử mà còn đòi hỏi một hệ thống phần mềm phức tạp để thực hiện điều khiển, thu thập dữ liệu cảm biến, truyền thông thời gian thực, hiển thị trạng thái vận hành, lưu trữ dữ liệu nhiệm vụ và hỗ trợ phân tích sau quá trình vận hành. Trong đó, phần mềm đóng vai trò trung tâm trong việc tích hợp các thành phần của hệ thống thành một nền tảng hoạt động thống nhất, ổn định và có khả năng mở rộng.
+
+Xuất phát từ nhu cầu xây dựng một hệ thống ROV hoàn chỉnh phục vụ nghiên cứu và thử nghiệm thực tế, nhóm thực hiện đề tài tập trung phát triển kiến trúc phần mềm cho toàn bộ hệ thống điều khiển robot lặn từ xa.
+
 \subsection{Nhiệm vụ đề tài}
 \label{subsection:1.1.2}
-- Không làm phần cứng, xây dựng pm điều khiển (Firmware, GCS, Cloud), thử nghiệm
-\subsection{Chia nhiệm vụ}
+
+Mục tiêu của đề tài là xây dựng hệ thống phần mềm hoàn chỉnh phục vụ vận hành robot lặn điều khiển từ xa (ROV), bao gồm các thành phần chạy trực tiếp trên robot, phần mềm điều khiển tại trạm mặt nước và hệ thống quản lý dữ liệu trên nền tảng web.
+
+Phạm vi thực hiện của đề tài tập trung vào phát triển phần mềm, không thực hiện thiết kế hay chế tạo phần cứng cơ khí và mạch điện tử. Các nhiệm vụ chính bao gồm:
+
+\begin{itemize}
+    \item Xây dựng firmware chạy trên máy tính nhúng đặt trên ROV để thực hiện thu thập dữ liệu cảm biến, điều khiển động cơ đẩy, điều khiển cơ cấu chấp hành và truyền dữ liệu telemetry.
+    
+    \item Phát triển phần mềm Ground Control Station (GCS) trên máy tính topside nhằm điều khiển ROV theo thời gian thực, hiển thị dữ liệu cảm biến, video, sonar, DVL và hỗ trợ ghi lại dữ liệu nhiệm vụ.
+    
+    \item Xây dựng hệ thống quản lý thông tin trên nền tảng web cho phép lưu trữ dữ liệu sau mỗi nhiệm vụ, quản lý project, quản lý trip và hỗ trợ phân tích dữ liệu hậu kỳ.
+    
+    \item Thiết kế các thuật toán điều khiển tự động cho ROV như giữ hướng, giữ độ sâu, giữ vị trí theo DVL và bám mục tiêu dựa trên thị giác máy tính.
+    
+    \item Tích hợp toàn bộ các thành phần phần mềm thành hệ thống hoàn chỉnh và tiến hành kiểm thử trong môi trường thực tế.
+\end{itemize}
+
+\subsection{Phân công nhiệm vụ}
 \label{subsection:1.1.3}
+
+Đề tài được thực hiện bởi nhóm gồm 4 thành viên. Mỗi thành viên phụ trách các phân hệ phần mềm khác nhau nhằm đảm bảo tiến độ phát triển và khả năng tích hợp hệ thống.
+
 \begin{table}[H]
-    \centering
-    \begin{tabular}{|c|c|c|c|}
-         \hline \textbf{STT} & \textbf{Họ và tên} &\textbf{MSSV} &\textbf{Nhiệm vụ} \\
-         \hline 1 & Nguyễn Mạnh Cường & 20225268 & .......\\
-         \hline 2 & Trần Nguyên Chiến & ..... & \\
-         \hline 3 & Phan Lê Hải Đăng & 20225273 & .......\\
-         \hline
-    \end{tabular}
-    \caption{Caption}
-    \label{tab:placeholder}
+\centering
+\renewcommand{\arraystretch}{1.4}
+\begin{tabular}{|c|p{4cm}|c|p{7cm}|}
+\hline
+\textbf{STT} & \textbf{Họ và tên} & \textbf{MSSV} & \textbf{Nhiệm vụ} \\
+\hline
+
+1 & Nguyễn Mạnh Cường & 20225268 &Phát triển phần mềm điều khiển và giám sát hệ thống ROV, bao gồm xây dựng kênh giao tiếp hai chiều giữa máy trạm và ROV; thu thập và xử lý dữ liệu telemetry từ các cảm biến (độ sâu, áp suất, trạng thái hệ thống) và hiển thị thời gian thực trên giao diện người dùng tự xây dựng; đọc tín hiệu từ bộ điểu khiển, xử lý và chuyển đổi thành lệnh điều khiển chuyển động ROV (tiến/lùi, trái/phải, lên/xuống, quay); truyền dữ liệu điều khiển xuống ROV để điều khiển hệ thống động cơ và các cơ cấu chấp hành.\\
+\hline
+
+2 & Trần Nguyên Chiến & 20220018 &Xây dựng chức năng bám giữ mục tiêu bằng thị giác, tích hợp thuật toán Optical Flow, điều khiển PID và giao diện lựa chọn mục tiêu.\\
+\hline
+
+3 & Phan Lê Hải Đăng & 20225273 &
+Phát triển phần mềm Ground Control Station (GCS), thiết kế giao diện phần mềm, xây dựng các module hiển thị video camera, sonar, dữ liệu DVL, giao diện giám sát trạng thái hệ thống và hệ thống ghi dữ liệu nhiệm vụ phục vụ lưu trữ và đồng bộ dữ liệu vận hành. \\
+\hline
+
+4 & Lê Minh Thành & 20225764 &
+Xây dựng hệ thống quản lý thông tin và phân tích dữ liệu ROV trên nền tảng web (Chương~7). Thiết kế và triển khai kiến trúc Client--Server với Backend Node.js/Express.js, cơ sở dữ liệu MongoDB và giao diện React~18; phát triển các module quản lý Project, Trip và dữ liệu thực địa đa nguồn (cảm biến CSV, DVL, sonar, media); tích hợp ba module AI: nhận diện vật thể tự động theo từng khung hình bằng YOLOv8n (Python FastAPI microservice), tóm tắt nhiệm vụ bằng Gemini~2.5 Flash API và phát hiện bất thường cảm biến theo thuật toán Z-Score; xây dựng hệ thống đồng bộ thời gian thực giữa video và dữ liệu cảm biến và hệ thống trích xuất bằng chứng trực tiếp từ video (Evidence System). \\
+\hline
+
+
+\end{tabular}
+\caption{Phân công nhiệm vụ giữa các thành viên}
+\label{tab:phancongnhiemvu}
 \end{table}
+
 \subsection{Cấu trúc báo cáo}
 \label{subsection:1.1.4}
 
+Nội dung báo cáo được tổ chức thành mười chương chính như sau:
+
+\begin{itemize}
+    \item \textbf{Chương 1}: Giới thiệu tổng quan về đề tài, mục tiêu thực hiện và phạm vi nghiên cứu.
+    
+    \item \textbf{Chương 2}: Trình bày thiết kế tổng thể hệ thống phần cứng của ROV, bao gồm cảm biến, cơ cấu điều khiển, bộ điều khiển và hệ thống truyền thông.
+    
+    \item \textbf{Chương 3}: Phân tích kiến trúc phần mềm tổng thể của hệ thống và thiết kế các module chức năng chính.
+    
+    \item \textbf{Chương 4}: Trình bày quá trình xây dựng firmware trên ROV, bao gồm các module cảm biến, truyền thông, điều khiển và telemetry.
+    
+    \item \textbf{Chương 5}: Mô tả quá trình phát triển phần mềm Ground Control Station (GCS), các module giao tiếp, hiển thị dữ liệu thời gian thực, điều khiển và ghi dữ liệu nhiệm vụ.
+    
+    \item \textbf{Chương 6}: Thiết kế và triển khai thuật toán điều khiển tự động bám giữ mục tiêu dựa trên thị giác máy tính.
+    
+    \item \textbf{Chương 7}: Xây dựng hệ thống quản lý thông tin và phân tích dữ liệu trên nền tảng web, bao gồm lưu trữ dữ liệu, phân tích AI và trích xuất thông tin.
+    
+    \item \textbf{Chương 8}: Trình bày kết quả thực nghiệm và đánh giá hệ thống sau quá trình triển khai.
+    
+    \item \textbf{Chương 9}: Kết luận các kết quả đạt được và đề xuất hướng phát triển trong tương lai.
+\end{itemize}
 
 \end{document}

@@ -88,7 +88,21 @@
       "Bash(grep -v '\\\\\\\\_')",
       "Bash(grep -v '\\\\\\\\\\\\[')",
       "Bash(grep -rn 'texttt{[^}]\\\\{30,\\\\}}' \"d:/Code/rov-management/DATN_TranNguyenChien220018/Chuong/\" --include=\"*.tex\")",
-      "Bash(python -c ' *)"
+      "Bash(python -c ' *)",
+      "Bash(node --check src/modules/ai/ai.service.js)",
+      "Bash(node --check src/modules/ai/ai.worker.js)",
+      "Bash(node --check src/modules/sensor/sensor.controller.js)",
+      "Bash(node --check src/modules/trips/batch.controller.js)",
+      "Bash(node --check src/modules/trips/trip.model.js)",
+      "Bash(node --check src/modules/dvl/dvl.controller.js)",
+      "Skill(artifact-design)",
+      "Skill(artifact-design:*)",
+      "Bash(python generate_puml.py flow_tongquan.puml)",
+      "Bash(grep -n \"\\\\\\\\$\\\\\\\\|\\\\\\\\.\" \"/d/Code/rov-management/backend/node_modules/mongoose/lib/schema/map.js\")",
+      "Bash(grep -n \"set\\\\|\\\\\\\\$\\\\\\\\|dot\\\\|period\\\\|InvalidKey\\\\|throw\" \"/d/Code/rov-management/backend/node_modules/mongoose/lib/types/map.js\")",
+      "Bash(node test_map_tmp.js)",
+      "Bash(grep -n \"\\\\\\\\.\\\\\\\\|InvalidKey\\\\\\\\|firstKey\\\\\\\\|illegal\\\\\\\\|not allowed\" \"/d/Code/rov-management/backend/node_modules/mongoose/lib/schema/map.js\")",
+      "Bash(rm -f test_map_tmp.js)"
     ]
   }
 }

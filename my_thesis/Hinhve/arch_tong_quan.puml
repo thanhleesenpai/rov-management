@@ -2,22 +2,44 @@
 left to right direction
 skinparam backgroundColor White
 skinparam packageStyle rectangle
+
+' Ép các cột xích lại gần nhau hơn (giảm từ 90 xuống 40)
+skinparam ranksep 40
+skinparam nodesep 20
+
+' Tăng mạnh kích thước chữ tổng thể
 skinparam component {
   BackgroundColor White
   BorderColor #444
-  FontSize 11
+  FontSize 14
 }
 skinparam package {
   BackgroundColor #F7F7FF
   BorderColor #888
   FontStyle bold
+  FontSize 15
+}
+skinparam cloud {
+  BackgroundColor #F7F7FF
+  BorderColor #888
+  FontStyle bold
+  FontSize 15
+}
+skinparam database {
+  BackgroundColor White
+  BorderColor #444
+  FontSize 14
+}
+skinparam storage {
+  BackgroundColor White
+  BorderColor #444
+  FontSize 14
 }
 skinparam arrow {
   Color #555
-  FontSize 10
+  FontSize 12
+  FontWeight bold
 }
-skinparam ranksep 90
-skinparam nodesep 30
 
 actor "Operator\n/ Viewer" as USER
 
@@ -50,14 +72,17 @@ cloud "Dịch vụ đám mây" {
 USER --> FE_UI
 
 FE_UI --> API : HTTPS / REST
-FE_SSE --> SSE : HTTP long-lived\n(text/event-stream)
-SSE --> FE_SSE : Push events
+FE_SSE <--> SSE : HTTP long-lived\n(Push events)
 
 API --> QUEUE : enqueue job\n(YOLO, Email)
 API --> MONGO : Mongoose ODM
 API --> REDIS : ioredis
-API --> S3 : Presigned URL\n(direct upload)
 API --> NOM : GPS → Địa danh
+
+' Tách rõ luồng S3: FE upload trực tiếp, API cấp quyền
+FE_UI --> S3 : Upload trực tiếp
+API --> S3 : Cấp Presigned URL
+
 QUEUE --> YOLO : POST /detect\n{mediaUrl, model, conf}
 QUEUE --> GEMINI : HTTPS API\n(AI Summary prompt)
 

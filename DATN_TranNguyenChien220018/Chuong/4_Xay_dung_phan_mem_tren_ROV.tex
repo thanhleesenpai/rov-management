@@ -1,10 +1,182 @@
 \documentclass[../DoAn.tex]{subfiles}
+\usepackage{tabularx}
 \begin{document}
 
-Triển khai mọi module 
 \section{Kiến trúc tổng thể và luồng dữ liệu}
 
+Phần mềm điều khiển ROV được xây dựng dưới dạng một tiến trình Python
+duy nhất chạy trên SoC Qualcomm QCS8550 với hệ điều hành Linux
+(Ubuntu). Thay vì sử dụng kiến trúc vòng lặp tuần tự đơn luồng,
+chương trình tổ chức theo mô hình \textbf{đa luồng} (\textit{multithreading})
+với sáu luồng chạy đồng thời, mỗi luồng chịu trách nhiệm một chức năng
+độc lập. Cách thiết kế này đảm bảo các tác vụ thu thập dữ liệu cảm
+biến, xử lý lệnh điều khiển và gửi telemetry không cản trở lẫn nhau,
+đặc biệt quan trọng khi một số cảm biến yêu cầu chờ đọc bus I2C/SPI
+với thời gian không xác định trước.
+
+\subsection{Khởi động hệ thống}
+
+Chương trình được quản lý bởi \texttt{systemd} thông qua file
+\texttt{rov.service}, tự động khởi động cùng hệ điều hành và tự khởi
+động lại khi gặp lỗi. Quá trình khởi tạo diễn ra theo ba giai đoạn
+tuần tự trong luồng chính:
+
+\begin{enumerate}
+    \item \textbf{Khởi tạo phần cứng:} Cấu hình PCA9685 ở tần số
+    $50\,\text{Hz}$, kích hoạt chân $\overline{\text{OE}}$, khởi tạo
+    các đối tượng driver cho ICM20602, ADS1115; thực hiện hiệu chuẩn
+    con quay hồi chuyển (lấy trung bình 500 mẫu gyro bias).
+
+    \item \textbf{Đọc cấu hình động cơ:} Hàm \texttt{load\_thrust\_config()}
+    đọc file \\ \texttt{thruster\_config.json} để nạp bảng ánh xạ
+    \texttt{THRUSTER\_MAP}. Nếu file không tồn tại hoặc lỗi JSON, hệ
+    thống giữ nguyên bảng mặc định \texttt{[0,0,0,0,0,0,0,0]} và in
+    cảnh báo --- ROV vẫn khởi động được, nhưng người vận hành cần cấu
+    hình lại ánh xạ động cơ qua GCS trước khi vận hành.
+
+    \item \textbf{Arm ESC:} Hàm \texttt{init\_thruster()} ghi
+    $1500\,\mu s$ đến toàn bộ 8 kênh PCA9685 để thực hiện quy trình
+    arm ESC bắt buộc trước khi chấp nhận lệnh điều khiển.
+\end{enumerate}
+
+Sau ba giai đoạn này, luồng chính spawn sáu luồng con và chuyển sang
+vòng lặp telemetry với chu kỳ $1\,\text{s}$.
+
+\subsection{Kiến trúc đa luồng}
+
+Bảng~\ref{tab:thread_summary} liệt kê toàn bộ sáu luồng và đặc
+tính vận hành của từng luồng.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.35}
+\begin{tabularx}{\textwidth}{|l|X|c|X|}
+\hline
+\textbf{Luồng} &
+\textbf{Chức năng} &
+\textbf{Chu kỳ} &
+\textbf{Giao tiếp phần cứng} \\
+\hline
+\texttt{depth\_reader}       & Đọc độ sâu \& nhiệt độ nước   & $50\,\text{ms}$ (20\,Hz) & I2C bus 3 (MS5837) \\
+\texttt{heading\_reader\_ekf} & Tư thế IMU qua EKF             & Liên tục ($\sim$kHz)     & SPI bus 0 (ICM20602, MMC5983) \\
+\texttt{temp\_humid\_reader}  & Nhiệt độ \& độ ẩm khoang kín  & $10\,\text{ms}$ (100\,Hz) & UART \texttt{/dev/ttyHS3} (Si7021) \\
+\texttt{udp\_config\_listener}& Cấu hình động cơ từ GCS       & Chặn tại \texttt{recvfrom} & UDP cổng 12345 \\
+\texttt{ping\_server}        & Phát hiện địa chỉ IP của GCS  & Chặn tại \texttt{recvfrom} & UDP cổng 15000 \\
+\texttt{control\_loop}       & Nhận lệnh MAVLink \& điều khiển & $200\,\text{ms}$ (khi rảnh) & UDP cổng 16001 \\
+\hline
+\textbf{Main thread}         & Telemetry gửi về GCS           & $1\,\text{s}$ (1\,Hz)    & UDP cổng 16001--16005 \\
+\hline
+\end{tabularx}
+\caption{Tóm tắt các luồng trong chương trình điều khiển ROV}
+\label{tab:thread_summary}
+\end{table}
+
+Bốn luồng cảm biến (\texttt{depth\_reader}, \texttt{heading\_reader\_ekf},
+\texttt{temp\_humid\_reader}) và \texttt{udp\_config\_listener} được
+tạo với tham số \texttt{daemon=True}, nghĩa là chúng tự động kết thúc
+khi luồng chính thoát. Hai luồng mạng quan trọng
+(\texttt{ping\_server}, \texttt{control\_loop}) không phải daemon để
+đảm bảo không bị dừng đột ngột khi đang xử lý lệnh.
+
+\subsection{Cơ chế chia sẻ dữ liệu giữa các luồng}
+
+Toàn bộ các luồng giao tiếp với nhau thông qua một tập hợp các
+\textbf{biến toàn cục Python} (global variables). Các luồng cảm biến
+liên tục ghi kết quả đo vào các biến này; luồng điều khiển và luồng
+telemetry đọc ra để xử lý. Các biến chia sẻ chính được liệt kê trong
+Bảng~\ref{tab:shared_vars}.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Biến} & \textbf{Kiểu} & \textbf{Cập nhật bởi} \\
+\hline
+\texttt{latest\_depth}             & \texttt{float} (m)          & \texttt{depth\_reader} \\
+\texttt{WaterTemp}                 & \texttt{float} (°C)         & \texttt{depth\_reader} \\
+\texttt{latest\_roll/pitch/yaw}    & \texttt{float} (rad)        & \texttt{heading\_reader\_ekf} \\
+\texttt{xacc, yacc, zacc, ...}     & \texttt{float}              & \texttt{heading\_reader\_ekf} \\
+\texttt{temp, humid}               & \texttt{float}              & \texttt{temp\_humid\_reader} \\
+\texttt{hold\_heading, hold\_depth} & \texttt{bool}              & \texttt{control\_loop} \\
+\texttt{desired\_yaw, desired\_depth} & \texttt{float}           & \texttt{control\_loop} \\
+\texttt{ESC\_GAIN, LightPower}     & \texttt{float}              & \texttt{control\_loop} \\
+\texttt{THRUSTER\_MAP}             & \texttt{list[int]}          & \texttt{udp\_config\_listener} \\
+\texttt{exit\_flag}                & \texttt{bool}               & \texttt{depth\_reader} (khi lỗi) \\
+\hline
+\end{tabular}
+\caption{Các biến toàn cục chia sẻ giữa các luồng}
+\label{tab:shared_vars}
+\end{table}
+
+\paragraph{Vấn đề thread safety và vai trò của CPython GIL.}
+
+Việc nhiều luồng cùng đọc/ghi một biến mà không dùng \texttt{Lock}
+có thể gây ra race condition trong lý thuyết lập trình đa luồng. Tuy
+nhiên, trong CPython (trình thông dịch Python tiêu chuẩn), cơ chế
+\textbf{Global Interpreter Lock (GIL)} đảm bảo rằng tại mỗi thời điểm
+chỉ có một luồng được thực thi bytecode Python. Do đó, phép gán đơn
+giản cho các biến kiểu số nguyên (\texttt{int}) hoặc số thực
+(\texttt{float}) là \textbf{nguyên tử} (\textit{atomic}) ở mức
+bytecode: không thể xảy ra trường hợp một luồng đọc được giá trị
+nửa chừng đang được ghi bởi luồng khác.
+
+Thiết kế này phù hợp vì ba lý do: (1) tất cả biến chia sẻ đều là
+kiểu nguyên thủy (float, bool, int) hoặc danh sách chỉ được ghi lại
+toàn bộ bởi một luồng duy nhất; (2) tần suất ghi rất nhỏ so với chu
+kỳ đọc nên khả năng xung đột thực tế là không đáng kể; (3) hệ thống
+điều khiển vật lý có thể chấp nhận một giá trị cảm biến cũ hơn một
+chu kỳ --- đây là đặc tính bình thường của hệ điều khiển thời gian rời
+rạc và không gây nguy hiểm.
+
+\paragraph{Cờ thoát toàn cục \texttt{exit\_flag}.}
+
+Biến boolean \texttt{exit\_flag} đóng vai trò cơ chế dừng khẩn cấp
+toàn hệ thống. Khi module cảm biến quan trọng (đặc biệt là MS5837)
+không khởi tạo được, \texttt{depth\_reader} bật \texttt{exit\_flag = True}
+thay vì chạy tiếp với dữ liệu sai. Các luồng khác kiểm tra cờ này
+trong vòng lặp để dừng theo. Khối \texttt{try/except} bao quanh vòng
+lặp chính đảm bảo gửi lệnh dừng động cơ (\texttt{send\_thrust\_pwm([0]*8)})
+trước khi thoát.
+
+\subsection{Luồng dữ liệu tổng thể}
+
+Hình~\ref{fig:system_architecture} mô tả kiến trúc tổng thể và
+luồng dữ liệu giữa các thành phần phần mềm và phần cứng của ROV.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{figures/RovSystem_Architecture.drawio.png}
+    \caption{Kiến trúc tổng thể phần mềm ROV: sáu luồng song song
+    giao tiếp qua biến toàn cục, nhận lệnh từ GCS qua MAVLink/UDP
+    và điều khiển phần cứng qua I2C/SPI/UART}
+    \label{fig:system_architecture}
+\end{figure}
+
+Luồng dữ liệu điều khiển đi theo chiều từ trên xuống: GCS gửi lệnh
+MAVLink qua UDP $\rightarrow$ \texttt{control\_loop} phân tích và tính
+toán vector điều khiển $\mathbf{U}$ $\rightarrow$ nhân với ma trận
+mixing $M$ $\rightarrow$ tra bảng \texttt{THRUSTER\_MAP} $\rightarrow$
+ghi PWM vào PCA9685 $\rightarrow$ ESC $\rightarrow$ động cơ.
+
+Luồng dữ liệu phản hồi đi theo chiều ngược lại: cảm biến cập nhật
+biến toàn cục $\rightarrow$ \texttt{control\_loop} đọc để tính sai lệch
+PID $\rightarrow$ đồng thời luồng chính đóng gói thành gói MAVLink
+gửi về GCS qua năm kênh UDP độc lập (cổng 16001--16005) với chu kỳ
+$1\,\text{s}$.
+
+Hai luồng còn lại hoạt động ngoài vòng lặp điều khiển chính:
+\texttt{ping\_server} phát hiện địa chỉ IP của GCS và khởi tạo lại
+các kênh gửi khi GCS kết nối mới; \texttt{udp\_config\_listener} cập
+nhật ánh xạ động cơ mà không cần khởi động lại toàn bộ tiến trình.
+
 \section{Module cảm biến}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{figures/Module_Sensor.drawio.png}
+    \caption{Sơ đồ luồng Module cảm biến}
+    \label{fig:system_architecture}
+\end{figure}
 \subsection{Đo độ sâu và nhiệt độ nước (MS5837)}
 
 Cảm biến MS5837-30BA là cảm biến áp suất độ phân giải cao giao tiếp
@@ -110,6 +282,7 @@ thị trên UserControl Compass). Biến \texttt{dt} được tính chính xác
 theo thời gian thực bằng \texttt{time.perf\_counter()} thay vì giá
 trị cố định, đảm bảo tần số EKF không bị ảnh hưởng bởi độ trễ hệ
 thống.
+
 \subsection{Đo nhiệt độ và độ ẩm khoang kín (Si7021)}
 
 Cảm biến Si7021 được đặt bên trong khoang kín của ROV, có nhiệm vụ
@@ -117,6 +290,12 @@ giám sát nhiệt độ và độ ẩm không khí trong ống nhằm phát hi�
 hiện tượng ngấm nước --- một trong những nguy cơ nghiêm trọng nhất
 có thể gây hỏng toàn bộ hệ thống điện tử bên trong ROV.
 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width = 0.9\textwidth]{Hinhve/NhietDo_DoAm_ThanOng.png}
+    \caption{Hình ảnh nhiệt lượng trong ống}
+    \label{fig:si7021}
+\end{figure}
 \textbf{Kiến trúc phần cứng}
 
 Si7021 giao tiếp với vi điều khiển Arduino qua I2C. Arduino đóng vai
@@ -194,22 +373,199 @@ Kiến trúc phần mềm tích hợp module này phục vụ hai nhiệm vụ c
 \end{itemize}
 
 \section{Module truyền thông}
-\subsection{Kết nối GCS(ping\_server)}
-\subsection{Nhận lệnh điều khiển(control\_loop)}
 
-\section{Moudle điểu khiển}
-\subsection{Điều khiển thủ công - Mixing matrix và điểu khiển động cơ}
-\subsection{Điều khiển tự động}
-\subsubsection{PID giữ hướng}
-\subsubsection{PID giữ độ sâu}
-\subsubsection{PID tự động giữ ổn định vị trí}
-\subsubsection{PID dự ổn định dựa vào AI bám theo vật thể}
+Module truyền thông đảm nhận toàn bộ giao tiếp mạng giữa ROV và GCS,
+bao gồm hai chiều độc lập: nhận lệnh điều khiển từ GCS và thiết lập
+kênh phản hồi dữ liệu về GCS. Hệ thống sử dụng giao thức UDP vì tính
+năng không kết nối (connectionless) phù hợp với yêu cầu trễ thấp của
+điều khiển thời gian thực --- mất một gói tin điều khiển chấp nhận
+được hơn là chờ truyền lại như TCP.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{figures/Module_Truyen_thong.drawio.png}
+    \caption{Module truyền thông trong phần mềm ROV}
+    \label{fig:Module_truyen_thong}
+\end{figure}
+
+\subsection{Thiết lập kết nối với GCS (ping\_server)}
+
+ROV không chủ động kết nối đến GCS mà hoạt động theo mô hình bị động:
+luồng \texttt{ping\_server()} lắng nghe liên tục trên cổng UDP 15000,
+chờ gói tin ping từ GCS để nhận diện địa chỉ IP động. Thiết kế này
+cho phép GCS thay đổi địa chỉ IP (ví dụ kết nối từ máy tính khác)
+mà không cần khởi động lại ROV.
+
+Khi nhận được gói ping, hệ thống so sánh địa chỉ IP nguồn với địa chỉ
+đang lưu. Nếu IP mới khác IP cũ, toàn bộ 5 kênh MAVLink gửi ngược
+(\texttt{masterout\_hbt} đến \texttt{masterout\_att}) được đóng và khởi
+tạo lại hướng đến địa chỉ mới trên 5 cổng tương ứng
+$16001$--$16005$. Nếu IP không đổi (GCS gửi ping lặp lại), hệ thống
+bỏ qua và không tạo lại kết nối, tránh gián đoạn luồng telemetry
+đang hoạt động.
+
+Năm kênh gửi được phân tách theo loại dữ liệu:
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|l|}
+\hline
+\textbf{Kênh} & \textbf{Cổng GCS} & \textbf{Loại dữ liệu} \\
+\hline
+\texttt{masterout\_hbt} & 16001 & Heartbeat \\
+\texttt{masterout\_sta} & 16002 & Status, NamedValueFloat \\
+\texttt{masterout\_pos} & 16003 & Global Position \\
+\texttt{masterout\_imu} & 16004 & IMU thô \\
+\texttt{masterout\_att} & 16005 & Attitude (roll, pitch, yaw) \\
+\hline
+\end{tabular}
+\caption{Phân bổ kênh MAVLink gửi từ ROV về GCS}
+\label{tab:mavlink_channels}
+\end{table}
+
+Việc tách thành 5 kênh UDP độc lập thay vì dùng chung một cổng có hai
+lợi ích: thứ nhất, phía GCS có thể ưu tiên xử lý từng loại dữ liệu
+trên luồng riêng biệt mà không bị chặn bởi các gói khác; thứ hai,
+dễ debug và giám sát từng luồng dữ liệu độc lập trong quá trình phát
+triển.
+
+\subsection{Nhận lệnh điều khiển (control\_loop)}
+
+Lệnh điều khiển từ GCS được nhận qua cổng UDP 16001 bằng thư viện
+\texttt{pymavlink}. Vòng lặp \texttt{control\_loop()} sử dụng chế độ
+\texttt{blocking=False} --- không chờ nếu không có gói tin mới --- để
+tránh chặn vòng lặp khi GCS tạm ngừng gửi. Khi không có gói tin,
+vòng lặp nghỉ $200\,ms$ để giảm tải CPU.
+
+Hệ thống xử lý ba loại gói tin MAVLink:
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|p{8cm}|}
+\hline
+\textbf{Loại gói tin} & \textbf{Xử lý} \\
+\hline
+\texttt{HEARTBEAT} &
+    Cập nhật \texttt{lasttime\_heartbeat}. Dùng để giám sát kết nối
+    --- nếu quá $5\,s$ không nhận được heartbeat, hệ thống tự động
+    chuyển về manual mode và dừng toàn bộ động cơ. \\
+\hline
+\texttt{MANUAL\_CONTROL} &
+    Trích xuất 4 trục $(x, y, z, r)$ và trường \texttt{buttons},
+    gọi \texttt{control\_thruster()} để điều khiển chuyển động và
+    xử lý thiết bị phụ trợ theo bitmask. \\
+\hline
+\texttt{SET\_MODE} &
+    Gọi \texttt{process\_command()} để chuyển chế độ hoạt động
+    (manual, giữ hướng, giữ độ sâu). \\
+\hline
+\end{tabular}
+\caption{Các loại gói tin MAVLink ROV xử lý}
+\label{tab:mavlink_recv}
+\end{table}
+\subsubsection{Cơ chế giám sát kết nối Heartbeat Watchdog}
+ 
+Trong môi trường dưới nước, mất tín hiệu điều khiển là sự cố
+nghiêm trọng nhất có thể xảy ra với ROV. Nếu cáp tín hiệu bị kéo
+lỏng hoặc GCS gặp sự cố, ROV sẽ tiếp tục thực hiện lệnh cuối cùng
+--- động cơ vẫn quay, ROV tiếp tục di chuyển mà không có sự kiểm
+soát của người vận hành. Để phòng ngừa tình huống này, phần mềm
+tích hợp cơ chế \textbf{Heartbeat Watchdog} hoạt động ngay bên
+trong vòng lặp \texttt{control\_loop()}.
+ 
+\paragraph{Nguyên lý hoạt động.}
+ 
+Theo giao thức MAVLink, GCS gửi gói \texttt{HEARTBEAT} định kỳ
+$1\,\text{Hz}$ để thông báo rằng trạm điều khiển vẫn đang hoạt
+động và duy trì kết nối. Phía ROV duy trì hai biến trạng thái:
+ 
+\begin{itemize}
+    \item \texttt{lasttime\_heartbeat}: thời điểm nhận được gói
+    \texttt{HEARTBEAT} gần nhất, khởi tạo bằng \texttt{time.time()}
+    khi chương trình bắt đầu.
+    \item \texttt{is\_lost\_connection}: cờ boolean ngăn kích hoạt
+    watchdog lặp lại sau khi đã xử lý một lần mất kết nối.
+\end{itemize}
+ 
+Sau mỗi lần thăm dò gói tin (non-blocking \texttt{recv\_match()}),
+vòng lặp kiểm tra điều kiện:
+ 
+\begin{equation}
+    t_{\text{now}} - t_{\text{last\_hbt}} > T_{\text{timeout}}
+    \quad \text{với } T_{\text{timeout}} = 5{,}0\,\text{s}
+    \label{eq:hbt_watchdog}
+\end{equation}
+ 
+Nếu điều kiện~\eqref{eq:hbt_watchdog} thoả mãn và
+\texttt{is\_lost\_connection} đang là \texttt{False}, watchdog thực
+hiện tuần tự ba hành động an toàn:
+ 
+\begin{enumerate}
+    \item Đặt \texttt{is\_lost\_connection = True} để ngăn lặp lại.
+    \item Gọi \texttt{process\_command(2)} chuyển ROV về chế độ
+    Manual, huỷ bỏ mọi vòng giữ hướng hay giữ độ sâu đang hoạt
+    động.
+    \item Gọi \texttt{send\_thrust\_pwm([0]*8)} ghi $1500\,\mu s$
+    lên toàn bộ 8 kênh PCA9685, dừng hoàn toàn tất cả động cơ.
+\end{enumerate}
+ 
+Sau đó \texttt{lasttime\_heartbeat} được đặt lại bằng thời điểm
+hiện tại để tránh điều kiện~\eqref{eq:hbt_watchdog} bị thoả mãn
+liên tục trong các vòng lặp tiếp theo.
+ 
+\paragraph{Phục hồi kết nối.}
+ 
+Khi GCS khởi động lại hoặc cáp tín hiệu được cắm lại, ROV nhận
+được gói tin bất kỳ từ GCS (không nhất thiết phải là
+\texttt{HEARTBEAT}). Khối xử lý \texttt{if msg is not None} đặt
+lại \texttt{is\_lost\_connection = False}, watchdog không còn bị
+khoá và hệ thống hoạt động bình thường trở lại mà không cần bất kỳ
+thao tác khởi động lại nào từ phía người vận hành.
+ 
+\paragraph{Lưu ý triển khai.}
+ 
+Cơ chế watchdog không chạy trên luồng độc lập mà được nhúng trực
+tiếp vào cuối mỗi vòng lặp của \texttt{control\_loop()}. Khi ROV
+không nhận được gói tin nào (\texttt{msg is None}), vòng lặp ngủ
+$200\,\text{ms}$ trước khi thăm dò lại. Do đó, trong trường hợp
+xấu nhất, độ trễ phát hiện mất kết nối có thể lên tới
+$T_{\text{timeout}} + 200\,\text{ms} \approx 5{,}2\,\text{s}$ ---
+chấp nhận được với yêu cầu an toàn của ROV nghiên cứu.
+ 
+Hình~\ref{fig:heartbeat_watchdog} mô tả sơ đồ trạng thái của cơ
+chế này.
+ 
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{figures/watch_dog.drawio.png}
+    \caption{Sơ đồ trạng thái cơ chế Heartbeat Watchdog: ROV tự
+    động ngắt động cơ và chuyển về Manual mode sau
+    $5\,\text{s}$ không nhận được tín hiệu từ GCS}
+    \label{fig:heartbeat_watchdog}
+\end{figure}
+\subsection{Kênh cấu hình động cơ (udp\_config\_listener)}
+
+Song song với kênh MAVLink, một luồng riêng lắng nghe trên cổng UDP
+12345 để nhận lệnh cấu hình động cơ từ GCS. Kênh này dùng giao thức
+văn bản thuần túy (plain text) thay vì MAVLink vì dữ liệu cấu hình
+không yêu cầu độ trễ thấp và cần dễ debug. Hai lệnh được hỗ trợ:
+\texttt{PING:channel} để kích hoạt thử từng động cơ, và
+\texttt{SAVE\_CONFIG:json} để lưu ánh xạ kênh động cơ. Chi tiết xử
+lý hai lệnh này được trình bày ở mục cấu hình động cơ.
+
 
 \section{Module cơ cấu chấp hành}
 \subsection{Điều khiển ESC và cơ cấu chấp hành qua PCA9685}
 
 Để điều khiển hệ thống động cơ (thông qua ESC), hệ thống đèn chiếu sáng và các cơ cấu servo (tay gắp, độ ngẩng camera), ROV sử dụng vi điều khiển mở rộng PWM 16-channel 12-bit PCA9685. Chip này giao tiếp với SoC QCS8550 qua bus I2C số 1 tại địa chỉ \texttt{0x40}. Việc sử dụng PCA9685 giúp giải phóng tài nguyên phần cứng của SoC, đảm bảo xung điều khiển động cơ luôn ổn định, không bị méo tiếng hoặc trễ do phân phối đa nhiệm của hệ điều hành.
-
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{figures/Module_co_Cau_chap_hanh_rov.drawio.png}
+    \caption{Sơ đồ luồng Module cơ cấu chấp hành}
+    \label{fig:module_Co_Cau_chap_hanh_ROV}
+\end{figure}
 \paragraph{Kiến trúc phần cứng và Quản lý GPIO.}
 
 Hệ thống tích hợp chân cho phép xuất đầu ra Output Enable ($\overline{\text{OE}}$) của PCA9685 với chân số 8 thuộc chip GPIO ngoại vi \texttt{/dev/gpiochip1}. Quá trình quản lý pin được thực hiện thông qua thư viện \texttt{gpiod} hiện đại (V2 API) thay vì hệ thống sysfs cũ đã bị loại bỏ:
@@ -255,15 +611,803 @@ Do việc điều khiển đồng thời nhiều động cơ yêu cầu tần su
 Hàm \texttt{channels\_set\_raw()} đóng gói toàn bộ giá trị \texttt{ON} ($0, 0$) và \texttt{OFF} của cả 16 kênh vào một mảng byte duy nhất và thực hiện ghi một lần (\textit{Block Write}) bắt đầu từ thanh ghi gốc \texttt{REG\_LED0\_ON\_L} ($0\text{x06}$). Sau mỗi lệnh ghi, hệ thống thực hiện đọc ngược lại trạng thái thanh ghi (\textit{Read-back Verification}) để đối chiếu dữ liệu; nếu phát hiện sai lệch do nhiễu đường truyền, một ngoại lệ sẽ được ném ra để hệ thống xử lý failsafe kịp thời.
 
 Khi kết thúc tiến trình hoặc hệ thống gặp sự cố nghiêm trọng, hàm giải phóng \texttt{release\_gpio()} sẽ được kích hoạt nhằm cấu hình lại chân $\overline{\text{OE}}$ về trạng thái đầu vào (\texttt{Direction.INPUT}) tách biệt trở kháng, giải phóng tài nguyên dòng lệnh và đóng an toàn kết nối xử lý chip nhằm đưa toàn bộ hệ thống động cơ về trạng thái dừng hoàn toàn.
-\subsection{Điểu khiển đèn chiếu sáng}
-\subsection{Điểu khiển độ ngẩng camera}
-\subsection{Điểu khiển tay gắp (Gripper)}
+\subsection{Điều khiển động cơ (ESC)}
 
-\section{Module telemtry}
-\subsection{Đóng gói và phát dữ liệu về cho GCS}
+Mỗi động cơ được điều khiển thông qua một bộ ESC (Electronic Speed
+Controller) nhận tín hiệu PWM chuẩn RC từ PCA9685. ESC diễn giải độ
+rộng xung trong dải $1000$--$2000\,\mu s$ thành tốc độ và chiều quay
+của động cơ, với $1500\,\mu s$ là điểm trung tính (dừng). Dải hoạt
+động thực tế bị giới hạn bởi hệ số \texttt{ESC\_GAIN} $\in (0, 1]$:
 
-\section{Moule cấu hình động cơ}
-\subsubsection{UDP config listener}
-\subsubsection{Load, Save THRUSTER\_MAP}
+\begin{equation}
+    PWM_i = \text{clip}(t_i, -1, 1) \times ESC\_GAIN \times 400 + 1500\,(\mu s)
+\end{equation}
+
+Với \texttt{ESC\_GAIN = 0.5} (mặc định), dải PWM thực tế là
+$[1300, 1700]\,\mu s$, tương ứng $50\%$ công suất tối đa. Người vận
+hành có thể điều chỉnh \texttt{ESC\_GAIN} trực tiếp trong khi vận hành
+thông qua slider Joystick, cho phép kiểm soát mức công suất phù hợp
+với điều kiện dòng nước và nhiệm vụ cụ thể. Giá trị $t_i \in [-1, 1]$
+là lực chuẩn hóa của từng động cơ, được tính bởi module điều khiển
+thông qua ma trận mixing (trình bày chi tiết ở mục điều khiển thủ
+công).
+
+Khi khởi động, toàn bộ 8 kênh được ghi $1500\,\mu s$ để arm ESC ---
+quy trình bắt buộc với hầu hết ESC thủy lực trước khi chấp nhận lệnh
+điều khiển.
+
+\subsection{Điều khiển đèn chiếu sáng}
+
+Đèn chiếu sáng được kết nối cố định tại kênh 15 của PCA9685
+(\texttt{LIGHT\_I2C\_ADDR = 15}). Cường độ sáng được biểu diễn qua
+biến \texttt{LightPower} $\in [0, 100]$ (đơn vị \%), ánh xạ tuyến
+tính sang dải PWM $[1100, 1900]\,\mu s$:
+\begin{equation}
+    PWM_{light} = LightPower \times 8 + 1100\,(\mu s)
+\end{equation}
+Hệ thống duy trì hai trạng thái độc lập: \texttt{LightPower} lưu mức
+sáng mong muốn, \texttt{Light\_Status} lưu trạng thái bật/tắt. Khi
+\texttt{Light\_Status = 0}, kênh 15 luôn nhận $1100\,\mu s$ bất kể
+\texttt{LightPower}, đảm bảo đèn tắt hoàn toàn. Khi bật lại, đèn
+khôi phục đúng mức sáng đã cài đặt trước đó mà không cần điều chỉnh
+lại.
+
+\subsection{Điều khiển độ ngẩng camera (Camera Tilt)}
+
+Servo camera tilt được kết nối tại kênh 2
+(\texttt{CAMERA\_TILT\_I2C\_ADDR = 2}), điều khiển góc nghiêng của
+camera trong dải $[-45°, +45°]$. Biến \texttt{Camera\_Tilt} (đơn vị
+độ) được ánh xạ tuyến tính sang PWM:
+\begin{equation}
+    PWM_{tilt} = 1500 + Camera\_Tilt \times \frac{400}{45}\,(\mu s)
+\end{equation}
+Góc $0°$ tương ứng $1500\,\mu s$ (nhìn thẳng), $+45°$ tương ứng
+$1900\,\mu s$ (ngẩng tối đa), $-45°$ tương ứng $1100\,\mu s$ (hạ tối
+đa). Mỗi lần nhận lệnh từ GCS, \texttt{Camera\_Tilt} được tăng hoặc
+giảm $1°$ và được giới hạn trong $[-45°, +45°]$ trước khi tính PWM,
+tránh gửi giá trị vượt dải hoạt động của servo.
+
+\subsection{Điều khiển tay gắp (Gripper)}
+
+Gripper được kết nối tại kênh 14 (\texttt{GRIPPER\_ADDR = 14}), hoạt
+động theo kiểu hai trạng thái cố định --- không có vị trí trung gian
+--- phù hợp với cơ cấu cơ học dạng kẹp nhị phân:
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|l|}
+\hline
+\textbf{Trạng thái} & \textbf{PWM ($\mu s$)} & \textbf{Hàm điều khiển} \\
+\hline
+Đóng & $1200$ & \texttt{gripper\_close()} \\
+Mở   & $1700$ & \texttt{gripper\_open()} \\
+\hline
+\end{tabular}
+\caption{Thông số PWM điều khiển gripper}
+\label{tab:gripper_pwm}
+\end{table}
+
+PCA9685 duy trì tín hiệu PWM liên tục sau mỗi lần ghi, nghĩa là
+gripper giữ nguyên vị trí mà không cần phần mềm ghi lặp lại, giảm
+tải I2C bus trong vòng lặp điều khiển chính.
+
+
+\section{Moudle điểu khiển}
+\subsection{Điều khiển thủ công - Mixing matrix và điểu khiển động cơ}
+
+Module điều khiển thủ công (Manual Control) là thành phần chịu trách
+nhiệm tiếp nhận các lệnh điều khiển từ Trạm điều khiển mặt đất (Ground
+Control Station -- GCS) và chuyển đổi thành tín hiệu điều khiển cho các
+động cơ đẩy của ROV. Đây là chế độ vận hành cơ bản, cho phép người điều
+khiển tác động trực tiếp đến chuyển động của ROV thông qua tay điều
+khiển (Joystick).
+
+Trong hệ thống được xây dựng, các lệnh điều khiển được truyền từ GCS
+đến Raspberry Pi thông qua giao thức MAVLink dưới dạng bản 
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{figures/Module_Dieu_khien.drawio.png}
+    \caption{Module điểu khiển}
+    \label{fig:module_dieu_khien}
+\end{figure}
+\texttt{MANUAL\_CONTROL}. Bản tin này bao gồm bốn thành phần điều khiển,
+tương ứng với bốn chuyển động chính của ROV:
+
+\begin{itemize}
+    \item \textbf{Forward/Backward}: điều khiển ROV tiến hoặc lùi.
+    \item \textbf{Left/Right}: điều khiển ROV di chuyển sang trái hoặc phải.
+    \item \textbf{Up/Down}: điều khiển ROV nổi lên hoặc lặn xuống.
+    \item \textbf{Rotation}: điều khiển ROV quay quanh trục thẳng đứng.
+\end{itemize}
+
+Sau khi nhận được bản tin điều khiển, firmware chuẩn hóa giá trị các
+trục joystick về khoảng $[-1,1]$ để thuận tiện cho quá trình tính toán
+và phân phối lực đến các động cơ.
+
+\subsubsection{Cấu hình hệ thống động cơ}
+
+ROV được trang bị tổng cộng tám động cơ đẩy (Thruster), bao gồm bốn
+động cơ nằm ngang và bốn động cơ thẳng đứng.
+
+\begin{itemize}
+    \item Bốn động cơ ngang đảm nhiệm các chuyển động
+    Forward/Backward, Left/Right và Rotation.
+    \item Bốn động cơ đứng đảm nhiệm chuyển động Up/Down.
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0textwidth]{Hinhve/thrusterLocation.png}
+    \caption{Cấu hình vị trí các động cơ đẩy}
+    \label{fig:system_architecture}
+\end{figure}
+
+Các động cơ được bố trí đối xứng quanh thân ROV nhằm tạo lực cân bằng
+và tăng khả năng cơ động trong môi trường dưới nước. Tuy nhiên, mỗi
+động cơ không chỉ tạo ra một chuyển động riêng biệt mà còn đồng thời
+đóng góp vào nhiều chuyển động khác nhau. Vì vậy, firmware cần sử dụng
+thuật toán phân phối lực (Thruster Mixing) để xác định lực cần cấp cho
+từng động cơ.
+
+\subsubsection{Thuật toán phân phối lực}
+
+Firmware sử dụng phương pháp \textit{Mixing Matrix} để chuyển đổi bốn
+thành phần điều khiển từ joystick thành lực của tám động cơ.
+
+Giả sử vector điều khiển nhận được từ GCS là
+
+\begin{equation}
+\mathbf{U}
+=
+\begin{bmatrix}
+Forward\\
+LeftRight\\
+UpDown\\
+Rotation
+\end{bmatrix}
+\end{equation}
+
+Trong đó:
+
+\begin{itemize}
+    \item Forward biểu diễn lệnh tiến hoặc lùi.
+    \item LeftRight biểu diễn lệnh di chuyển ngang.
+    \item UpDown biểu diễn lệnh nổi hoặc lặn.
+    \item Rotation biểu diễn lệnh quay quanh trục đứng.
+\end{itemize}
+
+Mục tiêu của thuật toán là xác định lực cần cấp cho tám động cơ
+
+\begin{equation}
+\mathbf{T}
+=
+\begin{bmatrix}
+T_1&T_2&T_3&T_4&T_5&T_6&T_7&T_8
+\end{bmatrix}^{T}
+\end{equation}
+
+Thông qua phép nhân ma trận
+
+\begin{equation}
+\mathbf{T}=M\mathbf{U}
+\end{equation}
+
+trong đó $M$ là ma trận Mixing được xây dựng dựa trên vị trí lắp đặt và
+hướng tạo lực của từng động cơ.
+
+\begin{equation}
+M=
+\begin{bmatrix}
+1&-1&0&-0.7071\\
+-1&-1&0&-0.7071\\
+1&1&0&-0.7071\\
+1&-1&0&0.7071\\
+0&0&1&0\\
+0&0&-1&0\\
+0&0&-1&0\\
+0&0&1&0
+\end{bmatrix}
+\end{equation}
+
+Mỗi hàng của ma trận biểu diễn mức đóng góp của một động cơ đối với bốn
+chuyển động của ROV.
+
+Bốn hàng đầu tương ứng với các động cơ nằm ngang. Các động cơ này đồng
+thời tham gia tạo lực tiến/lùi, lực ngang và mô-men quay. Do được bố
+trí nghiêng góc $45^\circ$ so với trục dọc của thân ROV nên thành phần
+lực tạo mô-men quay được nhân với hệ số
+
+\[
+\cos45^\circ=\frac{\sqrt2}{2}\approx0.7071.
+\]
+
+Bốn hàng cuối tương ứng với các động cơ thẳng đứng. Các động cơ này chỉ
+tham gia tạo chuyển động nổi hoặc lặn nên chỉ có thành phần
+Up/Down, các thành phần còn lại bằng không.
+
+Sau khi thực hiện phép nhân ma trận, firmware thu được lực yêu cầu của
+từng động cơ dưới dạng các giá trị chuẩn hóa trong khoảng $[-1,1]$.
+
+\subsubsection{Chuyển đổi sang tín hiệu PWM}
+
+Giá trị lực của mỗi động cơ sau khi tính toán được giới hạn nhằm tránh
+hiện tượng vượt quá khả năng điều khiển của ESC. Sau đó firmware chuyển
+đổi giá trị lực thành độ rộng xung PWM theo công thức
+
+\begin{equation}
+PWM_i
+=
+1500
++
+T_i
+\times
+ESC\_GAIN
+\times
+400
+\end{equation}
+
+Trong đó:
+
+\begin{itemize}
+    \item $1500\,\mu s$ là mức PWM trung tính.
+    \item $400\,\mu s$ là biên điều khiển tối đa.
+    \item $ESC\_GAIN$ là hệ số giới hạn công suất của động cơ.
+\end{itemize}
+
+Các giá trị PWM sau đó được gửi tới bộ điều khiển PCA9685 thông qua
+giao tiếp I\textsuperscript{2}C để phát xung điều khiển đến các ESC,
+từ đó điều chỉnh tốc độ quay của từng động cơ.
+
+\subsubsection{Luồng xử lý của firmware}
+
+Quá trình điều khiển thủ công trong firmware được thực hiện theo các
+bước sau:
+
+\begin{enumerate}
+    \item Nhận bản tin \texttt{MANUAL\_CONTROL} từ GCS.
+    \item Chuẩn hóa giá trị của bốn trục điều khiển.
+    \item Tính toán lực của tám động cơ bằng thuật toán Mixing Matrix.
+    \item Giới hạn giá trị lực và áp dụng hệ số công suất
+    \texttt{ESC\_GAIN}.
+    \item Chuyển đổi lực thành tín hiệu PWM.
+    \item Gửi PWM tới PCA9685 để điều khiển các ESC và động cơ.
+\end{enumerate}
+
+Nhờ sử dụng phương pháp phân phối lực bằng Mixing Matrix, firmware có
+thể chuyển đổi trực tiếp các thao tác của người điều khiển thành lực
+đẩy phù hợp cho từng động cơ, đảm bảo ROV thực hiện đồng thời nhiều
+chuyển động khác nhau một cách ổn định và linh hoạt.
+```
+
+
+\subsection{Điều khiển tự động}
+Bên cạnh chế độ điều khiển thủ công, firmware hỗ trợ các chế độ giữ hướng, giữ độ sâu và bám giữ mục tiêu dựa trên thị giác. Các chế độ này sử dụng chung vectơ điều khiển:
+\[
+\mathbf{U} = 
+\begin{bmatrix}
+u_f & u_l & u_z & u_\psi
+\end{bmatrix}^{T}
+\]
+trong đó $u_f$, $u_l$, $u_z$ và $u_\psi$ lần lượt là lệnh tiến--lùi, di chuyển ngang, lên--xuống và quay yaw. Sau khi các thành phần tự động được tính toán, vectơ $\mathbf{U}$ tiếp tục được đưa qua ma trận trộn đã trình bày tại Mục 4.5.1.
+
+\subsubsection{PID giữ hướng}
+Khi chế độ Hold Heading được kích hoạt, góc yaw hiện tại được lưu làm giá trị đặt:
+\[
+\psi_d = \psi(t_0)
+\]
+Do góc yaw là đại lượng tuần hoàn, sai lệch góc không được tính bằng phép trừ trực tiếp mà được chuẩn hóa theo:
+\[
+e_\psi(k) = -\operatorname{atan2} \left( \sin\left(\psi_d-\psi(k)\right), \cos\left(\psi_d-\psi(k)\right) \right)
+\]
+Công thức trên đưa sai lệch về miền:
+\[
+e_\psi \in [-\pi, \pi]
+\]
+nhờ đó bộ điều khiển luôn chọn chiều quay ngắn nhất. Dấu âm được sử dụng để phù hợp với quy ước chiều dương của kênh yaw trong hệ thống.
+
+Các thành phần PID rời rạc được tính như sau:
+\[
+I_\psi(k) = I_\psi(k-1) + e_\psi(k)\Delta t
+\]
+\[
+D_\psi(k) = \frac{e_\psi(k)-e_\psi(k-1)}{\Delta t}
+\]
+\[
+u_\psi(k) = K_{P\psi}e_\psi(k) + K_{I\psi}I_\psi(k) + K_{D\psi}D_\psi(k)
+\]
+Giá trị $u_\psi$ được ghi vào thành phần yaw của vectơ điều khiển, giúp ROV chống lại ảnh hưởng của dòng nước, tether hoặc lực đẩy không cân bằng và duy trì hướng tại thời điểm kích hoạt.
+
+\subsubsection{PID giữ độ sâu}
+Khi chế độ Hold Depth được kích hoạt, độ sâu hiện tại được lưu làm giá trị đặt:
+\[
+z_d = z(t_0)
+\]
+Sai lệch độ sâu được xác định bởi:
+\[
+e_z(k) = z_d - z(k)
+\]
+Các thành phần PID được cập nhật:
+\[
+I_z(k) = I_z(k-1) + e_z(k)\Delta t
+\]
+\[
+D_z(k) = \frac{e_z(k)-e_z(k-1)}{\Delta t}
+\]
+Đầu ra điều khiển theo phương thẳng đứng được tính:
+\[
+u_z(k) = -\left[ K_{Pz}e_z(k) + K_{Iz}I_z(k) + K_{Dz}D_z(k) \right]
+\]
+Dấu âm xuất hiện do cảm biến biểu diễn độ sâu tăng theo chiều đi xuống, trong khi thành phần ascend của vectơ điều khiển sử dụng quy ước chiều ngược lại. Bộ điều khiển vì vậy tạo lực bù phù hợp để đưa ROV trở lại độ sâu đã lưu.
+
+\subsection{Điều khiển giữ vị trí theo DVL}
+
+Chế độ Hold Position sử dụng dữ liệu vị trí và vận tốc trên mặt phẳng ngang từ DVL để duy trì ROV tại tọa độ đặt $(x_d, y_d)$. Đồng thời, hệ thống tiếp tục sử dụng vòng giữ hướng để duy trì góc yaw tại thời điểm kích hoạt.
+
+Sai lệch vị trí theo hai trục được xác định:
+\[
+e_x(k) = x_d - x_{\mathrm{DVL}}(k)
+\]
+\[
+e_y(k) = y_d - y_{\mathrm{DVL}}(k)
+\]
+trong đó $x_{\mathrm{DVL}}$ và $y_{\mathrm{DVL}}$ là tọa độ hiện tại do DVL cung cấp. Khi sai lệch nằm trong vùng chết $(|e_x| < \delta_p \lor |e_y| < \delta_p)$, sai lệch tương ứng được đưa về 0. Thành phần tích phân đồng thời được suy giảm để tránh tích lũy sai số dư thừa:
+\[
+I_x(k) = 0.9 I_x(k-1), \qquad I_y(k) = 0.9 I_y(k-1)
+\]
+
+Khi sai lệch nằm ngoài vùng chết, thành phần tích phân được cập nhật và giới hạn:
+\[
+I_x(k) = \operatorname{clip}\left[ I_x(k-1) + e_x(k)\Delta t,\ -I_{p,\max},\ I_{p,\max} \right]
+\]
+\[
+I_y(k) = \operatorname{clip}\left[ I_y(k-1) + e_y(k)\Delta t,\ -I_{p,\max},\ I_{p,\max} \right]
+\]
+
+Lệnh điều khiển trong hệ tọa độ cố định (\textit{world frame}) được tính theo luật PD+I:
+\[
+u_x^{w}(k) = K_{Px}e_x(k) + K_{Ix}I_x(k) - K_{Dx}v_{x,\mathrm{DVL}}(k)
+\]
+\[
+u_y^{w}(k) = K_{Py}e_y(k) + K_{Iy}I_y(k) - K_{Dy}v_{y,\mathrm{DVL}}(k)
+\]
+trong đó $v_{x,\mathrm{DVL}}$ và $v_{y,\mathrm{DVL}}$ là vận tốc do DVL đo được. Thành phần $-K_D v_{\mathrm{DVL}}$ đóng vai trò suy giảm vận tốc (\textit{damping}), giúp tạo lệnh ngược chiều khi ROV đang chuyển động nhanh nhằm giảm quá điều chỉnh.
+
+Lệnh trong hệ tọa độ DVL được giới hạn biên độ:
+\[
+u_x^{w} = \operatorname{clip}\left(u_x^{w},\ -u_{p,\max},\ u_{p,\max}\right)
+\]
+\[
+u_y^{w} = \operatorname{clip}\left(u_y^{w},\ -u_{p,\max},\ u_{p,\max}\right)
+\]
+
+Do tọa độ và vận tốc DVL được biểu diễn trong hệ tọa độ cố định, trong khi các thruster tạo chuyển động theo hệ tọa độ gắn với thân ROV, vectơ lệnh phải được quay theo góc yaw hiện tại:
+\[
+\begin{bmatrix}
+u_f \\ u_l
+\end{bmatrix}
+=
+\begin{bmatrix}
+\cos\psi & \sin\psi \\
+-\sin\psi & \cos\psi
+\end{bmatrix}
+\begin{bmatrix}
+u_x^{w} \\ u_y^{w}
+\end{bmatrix}
+\]
+trong đó $u_f$ là lệnh tiến--lùi (surge), $u_l$ là lệnh di chuyển ngang (sway) và $\psi$ là góc yaw hiện tại. Phép biến đổi này đưa vectơ điều khiển từ hệ tọa độ DVL sang hệ tọa độ thân, cho phép ROV duy trì vị trí trong không gian ngay cả khi thân phương tiện đang quay.
+
+Hai thành phần sau biến đổi tiếp tục được giới hạn biên độ, sau đó hiệu chỉnh theo hệ số của tầng chấp hành:
+\[
+u_f^{\mathrm{cmd}} = \operatorname{clip}\left(u_f,\ -u_{p,\max},\ u_{p,\max}\right) \cdot \frac{0.4}{G_{\mathrm{ESC}}}
+\]
+\[
+u_l^{\mathrm{cmd}} = \operatorname{clip}\left(u_l,\ -u_{p,\max},\ u_{p,\max}\right) \cdot \frac{0.4}{G_{\mathrm{ESC}}}
+\]
+trong đó $G_{\mathrm{ESC}}$ là hệ số khuếch đại của tầng điều khiển động cơ.
+
+Chế độ Hold Position chỉ điều khiển hai thành phần surge và sway; trục heave tiếp tục nhận lệnh từ joystick hoặc Hold Depth nếu được kích hoạt. Đồng thời, vòng giữ hướng (Hold Heading) luôn hoạt động song song nhằm duy trì góc $\psi$, giúp phép quay hệ tọa độ ổn định và tránh thay đổi hướng camera không mong muốn trong quá trình ROV trở về vị trí đặt.
+
+\subsubsection{PID dự ổn định dựa vào AI bám theo vật thể}
+Khi Hold Vision được kích hoạt, hệ thống đồng thời lưu hướng hiện tại và bật Hold Heading nhằm hạn chế camera bị quay khỏi mục tiêu. Bộ xử lý thị giác gửi về các đại lượng:
+\[
+e_x, \qquad e_y, \qquad e_s
+\]
+trong đó $e_x$ là sai lệch ngang đã chuẩn hóa, $e_y$ là sai lệch dọc và $e_s$ là sai lệch tỷ lệ kích thước biểu kiến của mục tiêu.
+
+Trong phiên bản hiện tại:
+\[
+e_x \rightarrow u_l
+\]
+\[
+e_s \rightarrow u_f
+\]
+Kênh di chuyển ngang được điều khiển theo dạng PD:
+\[
+u_l(k) = K_{Pvx}e_l(k) + K_{Dvx}D_l(k)
+\]
+Kênh tiến--lùi hiện sử dụng điều khiển tỉ lệ:
+\[
+u_f(k) = K_{Pvr}e_r(k)
+\]
+trong đó $e_l$ và $e_r$ được tạo từ sai lệch ngang và sai lệch tỷ lệ sau khi áp dụng vùng chết và quy ước chiều điều khiển.
+
+Sai lệch dọc $e_y$ được truyền về controller nhưng chưa được sử dụng để điều khiển thành phần $u_z$. Chuyển động heave vẫn do Hold Depth đảm nhiệm.
+
+Hold Vision chỉ ghi đè các thành phần tiến--lùi và di chuyển ngang khi dữ liệu thị giác hợp lệ, chưa vượt thời gian timeout và người vận hành không tác động joystick. Khi xuất hiện lệnh thủ công, quyền điều khiển được trả ngay cho người vận hành và bộ nhớ điều khiển thị giác được reset.
+
+Chi tiết về thuật toán theo dõi mục tiêu, quá trình chuẩn hóa sai lệch và thiết kế các bộ điều khiển thị giác được trình bày tại Chương 6.
+
+
+\section{Module Telemetry}
+
+Module telemetry chịu trách nhiệm đóng gói toàn bộ dữ liệu cảm biến
+và trạng thái hệ thống thành các gói tin MAVLink, gửi định kỳ về GCS
+mỗi $1\,s$ thông qua 5 kênh UDP độc lập đã được thiết lập ở module
+truyền thông. Hình~\ref{fig:telemetry_flow} mô tả luồng dữ liệu từ
+từng nguồn cảm biến đến kênh gửi tương ứng.
+
+% Chèn sơ đồ telemetry vào đây
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.0\textwidth]{figures/ROVtemetry_flow.drawio.png}
+    \caption{Luồng dữ liệu telemetry từ cảm biến ROV đến giao diện GCS}
+    \label{fig:telemetry_flow}
+\end{figure}
+
+Điều kiện kích hoạt toàn bộ module là \texttt{masterout\_hbt != None}
+--- hệ thống chỉ bắt đầu phát telemetry sau khi đã nhận ping từ GCS
+và khởi tạo xong 5 kênh gửi (theo cơ chế UC01 ở module truyền thông).
+Vòng lặp chính gọi tuần tự 5 hàm đóng gói rồi nghỉ $1\,s$, đảm bảo
+tần suất cập nhật đồng đều và không gây tắc nghẽn băng thông.
+
+\subsection{Heartbeat}
+
+Hàm \texttt{send\_heartbeat()} gửi gói \texttt{HEARTBEAT} qua kênh
+\texttt{masterout\_hbt} (cổng 16001) với trạng thái
+\texttt{MAV\_STATE\_ACTIVE}, xác nhận ROV đang hoạt động bình thường.
+Phía GCS, luồng \texttt{HBT\_Thread} lắng nghe gói này và khởi động
+lại bộ đếm thời gian $5\,s$ mỗi khi nhận được --- nếu bộ đếm hết mà
+không có gói mới, GCS chuyển trạng thái kết nối thành mất kết nối và
+hiển thị cảnh báo trên giao diện.
+
+\subsection{Tư thế (Attitude)}
+
+Hàm \texttt{send\_attitude()} gửi gói \texttt{ATTITUDE} qua kênh
+\texttt{masterout\_att} (cổng 16005), mang ba góc tư thế
+\texttt{latest\_roll}, \texttt{latest\_pitch}, \texttt{latest\_yaw}
+đọc từ bộ lọc EKF. Do gói \texttt{ATTITUDE} có ba trường tốc độ góc
+(\texttt{rollspeed}, \texttt{pitchspeed}, \texttt{yawspeed}) không
+được sử dụng trong hệ thống này, ba trường đó được tận dụng để gửi
+thêm dữ liệu pin và độ sâu:
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Trường MAVLink} & \textbf{Ý nghĩa gốc} & \textbf{Dữ liệu thực tế gửi} \\
+\hline
+\texttt{roll}       & Góc nghiêng       & \texttt{latest\_roll} (rad) \\
+\texttt{pitch}      & Góc ngẩng     & \texttt{latest\_pitch} (rad) \\
+\texttt{yaw}        & Góc hướng     & \texttt{latest\_yaw} (rad) \\
+\texttt{rollspeed}  & Tốc độ lăn   & Dòng điện thô ADC (\texttt{raw\_i}) \\
+\texttt{pitchspeed} & Tốc độ ngẩng & Phần trăm pin SOC \\
+\texttt{yawspeed}   & Tốc độ hướng & Độ sâu hiện tại (m) \\
+\hline
+\end{tabular}
+\caption{Ánh xạ trường gói ATTITUDE trong hệ thống ROV}
+\label{tab:attitude_fields}
+\end{table}
+
+Quyết định tận dụng trường thừa này giúp tiết kiệm một kênh UDP bổ
+sung chỉ để gửi hai giá trị dữ liệu pin và độ sâu. Phía GCS cần nắm
+rõ quy ước này khi đọc gói \texttt{ATTITUDE} để tránh hiểu nhầm giá
+trị tốc độ góc.
+
+\subsection{IMU thô}
+
+Hàm \texttt{send\_imu()} gửi gói \texttt{RAW\_IMU} qua kênh
+\texttt{masterout\_imu} (cổng 16004), mang dữ liệu 9 trục thô từ
+ICM20602 (gia tốc kế, con quay hồi chuyển) và MMC5983 (từ kế). Đây
+là dữ liệu trước khi qua bộ lọc EKF, phục vụ hiển thị trực quan trên
+giao diện và ghi log phân tích sau nhiệm vụ.
+
+\subsection{Trạng thái hệ thống}
+
+Hàm \texttt{send\_sys\_status()} gửi gói \texttt{SYS\_STATUS} kèm
+theo 9 gói\\ \texttt{NAMED\_VALUE\_FLOAT} qua kênh\texttt{masterout\_sta}
+(cổng 16002). Gói \texttt{SYS\_STATUS} mang thông tin điện áp pin,
+dòng điện và phần trăm pin theo chuẩn MAVLink. Các thông số đặc thù
+của ROV không có trường chuẩn trong MAVLink được gửi dưới dạng
+\texttt{NAMED\_VALUE\_FLOAT} --- mỗi gói mang một giá trị số thực
+kèm nhãn tên tối đa 10 ký tự:
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Nhãn} & \textbf{Nguồn dữ liệu} & \textbf{Hiển thị trên GCS} \\
+\hline
+\texttt{Temp}       & Si7021           & Nhiệt độ khoang kín (°C) \\
+\texttt{Humid}      & Si7021           & Độ ẩm khoang kín (\%) \\
+\texttt{Depth}      & MS5837           & Độ sâu (m) \\
+\texttt{WaterTemp}  & MS5837           & Nhiệt độ nước (°C) \\
+\texttt{CameraTilt} & Biến trạng thái  & Góc camera hiện tại (°) \\
+\texttt{LightLevel} & Biến trạng thái  & Mức độ sáng đèn (\%) \\
+\texttt{PowerLevel} & \texttt{ESC\_GAIN} $\times 100$ & Mức công suất động cơ (\%) \\
+\texttt{HoldHead}   & Biến trạng thái  & Trạng thái giữ hướng \\
+\texttt{HoldDepth}  & Biến trạng thái  & Trạng thái giữ độ sâu \\
+\hline
+\end{tabular}
+\caption{Danh sách gói NAMED\_VALUE\_FLOAT gửi về GCS mỗi chu kỳ 1s}
+\label{tab:named_value}
+\end{table}
+
+Mỗi chu kỳ $1\,s$, hệ thống gửi liên tiếp 9 gói này ngay sau gói
+\texttt{SYS\_STATUS} trên cùng kênh \texttt{masterout\_sta}, đảm bảo
+GCS luôn nhận đủ toàn bộ trạng thái hệ thống trong một chu kỳ.
+
+\subsection{Vị trí}
+
+Hàm \texttt{send\_global\_position()} gửi gói
+\texttt{GLOBAL\_POSITION\_INT} qua kênh \texttt{masterout\_pos} (cổng
+16003). Phiên bản hiện tại dùng tọa độ tĩnh cố định vì ROV chưa tích
+hợp GPS hoặc DVL. Trường này được thiết kế sẵn để tích hợp DVL trong
+tương lai mà không cần thay đổi cấu trúc giao tiếp phía GCS --- chỉ
+cần cập nhật hàm \texttt{send\_global\_position()} để đọc từ module
+DVL thay vì giá trị cố định.
+
+\section{Module cấu hình động cơ}
+
+Khác với các phiên bản ROV truyền thống, vị trí đấu nối giữa ESC và
+PCA9685 có thể thay đổi trong quá trình lắp ráp hoặc bảo trì. Nếu ánh
+xạ giữa động cơ vật lý và kênh PWM được ghi cố định trong chương trình,
+mỗi lần thay đổi dây nối đều phải sửa mã nguồn và nạp lại firmware.
+Để khắc phục hạn chế này, hệ thống xây dựng module cấu hình động cơ
+động (Dynamic Thruster Configuration), cho phép người vận hành thay
+đổi ánh xạ động cơ ngay trên GCS mà không cần biên dịch lại chương
+trình.
+
+Module bao gồm hai thành phần chính:
+
+\begin{itemize}
+    \item Luồng UDP nhận cấu hình từ GCS.
+    \item Module đọc và lưu bảng ánh xạ động cơ (\texttt{THRUSTER\_MAP}).
+\end{itemize}
+
+\subsection{Bảng ánh xạ động cơ}
+
+Trong toàn bộ hệ thống điều khiển, thuật toán Mixing Matrix luôn sinh
+ra lực của 8 động cơ theo thứ tự logic:
+
+\begin{center}
+Forward Right $\rightarrow$
+Forward Left $\rightarrow$
+Rear Right $\rightarrow$
+Rear Left $\rightarrow$
+Vertical Front Right $\rightarrow$
+Vertical Front Left $\rightarrow$
+Vertical Rear Right $\rightarrow$
+Vertical Rear Left
+\end{center}
+
+Tuy nhiên, số kênh PWM của PCA9685 phụ thuộc hoàn toàn vào cách đấu
+dây thực tế. Vì vậy hệ thống xây dựng bảng ánh xạ
+
+\begin{equation}
+THRUSTER\_MAP[i]
+\end{equation}
+
+để chuyển đổi từ chỉ số động cơ logic sang kênh PWM thực tế.
+
+Ví dụ:
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|c|c|c|}
+\hline
+\textbf{Động cơ logic} & \textbf{Tên} & \textbf{Kênh PCA9685} \\
+\hline
+0 & Forward Right & 9 \\
+1 & Forward Left & 10 \\
+2 & Rear Right & 4 \\
+3 & Rear Left & 6 \\
+4 & Vertical Front Right & 7 \\
+5 & Vertical Front Left & 8 \\
+6 & Vertical Rear Right & 5 \\
+7 & Vertical Rear Left & 11 \\
+\hline
+\end{tabular}
+\caption{Ví dụ ánh xạ giữa động cơ và kênh PWM}
+\end{table}
+
+Nhờ lớp ánh xạ này, toàn bộ thuật toán điều khiển phía trên không cần
+quan tâm động cơ đang được nối vào chân PWM nào.
+
+\subsection{Lưu cấu hình bằng JSON}
+
+Toàn bộ cấu hình được lưu trong tệp
+
+\begin{center}
+\texttt{thruster\_config.json}
+\end{center}
+
+với định dạng:
+
+\begin{verbatim}
+{
+    "forward-right": 9,
+    "forward-left": 10,
+    "rear-right": 4,
+    "rear-left": 6,
+    "vertical-forward-right": 7,
+    "vertical-forward-left": 8,
+    "vertical-rear-right": 5,
+    "vertical-rear-left": 11
+}
+\end{verbatim}
+
+Mỗi khóa biểu diễn tên logic của động cơ, còn giá trị là số kênh PWM
+trên PCA9685.
+
+Việc sử dụng JSON mang lại ba ưu điểm:
+
+\begin{itemize}
+    \item Dễ đọc và dễ chỉnh sửa bằng tay.
+    \item Có thể truyền trực tiếp từ GCS qua mạng.
+    \item Không phụ thuộc nền tảng hay ngôn ngữ lập trình.
+\end{itemize}
+
+\subsection{Đọc cấu hình khi khởi động}
+
+Ngay khi chương trình khởi động, hàm
+
+\begin{center}
+\texttt{load\_thrust\_config()}
+\end{center}
+
+được gọi để đọc file cấu hình.
+
+Quy trình thực hiện gồm các bước:
+
+\begin{enumerate}
+    \item Kiểm tra sự tồn tại của file cấu hình.
+    \item Đọc dữ liệu JSON.
+    \item Đối chiếu từng tên động cơ với bảng
+    \texttt{THRUSTER\_INDEX\_MAP}.
+    \item Ghi giá trị vào mảng
+    \texttt{THRUSTER\_MAP}.
+\end{enumerate}
+
+Nếu file không tồn tại hoặc dữ liệu JSON bị lỗi, hệ thống giữ nguyên
+cấu hình mặc định và ghi cảnh báo lên màn hình thay vì dừng chương
+trình. Thiết kế này đảm bảo ROV vẫn có thể hoạt động với cấu hình
+đã biên dịch sẵn.
+
+\subsection{Kênh UDP cấu hình động cơ}
+
+Song song với kênh MAVLink điều khiển, hệ thống mở thêm một socket UDP
+riêng trên cổng
+
+\begin{center}
+12345
+\end{center}
+
+để nhận các lệnh cấu hình.
+
+Luồng
+
+\begin{center}
+\texttt{udp\_config\_listener()}
+\end{center}
+
+hoạt động độc lập với vòng điều khiển chính nhằm tránh ảnh hưởng tới
+chu kỳ điều khiển thời gian thực.
+
+Module hỗ trợ hai loại bản tin.
+
+\subsubsection{Lệnh kiểm tra động cơ (PING)}
+
+Định dạng:
+
+\begin{center}
+\texttt{PING:channel}
+\end{center}
+
+Ví dụ:
+
+\begin{center}
+\texttt{PING:5}
+\end{center}
+
+Sau khi nhận lệnh, hệ thống thực hiện:
+
+\begin{enumerate}
+    \item Đọc số kênh PWM.
+    \item Xuất PWM 1650 $\mu s$ trong 1 giây.
+    \item Đưa PWM trở về mức trung tính 1500 $\mu s$.
+\end{enumerate}
+
+Nhờ vậy người vận hành có thể xác định chính xác động cơ nào đang nối
+với từng kênh PCA9685 trước khi lưu cấu hình chính thức.
+
+\subsubsection{Lệnh lưu cấu hình}
+
+Định dạng:
+
+\begin{center}
+\texttt{SAVE\_CONFIG:\{JSON\}}
+\end{center}
+
+Ví dụ GCS gửi toàn bộ bảng ánh xạ dưới dạng JSON.
+
+Sau khi nhận được dữ liệu:
+
+\begin{enumerate}
+    \item Giải mã chuỗi JSON.
+    \item Ghi vào
+    \texttt{thruster\_config.json}.
+    \item Gọi lại
+    \texttt{load\_thrust\_config()}.
+    \item Cập nhật ngay
+    \texttt{THRUSTER\_MAP}
+    mà không cần khởi động lại ROV.
+\end{enumerate}
+
+Nhờ cơ chế này, việc thay đổi thứ tự động cơ chỉ mất vài giây và hoàn
+toàn không cần biên dịch lại chương trình.
+
+\subsection{Thiết kế tích hợp hệ thống}
+
+Module cấu hình động cơ được đặt giữa tầng điều khiển chuyển động và
+driver PCA9685.
+
+Luồng dữ liệu được mô tả như sau:
+
+\begin{center}
+GCS
+
+$\downarrow$
+
+UDP Configuration
+
+$\downarrow$
+
+JSON Configuration
+
+$\downarrow$
+
+THRUSTER\_MAP
+
+$\downarrow$
+
+Mixing Matrix
+
+$\downarrow$
+
+PCA9685
+
+$\downarrow$
+
+ESC
+
+$\downarrow$
+
+Thruster
+\end{center}
+
+Thuật toán Mixing Matrix luôn tạo lực theo đúng thứ tự logic của 8
+động cơ. Trước khi xuất PWM, chương trình tra cứu
+\texttt{THRUSTER\_MAP} để xác định kênh PWM thực tế tương ứng.
+Nhờ vậy mọi thay đổi về đấu nối phần cứng đều được xử lý tại tầng
+cấu hình mà không ảnh hưởng đến thuật toán điều khiển.
+
+Thiết kế này làm giảm đáng kể thời gian hiệu chỉnh sau lắp ráp,
+đơn giản hóa công tác bảo trì và cho phép nhiều cấu hình ROV khác nhau
+sử dụng chung một bộ firmware.
 
 \end{document}

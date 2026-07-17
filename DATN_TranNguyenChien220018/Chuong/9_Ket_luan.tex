@@ -1,12 +1,119 @@
 \documentclass[../DoAn.tex]{subfiles}
-\begin{document}
-\section{Kết luận}
-Sinh viên so sánh kết quả nghiên cứu hoặc sản phẩm của mình với các nghiên cứu hoặc sản phẩm tương tự.
 
-Sinh viên phân tích trong suốt quá trình thực hiện ĐATN, mình đã làm được gì, chưa làm được gì, các đóng góp nổi bật là gì, và tổng hợp những bài học kinh nghiệm rút ra nếu có.
+\begin{document}
+
+\section{Kết luận}
+
+Đồ án đã nghiên cứu, thiết kế và xây dựng một hệ thống phần mềm phục vụ điều khiển, giám sát và quản lý dữ liệu cho robot lặn điều khiển từ xa ROV. Hệ thống được tổ chức thành ba thành phần chính gồm phần mềm nhúng chạy trên máy tính của ROV, phần mềm Ground Control Station tại trạm điều khiển mặt nước và nền tảng Web phục vụ quản lý, khai thác dữ liệu sau nhiệm vụ. Cách tổ chức này hình thành một chu trình tương đối hoàn chỉnh, bắt đầu từ thu nhận dữ liệu và điều khiển thiết bị dưới nước, giám sát hoạt động tại topside, ghi dữ liệu nhiệm vụ, cho đến lưu trữ và phân tích dữ liệu sau khi ROV kết thúc chuyến khảo sát.
+
+\subsection{So sánh với các giải pháp tương tự}
+
+So với các phần mềm điều khiển phương tiện không người lái phổ biến như QGroundControl, sản phẩm của đồ án có phạm vi hẹp hơn và chưa đạt mức độ hoàn thiện về khả năng tương thích phần cứng, độ ổn định cũng như quy mô cộng đồng sử dụng. QGroundControl là một nền tảng đã phát triển trong thời gian dài, hỗ trợ nhiều loại phương tiện và cung cấp các chức năng điều khiển, hiển thị telemetry, cấu hình thiết bị và lập kế hoạch nhiệm vụ tương đối hoàn chỉnh. Tuy nhiên, giải pháp này chủ yếu tập trung vào quá trình vận hành phương tiện, trong khi khả năng quản lý dữ liệu hậu kỳ đặc thù cho ROV, đồng bộ video với dữ liệu cảm biến và phân tích dữ liệu bằng trí tuệ nhân tạo còn hạn chế.
+
+Đối với BlueOS, đây là nền tảng có định hướng gần với hệ thống ROV hơn, cung cấp môi trường chạy ứng dụng trên thiết bị nhúng và hỗ trợ kết nối với các thành phần phần cứng dưới nước. BlueOS có ưu thế về hệ sinh thái module, khả năng mở rộng và mức độ tích hợp với các thiết bị thương mại. Sản phẩm của đồ án chưa thể so sánh với BlueOS về độ ổn định, tính phổ quát và khả năng triển khai thực tế. Tuy nhiên, đồ án tập trung sâu hơn vào quy trình dữ liệu của một nhiệm vụ cụ thể, bao gồm ghi đồng thời video, sonar, DVL và telemetry, tổ chức dữ liệu theo từng chuyến khảo sát, đồng bộ dữ liệu trên trục thời gian và hỗ trợ phân tích hậu kỳ trên nền tảng Web đa người dùng.
+
+So với phương pháp lưu trữ thông thường bằng Google Drive hoặc các thư mục chia sẻ, hệ thống của đồ án không chỉ lưu trữ tệp mà còn mô hình hóa dữ liệu theo cấu trúc Project và Trip, quản lý trạng thái nhiệm vụ, phân quyền người dùng và liên kết các tệp dữ liệu với thông tin vận hành tương ứng. Hệ thống cũng bổ sung các chức năng chuyên biệt như đồng bộ video với biểu đồ cảm biến, nhận diện vật thể bằng YOLOv8, trích xuất bằng chứng, phát hiện bất thường cảm biến và tạo tóm tắt nhiệm vụ bằng mô hình ngôn ngữ lớn. Đây là những chức năng không có sẵn trong các nền tảng lưu trữ tệp thông thường.
+
+Đối với chức năng bám giữ mục tiêu dựa trên thị giác, đồ án sử dụng mục tiêu do người vận hành lựa chọn thay vì yêu cầu mục tiêu phải thuộc một lớp đối tượng đã được huấn luyện trước. Cách tiếp cận này cho phép hệ thống làm việc với nhiều đối tượng khác nhau mà không cần xây dựng lại tập dữ liệu huấn luyện. Tuy nhiên, phương pháp theo dõi dựa trên đặc trưng ảnh và Optical Flow vẫn nhạy với sự thay đổi ánh sáng, độ đục của nước, che khuất, chuyển động nhanh và sự biến dạng của mục tiêu. Vì vậy, giải pháp hiện tại phù hợp hơn với bài toán bám giữ tương đối trong phạm vi quan sát của camera, chưa thay thế được các hệ thống định vị tuyệt đối hoặc các bộ theo dõi chuyên dụng đã được huấn luyện trên dữ liệu dưới nước.
+
+Nhìn chung, điểm khác biệt của sản phẩm không nằm ở việc thay thế hoàn toàn các nền tảng điều khiển ROV đã có, mà ở khả năng tích hợp nhiều giai đoạn của một nhiệm vụ vào cùng một kiến trúc phần mềm. Trong khi các sản phẩm trưởng thành có ưu thế về độ ổn định, khả năng tương thích và kinh nghiệm triển khai, hệ thống của đồ án có ưu điểm là được thiết kế đồng bộ theo yêu cầu cụ thể, từ điều khiển ROV đến quản lý và phân tích dữ liệu sau nhiệm vụ.
+
+\subsection{Các kết quả đã đạt được}
+
+Ở tầng phần mềm nhúng, đồ án đã xây dựng kiến trúc chương trình đa luồng để đồng thời thực hiện thu nhận dữ liệu cảm biến, nhận lệnh điều khiển, điều khiển cơ cấu chấp hành và gửi telemetry về GCS. Hệ thống đã tích hợp các nguồn dữ liệu gồm cảm biến độ sâu và nhiệt độ nước, IMU, cảm biến nhiệt độ và độ ẩm trong khoang kín, mạch giám sát điện áp, dòng điện và dung lượng pin. Dữ liệu được chuẩn hóa và gửi về trạm điều khiển thông qua các gói MAVLink và các kênh UDP riêng.
+
+Phần mềm trên ROV đã hiện thực cơ chế điều khiển tám động cơ đẩy thông qua PCA9685 và ESC, điều khiển đèn chiếu sáng, góc nghiêng camera và tay gắp. Ma trận trộn lực được sử dụng để chuyển các thành phần điều khiển surge, sway, heave và yaw thành giá trị PWM cho từng động cơ. Hệ thống cũng hỗ trợ cấu hình ánh xạ động cơ và lưu cấu hình bằng tệp JSON, giúp thay đổi vị trí kết nối phần cứng mà không cần sửa trực tiếp mã nguồn.
+
+Đồ án đã xây dựng các cơ chế an toàn cơ bản gồm khởi tạo động cơ ở trạng thái trung tính, giới hạn đầu ra điều khiển và Heartbeat Watchdog. Khi không nhận được tín hiệu từ GCS trong khoảng thời gian quy định, hệ thống chuyển về chế độ điều khiển thủ công và đưa các động cơ về giá trị PWM trung tính. Đây là thành phần cần thiết nhằm hạn chế việc ROV tiếp tục thực hiện một lệnh cũ sau khi đường truyền bị gián đoạn.
+
+Ở tầng Ground Control Station, đồ án đã xây dựng giao diện điều khiển theo kiến trúc MVVM. GCS hỗ trợ kết nối với ROV, nhận và hiển thị telemetry, điều khiển bằng joystick hoặc tay cầm Xbox, cấu hình chức năng các nút bấm và cấu hình vị trí động cơ. Người vận hành có thể điều khiển chuyển động của ROV, thay đổi mức công suất, điều khiển đèn, camera và tay gắp trực tiếp trên giao diện.
+
+GCS đồng thời tích hợp các nguồn dữ liệu camera, sonar và DVL. Video từ camera được hiển thị theo thời gian thực; dữ liệu sonar được dựng thành ảnh quét môi trường; dữ liệu DVL được sử dụng để biểu diễn vị trí, vận tốc và quỹ đạo tương đối của ROV. Các thông số như hướng, độ sâu, nhiệt độ, độ ẩm, điện áp và mức pin được tập trung trên giao diện, giúp người vận hành theo dõi trạng thái hệ thống mà không cần sử dụng nhiều phần mềm riêng biệt.
+
+Một kết quả đáng chú ý khác là module ghi dữ liệu nhiệm vụ. Hệ thống có thể ghi video, sonar, DVL và telemetry theo từng phiên vận hành. Các nguồn dữ liệu được quản lý bởi một module điều phối chung, sử dụng cùng hệ quy chiếu thời gian và được tổ chức trong cấu trúc thư mục thống nhất. Tệp \texttt{trip.json} lưu thông tin nhiệm vụ, thời điểm bắt đầu, thời điểm kết thúc, danh sách tài nguyên và các sự kiện kết nối. Thiết kế này tạo cơ sở để dữ liệu được đồng bộ và phân tích ở giai đoạn hậu kỳ.
+
+Đối với điều khiển tự động, đồ án đã xây dựng logic giữ hướng, giữ độ sâu và giữ vị trí tương đối dựa trên DVL. Các vòng điều khiển được phân quyền theo từng trục, cho phép một chế độ tự động chỉ chiếm quyền điều khiển trên những thành phần chuyển động cần thiết, trong khi người vận hành vẫn có thể điều khiển các trục còn lại. Cách tổ chức này giúp hạn chế xung đột giữa điều khiển thủ công và điều khiển tự động.
+
+Chức năng bám giữ mục tiêu dựa trên thị giác đã được thiết kế theo kiến trúc phân tán giữa camera server, edge agent, tracker và controller. Hệ thống cho phép người vận hành chọn mục tiêu trên ảnh, sử dụng đặc trưng Shi--Tomasi, Pyramidal Lucas--Kanade, affine RANSAC và template matching để cập nhật bounding box qua các khung hình. Sai lệch ngang và thay đổi tỷ lệ mục tiêu được chuyển thành lệnh sway và surge. Các cơ chế confidence gate, timeout, giới hạn đầu ra, giới hạn tốc độ thay đổi lệnh và ưu tiên joystick đã được đưa vào nhằm giảm nguy cơ sử dụng dữ liệu thị giác không còn hợp lệ.
+
+Ở tầng Web, đồ án đã xây dựng hệ thống quản lý Project, Trip, người dùng và dữ liệu nhiệm vụ. Hệ thống hỗ trợ xác thực bằng tài khoản thông thường và Google OAuth, phân quyền theo mô hình RBAC, tải lên dữ liệu đa nguồn, tìm kiếm, lọc và theo dõi trạng thái xử lý. Giao diện Trip Detail cho phép phát video đồng thời với biểu đồ cảm biến, trong đó vị trí hiện tại của video được ánh xạ sang thời điểm tương ứng trên dữ liệu telemetry.
+
+Nền tảng Web cũng tích hợp kiến trúc xử lý bất đồng bộ cho YOLOv8, cho phép phân tích ảnh hoặc video mà không chặn luồng xử lý chính. Kết quả nhận diện được sử dụng để tạo các ảnh hoặc đoạn video bằng chứng. Ngoài ra, hệ thống đã bổ sung phát hiện bất thường cảm biến bằng Z-Score và tạo tóm tắt nhiệm vụ song ngữ bằng mô hình Gemini. Phân hệ Web đã được kiểm thử độc lập về chức năng, tải và hiệu năng giao diện. Tuy nhiên, các kết quả này chỉ phản ánh chất lượng của phân hệ Web, chưa đại diện cho mức độ hoàn thiện của toàn bộ hệ thống ROV.
+
+\subsection{Các nội dung chưa hoàn thiện}
+
+Hạn chế lớn nhất của đồ án là chưa thực hiện đầy đủ quá trình kiểm thử tích hợp trên ROV trong môi trường nước. Vì vậy, các vòng điều khiển giữ hướng, giữ độ sâu, giữ vị trí bằng DVL và bám giữ mục tiêu bằng thị giác mới được xây dựng về mặt kiến trúc, thuật toán và logic phần mềm; chưa có đủ số liệu thực nghiệm để kết luận về sai số ổn định, thời gian xác lập, độ quá điều chỉnh hoặc khả năng chống nhiễu trong điều kiện dòng chảy thực tế.
+
+Các hệ số điều khiển hiện tại chưa được hiệu chỉnh đầy đủ trên hệ thống phần cứng hoàn chỉnh. Đặc tính động lực học của ROV phụ thuộc vào lực đẩy thực tế của từng động cơ, sự phân bố khối lượng, lực nổi, lực cản của dây tether và môi trường nước. Do chưa có dữ liệu thực nghiệm đầy đủ, các tham số PID, vùng chết, hệ số damping và giới hạn đầu ra mới có vai trò là cấu hình ban đầu.
+
+Chức năng bám giữ mục tiêu vẫn còn một số nội dung chưa hoàn thiện. Giao diện hiện tại mới hỗ trợ chọn một điểm để khởi tạo vùng mục tiêu, chưa cung cấp đầy đủ thao tác kéo thả bounding box. Các chức năng pause và hiển thị điểm đặc trưng đã có ở tầng xử lý nhưng chưa được tích hợp hoàn chỉnh trên giao diện. Sai lệch theo phương dọc mới được tính để giám sát, chưa được sử dụng để điều khiển heave. Cơ chế ngăn ROV tiếp tục tiến khi bounding box vượt kích thước an toàn chưa được nối đầy đủ vào đường điều khiển.
+
+Hệ thống đã có timeout riêng cho dữ liệu thị giác nhưng chưa hoàn thiện cơ chế kiểm tra độ mới độc lập đối với toàn bộ dữ liệu IMU, độ sâu và DVL. Watchdog giám sát tiến trình tracker cũng chưa được triển khai đầy đủ. Khi mục tiêu mất khỏi khung hình, hệ thống có thể tái bắt bằng template matching nếu mục tiêu xuất hiện lại, nhưng ROV chưa có chiến lược chuyển động tìm kiếm chủ động.
+
+Đối với module ghi dữ liệu, cơ chế đồng bộ hiện tại phụ thuộc vào timestamp của từng nguồn và tệp manifest. Độ chính xác đồng bộ giữa camera, sonar, DVL và telemetry chưa được đánh giá bằng một sự kiện tham chiếu chung trên phần cứng thực tế. Khả năng phục hồi khi mất nguồn đột ngột, hết dung lượng lưu trữ hoặc tệp dữ liệu bị hỏng cũng cần được kiểm thử thêm.
+
+Phân hệ Web hiện chủ yếu phục vụ phân tích dữ liệu sau nhiệm vụ. Dữ liệu được tải lên sau khi ROV trở về bờ, chưa có cơ chế đồng bộ trực tiếp và liên tục từ GCS lên máy chủ trong điều kiện có mạng. Chất lượng nhận diện YOLO cũng chưa được đánh giá trên một bộ dữ liệu dưới nước đủ lớn và đa dạng. Thuật toán Z-Score có ưu điểm đơn giản nhưng có thể tạo cảnh báo sai khi dữ liệu thay đổi theo xu hướng hoặc có phân phối không chuẩn. Nội dung do mô hình ngôn ngữ tạo ra vẫn cần người có chuyên môn kiểm tra trước khi sử dụng trong báo cáo chính thức.
+
+\subsection{Đóng góp nổi bật của đồ án}
+
+Đóng góp chính của đồ án là xây dựng được một kiến trúc phần mềm thống nhất cho cả quá trình vận hành và khai thác dữ liệu ROV. Thay vì chỉ tập trung vào điều khiển động cơ hoặc hiển thị camera, hệ thống kết nối phần mềm nhúng, GCS và nền tảng Web thông qua các cấu trúc dữ liệu và quy trình nhiệm vụ chung.
+
+Đóng góp thứ hai là cơ chế ghi và tổ chức dữ liệu đa nguồn. Video, sonar, DVL và telemetry được quản lý trong cùng một phiên nhiệm vụ, kèm theo metadata và các mốc thời gian. Cấu trúc này giải quyết một vấn đề thực tế là dữ liệu ROV thường được lưu thành nhiều tệp riêng biệt, gây khó khăn cho việc đối chiếu và phân tích sau chuyến đi.
+
+Đóng góp thứ ba là việc kết hợp nhiều nguồn thông tin cho điều khiển tự động. Hệ thống sử dụng cảm biến hướng cho giữ heading, cảm biến áp suất cho giữ độ sâu, DVL cho giữ vị trí và camera cho bám giữ mục tiêu. Các vòng điều khiển được tách theo từng trục và có cơ chế ưu tiên người vận hành, phù hợp với yêu cầu an toàn của một hệ thống điều khiển có người giám sát.
+
+Đóng góp thứ tư là mở rộng dữ liệu nhiệm vụ từ mức lưu trữ sang mức phân tích. Việc đồng bộ video với cảm biến, nhận diện vật thể, trích xuất bằng chứng, đánh dấu bất thường và tạo tóm tắt nhiệm vụ giúp giảm khối lượng thao tác thủ công khi xử lý dữ liệu hậu kỳ. Đây là cơ sở để phát triển một hệ thống hỗ trợ ra quyết định cho các nhiệm vụ khảo sát dưới nước trong tương lai.
+
+\subsection{Bài học kinh nghiệm}
+
+Quá trình thực hiện đồ án cho thấy việc xây dựng một hệ thống ROV không chỉ là bài toán điều khiển mà còn là bài toán tích hợp nhiều thành phần có tốc độ, giao thức và mức độ tin cậy khác nhau. Việc xác định rõ giao diện giữa các module ngay từ đầu giúp giảm sự phụ thuộc và tạo điều kiện để từng thành phần được phát triển, mô phỏng và kiểm thử độc lập.
+
+Một bài học quan trọng khác là mọi chức năng tự động cần được thiết kế cùng với cơ chế an toàn. Timeout, watchdog, giới hạn lệnh, kiểm tra dữ liệu hợp lệ và quyền ưu tiên của người vận hành không phải là các chức năng bổ sung, mà là một phần bắt buộc của thiết kế điều khiển. Một thuật toán có thể hoạt động tốt trong điều kiện bình thường nhưng vẫn không phù hợp để triển khai nếu chưa xác định được hành vi khi mất cảm biến, mất mạng hoặc mất tiến trình xử lý.
+
+Đồng bộ thời gian cũng là vấn đề cần được quan tâm từ đầu. Nếu các nguồn dữ liệu sử dụng những mốc thời gian khác nhau, việc phân tích video, cảm biến và sự kiện điều khiển sau nhiệm vụ sẽ không chính xác. Sử dụng timestamp thống nhất, metadata và log có cấu trúc giúp cải thiện khả năng tái hiện lỗi và đánh giá kết quả.
+
+Cuối cùng, đồ án cho thấy kiểm thử phần mềm không thể thay thế hoàn toàn thử nghiệm trên phần cứng thực tế. Các mô phỏng và kiểm thử không tải có thể xác nhận logic, dấu lệnh và giới hạn đầu ra, nhưng hiệu quả điều khiển chỉ có thể được đánh giá đầy đủ khi ROV hoạt động trong nước. Vì vậy, việc xây dựng hệ thống theo từng lớp và chuẩn bị trước các kịch bản kiểm thử là cần thiết để giảm rủi ro trong giai đoạn triển khai thực tế.
 
 \section{Hướng phát triển}
-Trong phần này, sinh viên trình bày định hướng công việc trong tương lai để hoàn thiện sản phẩm hoặc nghiên cứu của mình.
 
-Trước tiên, sinh viên trình bày các công việc cần thiết để hoàn thiện các chức năng/nhiệm vụ đã làm. Sau đó sinh viên phân tích các hướng đi mới cho phép cải thiện và nâng cấp các chức năng/nhiệm vụ đã làm.
+\subsection{Hoàn thiện các chức năng hiện tại}
+
+Công việc ưu tiên trong giai đoạn tiếp theo là triển khai đầy đủ kế hoạch kiểm thử đã xây dựng. Quá trình kiểm thử cần được thực hiện theo thứ tự từ kiểm thử mô phỏng, kiểm thử không tải, kiểm thử trên giá thử đến kiểm thử trong bể nước. Mỗi phiên thử nghiệm cần ghi lại dữ liệu cảm biến, lệnh điều khiển, PWM động cơ, trạng thái kết nối và video để phục vụ hiệu chỉnh và đánh giá định lượng.
+
+Các vòng điều khiển giữ hướng, giữ độ sâu và giữ vị trí cần được hiệu chỉnh trực tiếp trên ROV. Việc hiệu chỉnh cần xác định vùng chết, giới hạn tích phân, hệ số P, I, D, damping và giới hạn tốc độ thay đổi lệnh phù hợp với đặc tính động lực học thực tế. Đối với Hold Position, cần kiểm tra phép chuyển đổi giữa hệ tọa độ DVL và hệ tọa độ thân ROV, trạng thái bottom lock và hành vi khi dữ liệu DVL bị mất.
+
+Chức năng bám giữ mục tiêu cần được hoàn thiện về cả giao diện và cơ chế an toàn. Giao diện nên hỗ trợ kéo chọn bounding box, tạm dừng tracker và bật hoặc tắt hiển thị điểm đặc trưng. Cơ chế chặn tiến khi mục tiêu chiếm diện tích quá lớn cần được đưa vào đường điều khiển chính. Hệ thống cũng cần bổ sung freshness gate riêng cho IMU, cảm biến độ sâu và DVL, đồng thời triển khai watchdog để giám sát camera server, edge agent và tracker.
+
+Module ghi dữ liệu cần được kiểm thử trong các tình huống mất kết nối, mất nguồn, hết dung lượng lưu trữ và lỗi chuyển đổi video. Có thể bổ sung cơ chế ghi tệp tạm, kiểm tra checksum và khôi phục session chưa hoàn tất. Độ lệch thời gian giữa video, sonar, DVL và telemetry cần được đo bằng một sự kiện tham chiếu chung để xác định sai số đồng bộ thực tế.
+
+Đối với nền tảng Web, cần hoàn thiện luồng tích hợp từ dữ liệu do GCS tạo ra đến Project và Trip trên máy chủ. Hệ thống nên tự động đọc \texttt{trip.json}, kiểm tra tính toàn vẹn của các tệp và liên kết đúng từng asset với nhiệm vụ tương ứng. Trước khi triển khai chính thức, cần bổ sung kiểm thử bảo mật, giới hạn tần suất truy cập, quản lý secret, sao lưu dữ liệu, giám sát dịch vụ và cơ chế phục hồi khi hàng đợi xử lý AI gặp lỗi.
+
+\subsection{Nâng cấp điều khiển và định vị}
+
+Một hướng phát triển quan trọng là hợp nhất dữ liệu IMU, cảm biến độ sâu, DVL và thị giác bằng bộ lọc trạng thái như Extended Kalman Filter hoặc Unscented Kalman Filter. Việc hợp nhất cảm biến có thể giúp duy trì ước lượng vị trí khi một nguồn dữ liệu bị mất tạm thời, đồng thời giảm nhiễu và độ trôi của từng cảm biến riêng lẻ.
+
+Hệ thống có thể được mở rộng từ giữ vị trí tương đối sang lập bản đồ và định vị đồng thời dưới nước. Các phương pháp Visual--Inertial Odometry, DVL--Inertial Navigation hoặc SLAM kết hợp sonar có thể được nghiên cứu để xây dựng quỹ đạo ổn định hơn trong môi trường không có GPS. Khi có bản đồ cục bộ, ROV có thể thực hiện nhiệm vụ theo waypoint thay vì chỉ phản ứng theo lệnh trực tiếp từ người vận hành.
+
+Các bộ điều khiển hiện tại chủ yếu sử dụng P, PD hoặc PID. Trong tương lai, có thể nghiên cứu điều khiển thích nghi, điều khiển bền vững hoặc Model Predictive Control nhằm xử lý tốt hơn sự thay đổi tải trọng, dòng chảy và lực cản của dây tether. Một hướng khác là xây dựng cơ chế nhận biết lỗi động cơ, tự động phân phối lại lực đẩy khi một thruster suy giảm hoặc ngừng hoạt động.
+
+\subsection{Nâng cấp chức năng thị giác}
+
+Để tăng độ ổn định của tracker, hệ thống có thể kết hợp Optical Flow với các mô hình theo dõi dựa trên học sâu. Mô hình nhận diện có thể được sử dụng để tái phát hiện mục tiêu, trong khi tracker ngắn hạn duy trì vị trí mục tiêu giữa các lần nhận diện. Cách kết hợp này có thể giảm hiện tượng trôi bounding box và cải thiện khả năng phục hồi sau che khuất.
+
+Dữ liệu camera dưới nước cần được tiền xử lý để giảm ảnh hưởng của suy giảm màu sắc, tán xạ ánh sáng và độ đục. Các phương pháp cân bằng trắng, tăng cường độ tương phản hoặc mô hình phục hồi ảnh dưới nước có thể được tích hợp trước bước theo dõi. Tuy nhiên, quá trình xử lý phải được tối ưu để không làm tăng độ trễ của vòng điều khiển.
+
+Khi mục tiêu mất khỏi khung hình, ROV có thể thực hiện một chiến lược tìm kiếm chủ động dựa trên hướng chuyển động cuối cùng, vị trí DVL hoặc bản đồ sonar. Hệ thống cũng có thể bổ sung nhận dạng lại mục tiêu để phân biệt mục tiêu ban đầu với các đối tượng có hình dạng tương tự. Đối với các nhiệm vụ yêu cầu khoảng cách thực, có thể kết hợp camera stereo, sonar hoặc laser chuẩn để ước lượng khoảng cách thay vì chỉ sử dụng tỷ lệ bounding box.
+
+\subsection{Nâng cấp quản lý và phân tích dữ liệu}
+
+Hệ thống Web có thể được mở rộng từ phân tích hậu kỳ sang hỗ trợ giám sát gần thời gian thực khi đường truyền cho phép. GCS có thể gửi metadata, cảnh báo và dữ liệu telemetry dung lượng thấp lên máy chủ trong khi video chất lượng cao vẫn được lưu cục bộ. Cách tiếp cận này giúp người giám sát từ xa nắm được trạng thái nhiệm vụ mà không yêu cầu truyền toàn bộ dữ liệu hình ảnh.
+
+Mô hình YOLO cần được huấn luyện hoặc tinh chỉnh trên tập dữ liệu đặc thù dưới nước, bao gồm các điều kiện ánh sáng, độ đục, góc quan sát và loại mục tiêu khác nhau. Kết quả nhận diện nên được đánh giá bằng các chỉ số precision, recall, mAP và thời gian xử lý. Đối với phát hiện bất thường cảm biến, có thể kết hợp Z-Score với các phương pháp theo cửa sổ thời gian, IQR, mô hình chuỗi thời gian hoặc Isolation Forest để giảm cảnh báo sai.
+
+Chức năng tạo tóm tắt bằng mô hình ngôn ngữ có thể được nâng cấp theo hướng truy xuất có kiểm chứng. Nội dung báo cáo cần liên kết trực tiếp với số liệu, timestamp, ảnh hoặc đoạn video bằng chứng. Mỗi nhận định do AI tạo ra nên có nguồn dữ liệu kèm theo để người vận hành kiểm tra, thay vì chỉ cung cấp một đoạn văn tổng hợp.
+
+Trong dài hạn, hệ thống có thể hỗ trợ nhiều ROV, nhiều tổ chức và nhiều nhiệm vụ hoạt động đồng thời. Việc chuẩn hóa API, định dạng dữ liệu và metadata sẽ giúp hệ thống tích hợp với các thiết bị khác, đồng thời tạo điều kiện xây dựng kho dữ liệu phục vụ nghiên cứu, huấn luyện mô hình và so sánh kết quả giữa các chuyến khảo sát.
+
+Với các hướng phát triển trên, sản phẩm có thể từng bước chuyển từ một nguyên mẫu phần mềm tích hợp sang một nền tảng hỗ trợ vận hành ROV có khả năng kiểm thử, triển khai và mở rộng trong các nhiệm vụ khảo sát dưới nước thực tế.
+
 \end{document}

@@ -10,7 +10,13 @@ const getModel = () => {
   return _model;
 };
 
-const generateProjectSummary = async (project, trips = [], mediaCount = 0) => {
+// Formats a MongoDB $group range (min/max/avg) as "min – max (avg avg)", or null if the metric was never recorded
+const fmtRange = (min, max, avg, unit) => {
+  if (min == null || max == null || avg == null) return null;
+  return `${min.toFixed(1)}–${max.toFixed(1)} ${unit} (avg ${avg.toFixed(1)} ${unit})`;
+};
+
+const generateProjectSummary = async (project, trips = [], mediaCount = 0, sensorStats = null, anomalyCount = 0) => {
   const model = getModel();
 
   const tripLines = trips.map(d => {
@@ -18,10 +24,29 @@ const generateProjectSummary = async (project, trips = [], mediaCount = 0) => {
     return `  - ${d.title} [${d.status}]${loc}${d.description ? ': ' + d.description : ''}`
   }).join('\n');
 
+  const rov = project.rov?.name
+    ? `${project.rov.name}${project.rov.model ? ` (${project.rov.model})` : ''}`
+    : 'Not specified';
+
+  const sensorLines = sensorStats ? [
+    fmtRange(sensorStats.depthMin, sensorStats.depthMax, sensorStats.depthAvg, 'm')       && `  - Depth: ${fmtRange(sensorStats.depthMin, sensorStats.depthMax, sensorStats.depthAvg, 'm')}`,
+    fmtRange(sensorStats.tempMin, sensorStats.tempMax, sensorStats.tempAvg, '°C')          && `  - Temperature: ${fmtRange(sensorStats.tempMin, sensorStats.tempMax, sensorStats.tempAvg, '°C')}`,
+    fmtRange(sensorStats.pressureMin, sensorStats.pressureMax, sensorStats.pressureAvg, 'bar') && `  - Pressure: ${fmtRange(sensorStats.pressureMin, sensorStats.pressureMax, sensorStats.pressureAvg, 'bar')}`,
+  ].filter(Boolean).join('\n') : '';
+
+  const sensorSection = sensorStats ? `
+Sensor readings (${sensorStats.count} readings across all trips):
+${sensorLines || '  No numeric readings recorded'}
+${anomalyCount > 0
+    ? `  - ${anomalyCount} statistically anomalous reading(s) detected (possible sensor spikes or equipment issues worth reviewing)`
+    : '  - No statistical anomalies detected in sensor data'}
+` : '';
+
   const prompt = `You are summarizing an underwater ROV (Remotely Operated Vehicle) trip project for an operations report.
 
 Project details:
 - Name: ${project.name}
+- ROV: ${rov}
 - Location: ${project.locationName || project.location || 'Not specified'}
 - Start: ${project.startTime ? new Date(project.startTime).toLocaleString() : 'Not specified'}
 - End: ${project.endTime ? new Date(project.endTime).toLocaleString() : 'Not specified'}
@@ -32,8 +57,8 @@ Trips completed (${trips.length} total):
 ${tripLines || '  No trips recorded'}
 
 Media recorded: ${mediaCount} file(s)
-
-Write a concise 2-3 paragraph operational summary in both languages. Be professional and factual. No markdown, no bullet points, plain text only.
+${sensorSection}
+Write a detailed 4-6 paragraph operational summary in both languages. Cover: the ROV and equipment used, the trips performed, sensor readings and any anomalies found (explain what an anomaly might indicate operationally), and media/evidence collected. Be professional and factual. No markdown, no bullet points, plain text only.
 
 Use EXACTLY this format (keep the separator lines as-is):
 ===VI===

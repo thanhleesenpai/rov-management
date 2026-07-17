@@ -15,6 +15,7 @@ Như đã trình bày ở phần Khảo sát, một trong những khó khăn l�
     \item \textbf{Bước 2: Tính toán độ lệch (Offset).} Khi lượt lặn được tải xuống trình duyệt, hệ thống tính toán sự chênh lệch (tính bằng giây) giữa thời điểm ghi dòng dữ liệu cảm biến đầu tiên và thời điểm bắt đầu video.
     \item \textbf{Bước 3: Cập nhật trạng thái liên tục.} Tại Frontend (sử dụng ReactJS), sự kiện \texttt{timeupdate} của phần tử HTML5 \texttt{<video>} được lắng nghe để cập nhật trạng thái \texttt{currentTime} vào React state mỗi khi video phát sang khung hình mới. Giá trị này được kết hợp với \texttt{media.recordedAt} để tính \texttt{chartTimestamp =\allowbreak{} recordedAt + currentTime × 1000} (đổi sang mili-giây UTC).
     \item \textbf{Bước 4: Ánh xạ sang dữ liệu cảm biến.} Dữ liệu cảm biến là một mảng được sắp xếp tăng dần theo \texttt{timestamp}. Hệ thống tìm điểm gần nhất với \texttt{chartTimestamp} và truyền vào thành phần \texttt{<ReferenceLine\allowbreak{} x=\{chartTimestamp\}>} của thư viện Recharts để vẽ đường gióng đồng bộ (Synchronized Reference Line) di chuyển trên biểu đồ theo thời gian thực.
+    \item \textbf{Bước 5: Tự động frame Brush.} Khi người dùng chọn video khác trong playlist, vùng zoom Brush tự động nhảy đến khoảng thời gian tương ứng của video đó (tính từ \texttt{recordedAt} và \texttt{duration}), giúp người dùng quan sát đúng đoạn dữ liệu mà không cần kéo thủ công.
 \end{itemize}
 
 \subsection{Kết quả đạt được}

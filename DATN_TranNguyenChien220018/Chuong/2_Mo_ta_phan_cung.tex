@@ -1,30 +1,1343 @@
 \documentclass[../DoAn.tex]{subfiles}
 \begin{document}
 
+Hệ thống robot lặn điều khiển từ xa (ROV -- Remotely Operated Vehicle) được thiết kế nhằm phục vụ các nhiệm vụ khảo sát, giám sát và thao tác trong môi trường dưới nước. Kiến trúc phần cứng của hệ thống được xây dựng theo mô hình phân tán gồm hai khối chính: trạm điều khiển trên mặt nước (topside) và robot hoạt động dưới nước (subsea ROV), được kết nối với nhau thông qua dây tether đảm nhiệm chức năng truyền nguồn và truyền dữ liệu hai chiều.
+
+Khối topside đóng vai trò trung tâm vận hành của toàn bộ hệ thống. Tại đây, người điều khiển sử dụng máy tính chạy phần mềm Ground Control Station (GCS) kết hợp với thiết bị joystick để giám sát trạng thái hoạt động của robot và gửi các lệnh điều khiển theo thời gian thực. Máy tính điều khiển được kết nối với hệ thống mạng Ethernet và module Power Line Communication (PLC) để truyền tín hiệu xuống robot thông qua dây tether.
+
+Khối subsea là phần robot hoạt động trực tiếp trong môi trường nước. Robot được tích hợp máy tính nhúng hiệu năng cao dựa trên nền tảng 
+Qualcomm QCS8550 
+đóng vai trò bộ xử lý trung tâm, chịu trách nhiệm thu nhận dữ liệu từ hệ thống cảm biến, xử lý video, điều khiển các cơ cấu chấp hành và quản lý giao tiếp với topside.
+
+Để phục vụ khả năng điều hướng và khảo sát môi trường, ROV được trang bị nhiều loại cảm biến khác nhau bao gồm hệ thống camera quan sát, cảm biến quán tính IMU, cảm biến từ trường (compass), cảm biến áp suất đo độ sâu, sonar quét hình ảnh và hệ thống đo vận tốc đáy biển DVL. Trong đó, sonar sử dụng 
+Ping360 
+để tạo ảnh môi trường xung quanh robot, còn hệ thống định vị vận tốc sử dụng 
+Water Linked DVL A125 
+để đo vận tốc tương đối và hỗ trợ định vị dưới nước.
+
+Các cơ cấu chấp hành trên robot bao gồm hệ thống động cơ đẩy đa hướng (thrusters) phục vụ di chuyển, tay gắp thao tác dưới nước, hệ thống đèn LED chiếu sáng công suất cao và servo điều khiển góc nghiêng camera. Những thiết bị này được kết nối tới driver board, đóng vai trò điều khiển mức thấp và chuyển đổi tín hiệu từ máy tính nhúng thành tín hiệu điều khiển phần cứng.
+
+Liên kết giữa topside và robot được thực hiện thông qua dây tether chuyên dụng. Dây tether đảm nhận hai nhiệm vụ quan trọng gồm truyền nguồn điện từ topside xuống ROV và truyền dữ liệu Ethernet hai chiều giữa hai đầu hệ thống. Để tối ưu khả năng truyền dữ liệu khoảng cách xa trên dây dẫn giới hạn số lõi, hệ thống sử dụng module PLC để chuyển đổi tín hiệu Ethernet sang đường truyền hai dây xoắn, cho phép truyền dữ liệu tốc độ cao đồng thời với cấp nguồn cho robot.
+
+Tổng thể hệ thống phần cứng được thiết kế theo kiến trúc module, cho phép các thành phần như cảm biến, thiết bị truyền thông, bộ điều khiển và cơ cấu chấp hành hoạt động độc lập nhưng vẫn phối hợp thông qua hạ tầng mạng Ethernet nội bộ. Thiết kế này giúp hệ thống đạt được tính mở rộng cao, dễ dàng bảo trì, đồng thời đáp ứng yêu cầu vận hành ổn định trong môi trường dưới nước khắc nghiệt.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=1.0\linewidth, height=0.60\textheight, keepaspectratio]{Hinhve/structure.png}
+\caption{Biểu đồ tổng quan phần cứng dự án}
+\label{fig:ch7-uc-tongquat}
+\end{figure}
+
+
 \section{Cơ khí}
 \label{section:2.1}
-Thông thường, khảo sát chi tiết về hiện trạng và yêu cầu của phần mềm sẽ được lấy từ ba nguồn chính, đó là (i) người dùng/khách hàng, (ii) các hệ thống đã có, (iii) và các ứng dụng tương tự.
-Sinh viên cần tiến hành phân tích, so sánh, đánh giá chi tiết ưu nhược điểm của các sản phẩm/nghiên cứu hiện có. Sinh viên có thể lập bảng so sánh nếu cần thiết. Kết hợp với khảo sát người dùng/khách hàng (nếu có), sinh viên nêu và mô tả sơ lược các tính năng phần mềm quan trọng cần phát triển.
 
+Hệ thống cơ khí là nền tảng vật lý của robot lặn điều khiển từ xa (ROV), quyết định trực tiếp đến khả năng vận hành ổn định, độ bền kết cấu cũng như mức độ an toàn của toàn bộ hệ thống trong môi trường dưới nước. Thiết kế cơ khí của robot cần đáp ứng đồng thời nhiều yêu cầu kỹ thuật như khả năng chịu áp suất nước ở độ sâu làm việc lớn, chống ăn mòn do môi trường nước biển, đảm bảo tính ổn định thủy động lực học, đồng thời cung cấp không gian tích hợp cho các thiết bị điện tử, cảm biến và cơ cấu chấp hành.
+
+Trong hệ thống mini ROV được xây dựng, phần cơ khí được thiết kế theo kiến trúc module, cho phép phân chia robot thành nhiều khối chức năng độc lập nhưng liên kết chặt chẽ với nhau. Cách tiếp cận này giúp đơn giản hóa quá trình chế tạo, bảo trì và nâng cấp phần cứng trong tương lai.
+
+\subsection{Yêu cầu thiết kế cơ khí}
+
+Do robot hoạt động trong môi trường biển, thiết kế cơ khí cần đảm bảo các yêu cầu cơ bản sau:
+
+\begin{itemize}
+    \item Chịu được áp suất nước lớn tại độ sâu vận hành thiết kế.
+    \item Chống ăn mòn khi làm việc lâu dài trong môi trường nước biển có độ mặn cao.
+    \item Đảm bảo kết cấu cứng vững để hạn chế rung động từ hệ thống động cơ đẩy.
+    \item Phân bố trọng tâm hợp lý để robot giữ được trạng thái cân bằng khi di chuyển.
+    \item Tạo điều kiện thuận lợi cho việc bố trí camera, sonar và các cảm biến khảo sát.
+    \item Cho phép tháo lắp nhanh để phục vụ bảo trì hoặc thay thế thiết bị.
+    \item Đảm bảo khả năng kín nước tuyệt đối cho khoang chứa thiết bị điện tử.
+\end{itemize}
+
+Các yêu cầu trên ảnh hưởng trực tiếp tới lựa chọn vật liệu, hình dạng khung, phương pháp gia công và cách bố trí thiết bị trên robot.
+
+\subsection{Khung cơ khí chính}
+
+Khung cơ khí chính được thiết kế nhằm tạo ra bộ khung chịu lực cho toàn bộ hệ thống. Kết cấu này đóng vai trò liên kết các thành phần như động cơ đẩy, camera, sonar, cảm biến, tay gắp và khoang chứa điện tử thành một khối thống nhất.
+
+Khung được chế tạo từ hợp kim nhôm chống ăn mòn, gia công bằng công nghệ CNC nhằm đảm bảo độ chính xác cơ khí cao và giảm sai số khi lắp ráp. Hợp kim nhôm được lựa chọn do có khối lượng riêng thấp, độ bền cơ học tốt và khả năng chống oxy hóa cao hơn so với thép thông thường.
+
+Thiết kế khung theo dạng không gian mở (open frame structure), giúp:
+
+\begin{itemize}
+    \item Giảm lực cản thủy động học khi di chuyển.
+    \item Cho phép nước lưu thông tự nhiên quanh thân robot.
+    \item Tạo khả năng tản nhiệt tốt hơn cho các thiết bị điện tử công suất cao.
+    \item Hỗ trợ lắp đặt linh hoạt các thiết bị ngoại vi.
+\end{itemize}
+
+Ngoài ra, khung còn được bố trí các vị trí cố định chuyên dụng cho từng thiết bị nhằm đảm bảo tính đối xứng và cân bằng trọng lượng toàn hệ thống.
+
+\subsection{Khoang kín chống nước}
+
+Các thiết bị điện tử quan trọng như máy tính nhúng, driver board, bộ nguồn subsea và module truyền thông được đặt bên trong khoang kín chống nước.
+
+Khoang kín được thiết kế theo dạng ống hình trụ hoặc hộp kín áp suất cao, sử dụng gioăng cao su (O-ring sealing) tại các điểm ghép nối nhằm ngăn hoàn toàn nước xâm nhập vào bên trong.
+
+Khoang này có chức năng:
+
+\begin{itemize}
+    \item Bảo vệ linh kiện điện tử khỏi nước biển.
+    \item Chịu áp suất môi trường bên ngoài khi hoạt động ở độ sâu lớn.
+    \item Cách ly hệ thống điện khỏi môi trường dẫn điện bên ngoài.
+    \item Tạo môi trường vận hành ổn định cho hệ thống tính toán trung tâm.
+\end{itemize}
+
+Bên trong khoang kín, máy tính nhúng sử dụng nền tảng 
+Qualcomm QCS8550 
+được bố trí tại vị trí trung tâm để giảm rung động cơ học và thuận tiện cho việc kết nối với các thiết bị ngoại vi.
+
+\subsection{Bố trí cảm biến và thiết bị khảo sát}
+
+Để đảm bảo hiệu quả quan sát và khảo sát môi trường dưới nước, các cảm biến được bố trí tại những vị trí tối ưu về mặt hình học.
+
+Camera chính được lắp ở phía trước robot nhằm cung cấp góc nhìn trực diện cho người điều khiển. Camera được gắn trên cơ cấu servo cho phép thay đổi góc ngẩng khi vận hành.
+
+Hệ thống sonar sử dụng 
+Ping360 
+được đặt phía trước bên trên trái robot nhằm quét môi trường xung quanh và hỗ trợ điều hướng trong điều kiện tầm nhìn thấp.
+
+Thiết bị 
+Water Linked DVL A125 
+được bố trí phía đáy robot để đo vận tốc tương đối với đáy biển và hỗ trợ xác định vị trí.
+
+Các cảm biến quán tính, cảm biến từ trường và cảm biến áp suất được đặt gần tâm khối lượng của robot nhằm giảm ảnh hưởng từ rung động cơ học và tăng độ chính xác đo lường.
+
+\subsection{Hệ thống động cơ và cơ cấu chấp hành}
+
+Hệ thống động cơ đẩy được bố trí theo cấu hình đa hướng (vectored thruster configuration) cho phép robot di chuyển linh hoạt trong không gian ba chiều.
+
+Các thruster được gắn đối xứng hai bên thân robot nhằm đảm bảo phân bố lực cân bằng trong quá trình hoạt động.
+
+Cơ cấu chấp hành bao gồm:
+
+\begin{itemize}
+    \item Các động cơ đẩy phục vụ chuyển động.
+    \item Tay gắp thao tác dưới nước.
+    \item Servo điều khiển góc camera.
+    \item Hệ thống đèn LED chiếu sáng công suất cao.
+\end{itemize}
+
+Các thiết bị này được lắp trực tiếp lên khung cơ khí thông qua các giá đỡ riêng biệt để giảm rung động truyền tới phần thân chính.
+
+\subsection{Cân bằng và ổn định thủy động lực học}
+
+Một trong những yêu cầu quan trọng của robot lặn là đảm bảo trạng thái cân bằng trong nước nhằm giảm công suất tiêu thụ của hệ thống động cơ.
+
+Thiết kế cơ khí được tối ưu theo nguyên tắc:
+
+\begin{itemize}
+    \item Trọng tâm (Center of Gravity) đặt thấp hơn tâm nổi (Center of Buoyancy).
+    \item Tổng lực nổi gần bằng tổng trọng lượng hệ thống.
+    \item Đảm bảo trạng thái nổi trung tính (Neutral Buoyancy).
+\end{itemize}
+
+Việc duy trì trạng thái nổi trung tính giúp robot giảm tải cho hệ thống thruster theo phương thẳng đứng, từ đó giảm đáng kể năng lượng tiêu thụ trong suốt quá trình vận hành.
+
+\subsection{Tổng hợp các thành phần cơ khí chính}
+
+Bảng \ref{tab:mechanical_components} trình bày các thành phần cơ khí chính của hệ thống.
+
+\begin{table}[H]
+\centering
+\caption{Các thành phần cơ khí chính của hệ thống ROV}
+\label{tab:mechanical_components}
+\begin{tabular}{|p{4cm}|p{9cm}|}
+\hline
+\textbf{Thành phần} & \textbf{Chức năng} \\ \hline
+
+Khung chịu lực chính &
+Liên kết toàn bộ thiết bị thành một khối thống nhất, chịu tải cơ học \\ \hline
+
+Khoang kín chống nước &
+Bảo vệ máy tính nhúng, driver board và thiết bị điện tử khỏi nước biển \\ \hline
+
+Giá đỡ camera &
+Cố định camera quan sát và cho phép điều chỉnh góc nhìn \\ \hline
+
+Giá đỡ sonar &
+Cố định sonar quét hình ảnh phục vụ khảo sát môi trường \\ \hline
+
+Giá đỡ DVL &
+Bố trí cảm biến đo vận tốc đáy biển tại vị trí tối ưu \\ \hline
+
+Hệ thống thruster &
+Tạo lực đẩy và điều khiển chuyển động của robot \\ \hline
+
+Tay gắp &
+Thực hiện thao tác vật lý dưới nước như kẹp hoặc di chuyển vật thể \\ \hline
+
+Đèn LED &
+Chiếu sáng trong môi trường nước có độ sáng thấp \\ \hline
+
+Dây tether &
+Kết nối vật lý giữa ROV và topside, truyền nguồn và dữ liệu \\ \hline
+
+\end{tabular}
+\end{table}
+
+Thiết kế cơ khí hoàn chỉnh tạo nền tảng cho toàn bộ hệ thống hoạt động ổn định trong điều kiện môi trường dưới nước khắc nghiệt, đồng thời đảm bảo khả năng mở rộng và nâng cấp trong các phiên bản tiếp theo.
 \section{Động lực - Động cơ}
 \label{section:2.2}
 
+Hệ thống động lực là thành phần chịu trách nhiệm tạo lực đẩy và điều khiển chuyển động cho robot lặn trong môi trường nước. Khác với robot hoạt động trên mặt đất, robot lặn cần di chuyển trong môi trường chất lỏng có mật độ lớn, chịu tác động mạnh từ lực cản thủy động học, dòng chảy và áp suất môi trường. Vì vậy, hệ thống động lực đóng vai trò quyết định đến khả năng cơ động, độ ổn định cũng như hiệu quả năng lượng của toàn bộ hệ thống.
+
+Trong thiết kế mini ROV, hệ thống động lực được xây dựng dựa trên các động cơ đẩy chuyên dụng dưới nước (underwater thrusters). Các động cơ này sử dụng công nghệ không chổi than (Brushless DC Motor -- BLDC), cho phép đạt hiệu suất cao, tuổi thọ lớn và khả năng vận hành ổn định trong môi trường có độ ẩm và áp suất cao.
+
+\subsection{Yêu cầu thiết kế hệ thống động lực}
+
+Hệ thống động lực của ROV cần đáp ứng một số yêu cầu kỹ thuật quan trọng như sau:
+
+\begin{itemize}
+    \item Tạo đủ lực đẩy để di chuyển robot trong môi trường nước có dòng chảy.
+    \item Hỗ trợ điều khiển linh hoạt theo nhiều hướng khác nhau.
+    \item Đảm bảo khả năng giữ ổn định vị trí khi robot thực hiện khảo sát.
+    \item Hoạt động ổn định trong thời gian dài dưới môi trường nước biển.
+    \item Tối ưu hiệu suất chuyển đổi điện năng thành lực đẩy nhằm giảm tiêu hao năng lượng.
+    \item Cho phép điều khiển tốc độ động cơ liên tục với độ chính xác cao.
+\end{itemize}
+
+Các yêu cầu này ảnh hưởng trực tiếp tới lựa chọn loại động cơ, số lượng thruster, cấu hình bố trí cũng như phương pháp điều khiển.
+
+\subsection{Động cơ đẩy dưới nước}
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{Hinhve/thurter.png}
+    \caption{Sơ đồ luồng hoạt động mavlinkServie}
+    \label{fig:usecase}
+\end{figure}
+
+Hệ thống sử dụng động cơ đẩy không chổi than chuyên dụng cho môi trường dưới nước. Loại động cơ này được thiết kế kín nước hoàn toàn và có khả năng hoạt động ổn định ở độ sâu lớn.
+
+Nguyên lý hoạt động cơ bản bao gồm rotor nam châm vĩnh cửu quay dưới tác động của từ trường sinh ra bởi stator. Khi rotor quay, cánh quạt (propeller) tạo ra dòng nước phản lực, sinh ra lực đẩy giúp robot di chuyển.
+
+Thông số kỹ thuật chính của động cơ đẩy được sử dụng trong hệ thống được trình bày trong Bảng \ref{tab:thruster_specification}.
+
+\begin{table}[H]
+\centering
+\caption{Thông số kỹ thuật động cơ đẩy}
+\label{tab:thruster_specification}
+\begin{tabular}{|p{6cm}|p{6cm}|}
+\hline
+\textbf{Thông số} & \textbf{Giá trị} \\ \hline
+
+Loại động cơ & Brushless DC Motor (BLDC) \\ \hline
+
+Điện áp hoạt động & 7 -- 20 VDC \\ \hline
+
+Dòng điện cực đại & 24 A \\ \hline
+
+Công suất cực đại & 390 W \\ \hline
+
+Lực đẩy chiều thuận & 5.25 kgf \\ \hline
+
+Lực đẩy chiều ngược & 4.10 kgf \\ \hline
+
+Môi trường hoạt động & Dưới nước, chống nước hoàn toàn \\ \hline
+
+Kiểu điều khiển & PWM thông qua ESC \\ \hline
+
+\end{tabular}
+\end{table}
+
+Việc sử dụng động cơ BLDC mang lại nhiều ưu điểm như hiệu suất cao, giảm hao mòn cơ khí do không sử dụng chổi than, đồng thời cho phép thay đổi tốc độ quay một cách liên tục thông qua điều chế độ rộng xung PWM.
+
+\subsection{Cấu hình bố trí thruster}
+
+Để đảm bảo khả năng điều khiển linh hoạt trong không gian ba chiều, các động cơ đẩy được bố trí theo cấu hình đa hướng (vectored thruster configuration).
+
+Các thruster được gắn đối xứng trên thân robot nhằm phân bố lực đều và giảm hiện tượng mất cân bằng khi hoạt động.
+
+Cấu hình này cho phép robot thực hiện đồng thời nhiều dạng chuyển động cơ bản bao gồm:
+
+\begin{itemize}
+    \item Chuyển động tiến và lùi theo trục dọc (Surge).
+    \item Chuyển động ngang trái phải theo trục ngang (Sway).
+    \item Chuyển động lên xuống theo phương thẳng đứng (Heave).
+    \item Quay quanh trục thẳng đứng (Yaw).
+\end{itemize}
+
+Hệ thống không yêu cầu điều khiển đầy đủ sáu bậc tự do (6 Degrees of Freedom) như các ROV công nghiệp lớn, tuy nhiên vẫn đảm bảo khả năng cơ động cần thiết cho các nhiệm vụ khảo sát và thao tác dưới nước.
+
+\subsection{Nguyên lý điều khiển động cơ}
+
+Hệ thống điều khiển động cơ được tổ chức theo kiến trúc nhiều lớp nhằm đảm bảo tính ổn định và khả năng phản hồi theo thời gian thực.
+
+Người vận hành gửi lệnh điều khiển thông qua joystick kết nối với phần mềm Ground Control Station (GCS) đặt trên topside. Các lệnh này được truyền xuống robot thông qua hệ thống Ethernet và module PLC trên dây tether.
+
+Tại robot, máy tính nhúng sử dụng nền tảng 
+Qualcomm QCS8550 
+tiếp nhận lệnh điều khiển và thực hiện tính toán phân phối lực đẩy cho từng động cơ.
+
+Sau đó, tín hiệu điều khiển được gửi tới driver board để chuyển đổi thành tín hiệu PWM điều khiển bộ ESC (Electronic Speed Controller).
+
+ESC thực hiện điều khiển dòng điện cấp cho động cơ BLDC, từ đó thay đổi tốc độ quay của từng thruster.
+
+Chuỗi xử lý điều khiển được thực hiện theo trình tự sau:
+
+\begin{center}
+Joystick $\rightarrow$ GCS Software $\rightarrow$ Ethernet/PLC $\rightarrow$ QCS8550 $\rightarrow$ Driver Board $\rightarrow$ ESC $\rightarrow$ Thruster
+\end{center}
+
+Kiến trúc này cho phép robot phản hồi nhanh với lệnh điều khiển đồng thời đảm bảo độ chính xác trong việc điều chỉnh vận tốc.
+
+\subsection{Điều khiển tốc độ và hướng quay}
+
+Mỗi động cơ được điều khiển thông qua tín hiệu PWM với độ rộng xung thay đổi theo giá trị điều khiển từ hệ thống phần mềm.
+
+Thông thường:
+
+\begin{itemize}
+    \item PWM trung tâm tương ứng trạng thái dừng.
+    \item PWM tăng làm động cơ quay theo chiều thuận.
+    \item PWM giảm làm động cơ quay theo chiều ngược.
+\end{itemize}
+
+Việc thay đổi tốc độ từng động cơ riêng biệt cho phép hệ thống thực hiện điều khiển vectơ lực tổng hợp, tạo ra chuyển động theo hướng mong muốn.
+
+Ví dụ:
+
+\begin{itemize}
+    \item Hai động cơ quay cùng chiều tạo chuyển động tiến.
+    \item Hai động cơ quay ngược chiều tạo chuyển động quay yaw.
+    \item Các động cơ thẳng đứng tạo lực nâng hoặc hạ robot.
+\end{itemize}
+
+\subsection{Tiêu thụ năng lượng}
+
+Hệ thống động lực là thành phần tiêu thụ công suất lớn nhất trong toàn bộ robot.
+
+Giả sử mỗi động cơ hoạt động tại công suất cực đại:
+
+\[
+P_{motor}=390W
+\]
+
+Nếu hệ thống sử dụng nhiều động cơ hoạt động đồng thời, tổng công suất tiêu thụ sẽ tăng đáng kể.
+
+Do đó thiết kế cơ khí của robot được tối ưu theo nguyên tắc nổi trung tính (neutral buoyancy) nhằm giảm tải cho các thruster theo phương thẳng đứng, từ đó giảm công suất tiêu thụ trung bình trong quá trình vận hành.
+
+\subsection{Tổng hợp thành phần hệ động lực}
+
+Bảng \ref{tab:propulsion_system} trình bày các thành phần chính của hệ thống động lực.
+
+\begin{table}[H]
+\centering
+\caption{Các thành phần chính của hệ thống động lực}
+\label{tab:propulsion_system}
+\begin{tabular}{|p{4cm}|p{9cm}|}
+\hline
+\textbf{Thành phần} & \textbf{Chức năng} \\ \hline
+
+Thruster BLDC &
+Tạo lực đẩy giúp robot di chuyển trong môi trường nước \\ \hline
+
+Propeller &
+Biến chuyển động quay thành phản lực nước \\ \hline
+
+ESC &
+Điều khiển tốc độ quay động cơ thông qua PWM \\ \hline
+
+Driver Board &
+Phân phối tín hiệu điều khiển tới từng động cơ \\ \hline
+
+Máy tính nhúng &
+Xử lý thuật toán điều khiển và phân phối lực đẩy \\ \hline
+
+Nguồn subsea &
+Cung cấp điện năng cho toàn bộ hệ thống động lực \\ \hline
+
+\end{tabular}
+\end{table}
+
+Hệ thống động lực được thiết kế nhằm đảm bảo khả năng cơ động cao, phản hồi nhanh với lệnh điều khiển và duy trì hoạt động ổn định trong môi trường nước biển có nhiều yếu tố gây nhiễu như dòng chảy, áp suất lớn và điều kiện quan sát hạn chế.
 
 \section{Sensor}
 \label{section:2.4}
 
+Hệ thống cảm biến đóng vai trò đặc biệt quan trọng trong robot lặn điều khiển từ xa (ROV), cung cấp dữ liệu phục vụ quá trình điều hướng, giám sát trạng thái hệ thống, khảo sát môi trường và hỗ trợ người vận hành trong quá trình điều khiển. 
+
+Do môi trường dưới nước có nhiều hạn chế như ánh sáng yếu, tín hiệu GPS không hoạt động, áp suất lớn và khả năng quan sát trực tiếp bị hạn chế, hệ thống ROV cần được trang bị nhiều loại cảm biến khác nhau để thu thập thông tin từ môi trường xung quanh cũng như trạng thái nội tại của robot.
+
+Trong hệ thống được thiết kế, dữ liệu từ các cảm biến được thu nhận bởi máy tính nhúng trung tâm dựa trên nền tảng 
+Qualcomm QCS8550,
+sau đó được xử lý và truyền về trạm điều khiển topside để hiển thị trên phần mềm Ground Control Station (GCS).
+
+Hệ thống cảm biến được chia thành bốn nhóm chính:
+
+\begin{itemize}
+    \item Nhóm cảm biến định hướng và ổn định tư thế.
+    \item Nhóm cảm biến xác định vị trí và vận tốc.
+    \item Nhóm cảm biến khảo sát môi trường nước.
+    \item Nhóm cảm biến giám sát môi trường bên trong khoang kín.
+    \item Nhóm cảm biến giám sát an toàn và năng lượng hệ thống.
+\end{itemize}
+
+\subsection{IMU (Inertial Measurement Unit)}
+
+Hệ thống sử dụng cảm biến quán tính 6 trục ICM20602 nhằm đo gia tốc tuyến tính và vận tốc góc của robot trong không gian ba chiều.
+
+IMU là thành phần quan trọng trong việc xác định trạng thái động học của robot, phục vụ cho việc ổn định chuyển động và hỗ trợ điều khiển tự động.
+
+Các chức năng chính của IMU bao gồm:
+
+\begin{itemize}
+    \item Đo gia tốc theo ba trục X, Y, Z.
+    \item Đo vận tốc góc quay quanh ba trục Roll, Pitch và Yaw.
+    \item Xác định trạng thái nghiêng của robot khi di chuyển.
+    \item Hỗ trợ thuật toán ổn định tư thế.
+\end{itemize}
+
+Thông số kỹ thuật chính:
+
+\begin{itemize}
+    \item Gyroscope: $\pm250$ đến $\pm2000$ dps
+    \item Accelerometer: $\pm2g$ đến $\pm16g$
+    \item ADC tích hợp 16 bit
+    \item FIFO buffer 1 KB
+    \item Giao tiếp SPI 10 MHz hoặc I2C 400 kHz
+\end{itemize}
+
+Dữ liệu IMU được cập nhật liên tục với tần số cao để phục vụ điều khiển thời gian thực.
+
+\subsection{Compass}
+
+Để xác định hướng quay tuyệt đối của robot so với từ trường Trái Đất, hệ thống sử dụng cảm biến từ trường MMC5983MA.
+
+Compass cung cấp dữ liệu heading phục vụ điều hướng khi robot hoạt động dưới nước, đặc biệt trong trường hợp người điều khiển không thể quan sát trực tiếp hướng di chuyển.
+
+Các chức năng chính:
+
+\begin{itemize}
+    \item Xác định phương hướng tuyệt đối của robot.
+    \item Hỗ trợ điều khiển giữ hướng (heading hold).
+    \item Kết hợp với IMU để tăng độ chính xác định hướng.
+\end{itemize}
+
+Thông số kỹ thuật:
+
+\begin{itemize}
+    \item Loại cảm biến: Magnetometer 3 trục
+    \item Dải đo từ trường: $\pm8$ Gauss
+    \item Độ phân giải: 18 bit
+    \item Sai số tuyến tính: 0.1\% Full Scale
+    \item Tần số lấy mẫu tối đa: 1000 Hz
+    \item Giao tiếp SPI hoặc I2C
+\end{itemize}
+
+Compass đặc biệt hữu ích trong quá trình robot di chuyển ở khoảng cách xa hoặc trong môi trường có tầm nhìn hạn chế.
+
+\subsection{Depth Sensor}
+
+Do tín hiệu GPS không thể hoạt động dưới nước, việc xác định độ sâu là yêu cầu bắt buộc đối với robot lặn.
+
+Hệ thống sử dụng cảm biến áp suất MS5837-30BA để đo áp suất tuyệt đối của nước và chuyển đổi sang giá trị độ sâu.
+
+Chức năng chính:
+
+\begin{itemize}
+    \item Đo nhiệt độ nước xung quanh robot.
+    \item Hỗ trợ thuật toán giữ độ sâu tự động.
+    \item Cảnh báo khi robot vượt quá giới hạn vận hành thiết kế.
+\end{itemize}
+
+Thông số kỹ thuật:
+
+\begin{itemize}
+    \item Dải đo áp suất: 0 -- 30 bar
+    \item Độ sâu làm việc tối đa: 300 m
+    \item Độ phân giải: khoảng 2 mm nước
+    \item Sai số điển hình: $\pm1.5$ mbar
+    \item ADC tích hợp 24 bit
+    \item Giao tiếp I2C
+\end{itemize}
+
+Dữ liệu độ sâu được hiển thị liên tục cho người vận hành trên giao diện GCS.
+
+\subsection{Camera}
+
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{Hinhve/servo.png}
+    \caption{Camera}
+    \label{fig:usecase}
+\end{figure}
+
+Camera là cảm biến thị giác quan trọng nhất của hệ thống, cung cấp hình ảnh thời gian thực giúp người vận hành quan sát môi trường và điều khiển robot trực tiếp.
+
+Hệ thống sử dụng camera HD USB có khả năng truyền video theo thời gian thực với độ trễ thấp.
+
+Các nhiệm vụ chính của camera:
+
+\begin{itemize}
+    \item Quan sát môi trường phía trước robot.
+    \item Hỗ trợ điều khiển trực tiếp từ topside.
+    \item Ghi hình phục vụ lưu trữ dữ liệu nhiệm vụ.
+    \item Hỗ trợ phát hiện vật thể hoặc chướng ngại vật.
+\end{itemize}
+
+Thông số kỹ thuật:
+
+\begin{itemize}
+    \item Độ phân giải: 1920 × 1080
+    \item Cảm biến ảnh: Sony Exmor IMX322 hoặc IMX323
+    \item Chuẩn mã hóa video: H264, MJPEG, YUY2
+    \item Giao tiếp: USB Video Class (UVC)
+    \item Góc nhìn: khoảng 80 độ
+    \item Điện áp hoạt động: 5 V
+\end{itemize}
+
+Luồng video từ camera được truyền trực tiếp tới máy tính nhúng để mã hóa và gửi lên topside.
+
+\subsection{Sonar}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{Hinhve/sona.png}
+    \caption{Sona}
+    \label{fig:usecase}
+\end{figure}
+
+Trong môi trường nước đục hoặc điều kiện ánh sáng thấp, camera thông thường không đủ khả năng cung cấp thông tin quan sát. Vì vậy hệ thống được trang bị sonar quét hình ảnh.
+
+Robot sử dụng 
+Ping360 
+để khảo sát môi trường xung quanh bằng sóng siêu âm.
+
+Nguyên lý hoạt động của sonar là phát sóng âm tần số cao và thu tín hiệu phản xạ từ vật thể xung quanh để tái tạo ảnh môi trường.
+
+Chức năng chính:
+
+\begin{itemize}
+    \item Phát hiện vật cản trong môi trường nước đục.
+    \item Hỗ trợ khảo sát đáy biển.
+    \item Tạo bản đồ môi trường xung quanh robot.
+    \item Hỗ trợ điều hướng trong điều kiện tầm nhìn kém.
+\end{itemize}
+
+Thông số kỹ thuật:
+
+\begin{itemize}
+    \item Tần số hoạt động: 750 kHz
+    \item Góc quét: 360 độ
+    \item Tầm quét tối đa: 50 m
+    \item Bước quay cơ khí: 0.9 độ
+    \item Beam width: 2 độ ngang, 25 độ dọc
+    \item Giao tiếp: Ethernet, USB hoặc RS485
+\end{itemize}
+
+Sonar cho phép robot tiếp tục hoạt động hiệu quả ngay cả khi camera không thể quan sát được môi trường.
+
+\subsection{DVL (Doppler Velocity Log)}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.9\textwidth]{Hinhve/dvl.png}
+    \caption{DVL}
+    \label{fig:usecase}
+\end{figure}
+Để xác định vận tốc chuyển động tương đối với đáy biển, hệ thống sử dụng cảm biến DVL.
+
+Robot được trang bị 
+Water Linked DVL A125 
+nhằm đo vận tốc chính xác theo nguyên lý hiệu ứng Doppler.
+
+DVL phát sóng âm xuống đáy biển, sau đó đo độ dịch tần số của tín hiệu phản xạ để tính toán vận tốc tương đối của robot.
+
+Chức năng chính:
+
+\begin{itemize}
+    \item Đo vận tốc chuyển động theo nhiều trục.
+    \item Hỗ trợ dead-reckoning khi không có GPS.
+    \item Hỗ trợ định vị dưới nước.
+    \item Tăng độ chính xác cho hệ thống điều hướng.
+\end{itemize}
+
+Thông số kỹ thuật:
+
+\begin{itemize}
+    \item Dải altitude: 0.05 -- 125 m
+    \item Tần số truyền âm: 420 kHz
+    \item Tốc độ đo tối đa: 9 m/s
+    \item Sai số vận tốc: 0.1 mm/s
+    \item Ping rate: 2 -- 15 Hz
+    \item Giao tiếp: Ethernet hoặc Serial
+\end{itemize}
+
+DVL là cảm biến quan trọng trong các nhiệm vụ khảo sát cần độ chính xác vị trí cao.
+
+\subsection{Leak Sensor}
+
+Leak Sensor là cảm biến an toàn được sử dụng để phát hiện sự cố nước rò rỉ vào khoang kín chứa thiết bị điện tử.
+
+Do hệ thống hoạt động ở áp suất cao dưới nước, bất kỳ hiện tượng rò rỉ nào cũng có thể gây hỏng hóc nghiêm trọng cho máy tính nhúng, bộ nguồn hoặc các thiết bị điện tử khác.
+
+Các chức năng chính:
+
+\begin{itemize}
+    \item Phát hiện nước xâm nhập vào khoang kín.
+    \item Gửi tín hiệu cảnh báo về topside.
+    \item Kích hoạt cơ chế bảo vệ khẩn cấp.
+    \item Ngăn ngừa hư hỏng hệ thống điện tử.
+\end{itemize}
+
+Leak Sensor hoạt động liên tục trong toàn bộ quá trình robot vận hành nhằm đảm bảo an toàn hệ thống.
+
+\subsection{Internal Temperature and Humidity Sensor}
+
+Ngoài các cảm biến phục vụ khảo sát môi trường bên ngoài, hệ thống còn cần giám sát điều kiện hoạt động bên trong khoang kín chứa các thiết bị điện tử.
+
+Robot sử dụng cảm biến Si7021 nhằm đo nhiệt độ và độ ẩm bên trong khoang điện tử của ROV.
+
+Việc giám sát các thông số này đặc biệt quan trọng do môi trường dưới nước thường có sự chênh lệch nhiệt độ lớn, dễ gây hiện tượng ngưng tụ hơi nước bên trong khoang kín.
+
+Các chức năng chính:
+
+\begin{itemize}
+    \item Đo nhiệt độ bên trong khoang điện tử.
+    \item Đo độ ẩm tương đối trong khoang kín.
+    \item Phát hiện nguy cơ ngưng tụ hơi nước.
+    \item Giám sát điều kiện làm việc của hệ thống điện tử.
+\end{itemize}
+
+Thông số kỹ thuật:
+
+\begin{itemize}
+    \item Dải đo nhiệt độ: -10 đến 85 $^\circ C$
+    \item Sai số nhiệt độ: $\pm0.4 ^\circ C$
+    \item Dải đo độ ẩm: 0 -- 100\%
+    \item Sai số độ ẩm: $\pm3\%$
+    \item Giao tiếp: I2C
+\end{itemize}
+
+Dữ liệu cảm biến được cập nhật liên tục vào các biến hệ thống \texttt{temp} và \texttt{humid}.
+
+\subsection{Battery Monitoring Sensor}
+
+Để đảm bảo robot có thể hoạt động ổn định trong toàn bộ quá trình khảo sát, hệ thống cần liên tục giám sát trạng thái nguồn điện.
+
+Robot sử dụng bộ chuyển đổi ADC ADS1115 nhằm đo điện áp và dòng điện tiêu thụ của khối pin chính.
+
+Dữ liệu thu được được sử dụng để tính toán trạng thái dung lượng pin (State of Charge -- SOC) và phục vụ cơ chế cảnh báo khi năng lượng xuống thấp.
+
+Các chức năng chính:
+
+\begin{itemize}
+    \item Đo điện áp pin thời gian thực.
+    \item Đo dòng điện tiêu thụ tức thời.
+    \item Tính toán trạng thái dung lượng pin (SOC).
+    \item Giám sát mức tiêu thụ năng lượng của hệ thống.
+    \item Cảnh báo khi pin xuống mức nguy hiểm.
+\end{itemize}
+
+Thông số kỹ thuật:
+
+\begin{itemize}
+    \item ADC độ phân giải 16 bit
+    \item 4 kênh analog input
+    \item Điện áp tham chiếu lập trình được
+    \item Tốc độ lấy mẫu tối đa 860 SPS
+    \item Giao tiếp I2C
+\end{itemize}
+
+Khối giám sát pin cho phép hệ thống chủ động xử lý các tình huống năng lượng thấp nhằm tránh mất kết nối hoặc dừng hoạt động đột ngột dưới nước.
+
+\subsection{Tổng hợp hệ thống cảm biến}
+
+Bảng \ref{tab:sensor_system} trình bày tổng hợp các cảm biến chính được sử dụng trong hệ thống.
+
+\begin{table}[H]
+\centering
+\caption{Các cảm biến chính trong hệ thống ROV}
+\label{tab:sensor_system}
+\begin{tabular}{|p{4cm}|p{9cm}|}
+\hline
+\textbf{Cảm biến} & \textbf{Chức năng chính} \\ \hline
+
+IMU &
+Đo gia tốc và vận tốc góc, xác định tư thế robot \\ \hline
+
+Compass &
+Xác định hướng quay tuyệt đối của robot \\ \hline
+
+MS5837 Depth Sensor &
+Đo áp suất nước, tính toán độ sâu và nhiệt độ nước \\ \hline
+
+Camera &
+Quan sát trực tiếp và truyền video thời gian thực \\ \hline
+
+Sonar &
+Khảo sát môi trường bằng sóng siêu âm \\ \hline
+
+DVL &
+Đo vận tốc tương đối với đáy biển, hỗ trợ định vị \\ \hline
+
+Leak Sensor &
+Phát hiện rò rỉ nước vào khoang kín \\ \hline
+
+Si7021 &
+Đo nhiệt độ và độ ẩm bên trong khoang kín \\ \hline
+
+ADS1115 &
+Đo điện áp và dòng điện pin, phục vụ tính toán SOC \\ \hline
+
+\end{tabular}
+\end{table}
+
+Hệ thống cảm biến được thiết kế nhằm cung cấp đầy đủ thông tin về trạng thái động học của robot, điều kiện môi trường bên ngoài, tình trạng môi trường bên trong khoang điện tử cũng như mức độ an toàn và năng lượng của toàn hệ thống.
+
+Sự kết hợp giữa các cảm biến định hướng, cảm biến khảo sát môi trường, cảm biến định vị, cảm biến giám sát nguồn và cảm biến an toàn cho phép robot hoạt động ổn định trong môi trường dưới nước phức tạp.
+
+Dữ liệu thu thập từ toàn bộ hệ thống cảm biến được xử lý bởi máy tính nhúng trung tâm, sau đó truyền về Ground Control Station phục vụ hiển thị trạng thái, hỗ trợ điều khiển thời gian thực và tạo nền tảng cho các thuật toán điều hướng tự động trong tương lai.
 
 \section{Cơ cấu điều khiển}
 \label{section:2.5}
-\subsection{Động cơ}
-\subsection{Đèn}
-\subsection{Tay cầm}
+
+Cơ cấu điều khiển là tập hợp các thiết bị chấp hành (actuators) chịu trách nhiệm thực hiện các thao tác vật lý của robot dựa trên lệnh điều khiển được gửi từ người vận hành tại trạm topside. 
+
+Khác với hệ thống cảm biến có nhiệm vụ thu nhận thông tin từ môi trường, các cơ cấu điều khiển đóng vai trò biến đổi tín hiệu điện thành các tác động cơ học hoặc quang học nhằm thực hiện chuyển động, thao tác và hỗ trợ hoạt động khảo sát của robot dưới nước.
+
+Trong hệ thống mini ROV, các cơ cấu điều khiển bao gồm hệ thống động cơ đẩy phục vụ di chuyển, hệ thống đèn LED hỗ trợ chiếu sáng, tay gắp cơ khí phục vụ thao tác dưới nước và servo điều khiển góc quan sát của camera.
+
+Các thiết bị này được điều khiển bởi máy tính nhúng trung tâm thông qua driver board, nơi thực hiện chức năng phân phối nguồn, chuyển đổi tín hiệu điều khiển và điều khiển mức thấp theo thời gian thực.
+
+\subsection{Hệ thống động cơ đẩy}
+
+Hệ thống động cơ đẩy (thruster system) là cơ cấu chấp hành quan trọng nhất của robot, trực tiếp tạo ra lực đẩy giúp ROV di chuyển trong môi trường nước.
+
+Mỗi thruster sử dụng động cơ không chổi than (Brushless DC Motor -- BLDC), được điều khiển thông qua bộ điều tốc điện tử ESC (Electronic Speed Controller).
+
+Vị trí các động cơ đẩy:
+\begin{figure}[H]
+    \centering
+    \includegraphics[width = 0.9\textwidth]{Hinhve/thrusterLocation.png}
+    \caption{Vị trí lắp đặt của các động cơ}
+    \label{fig:mission_control}
+\end{figure}
+Quá trình điều khiển diễn ra theo chuỗi xử lý:
+
+\begin{center}
+QCS8550 $\rightarrow$ Driver Board $\rightarrow$ ESC $\rightarrow$ Thruster
+\end{center}
+
+Trong đó:
+
+\begin{itemize}
+    \item Máy tính nhúng tính toán giá trị lực đẩy cho từng động cơ.
+    \item Driver board tạo tín hiệu điều khiển mức thấp.
+    \item ESC điều chỉnh dòng điện cấp cho động cơ.
+    \item Thruster tạo phản lực nước để sinh ra chuyển động.
+\end{itemize}
+
+Driver board đóng vai trò trung gian giữa máy tính nhúng và động cơ, đảm nhiệm các chức năng chính:
+
+\begin{itemize}
+    \item Điều khiển tín hiệu PWM cho ESC.
+    \item Điều chỉnh tốc độ quay của từng động cơ riêng biệt.
+    \item Phân phối nguồn công suất lớn tới hệ thống động cơ.
+    \item Giám sát trạng thái hoạt động của từng kênh điều khiển.
+    \item Đảm bảo điều khiển thời gian thực với độ trễ thấp.
+\end{itemize}
+
+Việc điều khiển độc lập từng thruster cho phép robot thực hiện các chuyển động đa hướng như tiến, lùi, quay yaw và di chuyển theo phương thẳng đứng.
+
+\subsection{Hệ thống đèn chiếu sáng}
+
+Do môi trường dưới nước thường có cường độ ánh sáng thấp, đặc biệt ở độ sâu lớn hoặc vùng nước đục, hệ thống cần được trang bị đèn chiếu sáng công suất cao nhằm hỗ trợ camera quan sát và nâng cao khả năng điều khiển của người vận hành.
+
+Robot sử dụng hệ thống đèn LED chuyên dụng dưới nước với khả năng hoạt động ổn định trong điều kiện áp suất cao.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.1\textwidth]{Hinhve/Den_ROV.png}
+    \caption{Đèn}
+    \label{fig:system_architecture}
+\end{figure}
+Các chức năng chính của hệ thống đèn bao gồm:
+
+\begin{itemize}
+    \item Chiếu sáng môi trường phía trước robot.
+    \item Hỗ trợ camera thu nhận hình ảnh rõ nét hơn.
+    \item Tăng khả năng nhận diện vật thể khi khảo sát.
+    \item Hỗ trợ thao tác tay gắp trong môi trường thiếu sáng.
+\end{itemize}
+
+Thông số kỹ thuật của đèn LED:
+
+\begin{itemize}
+    \item Cường độ sáng: 1500 lumen
+    \item Công suất cực đại: 15 W
+    \item Điện áp hoạt động: 7 -- 48 VDC
+    \item Điều khiển độ sáng bằng PWM
+    \item Góc chiếu sáng rộng phục vụ quan sát môi trường
+\end{itemize}
+
+Việc sử dụng điều khiển PWM cho phép thay đổi độ sáng linh hoạt nhằm tối ưu tiêu thụ năng lượng trong từng điều kiện vận hành khác nhau.
+
+\subsection{Tay gắp thao tác dưới nước}
+
+Tay gắp cơ khí (gripper manipulator) là cơ cấu chấp hành phục vụ thao tác vật lý với các vật thể trong môi trường dưới nước.
+
+Thiết bị này cho phép robot thực hiện các nhiệm vụ như thu hồi vật thể nhỏ, thao tác với thiết bị khảo sát hoặc tương tác trực tiếp với môi trường.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.1\textwidth]{Hinhve/Gripper.png}
+    \caption{Tay gắp - Gripper}
+    \label{fig:system_architecture}
+\end{figure}
+
+Tay gắp được điều khiển bằng tín hiệu PWM thông qua driver board.
+
+Các chức năng chính:
+
+\begin{itemize}
+    \item Kẹp giữ vật thể dưới nước.
+    \item Thực hiện thao tác nhặt hoặc di chuyển vật thể.
+    \item Hỗ trợ các nhiệm vụ kiểm tra hoặc can thiệp kỹ thuật dưới nước.
+\end{itemize}
+
+Thông số kỹ thuật:
+
+\begin{itemize}
+    \item Điện áp hoạt động: 9 -- 18 VDC
+    \item Dòng điện tối đa: 6 A
+    \item Độ mở tối đa: 62 mm
+    \item Lực kẹp lớn phục vụ thao tác dưới nước
+    \item Điều khiển: PWM
+\end{itemize}
+
+Do lực cản môi trường nước lớn hơn môi trường không khí, tay gắp cần đảm bảo mô-men đủ lớn để duy trì khả năng thao tác ổn định.
+
+\subsection{Servo điều khiển góc camera}
+
+Để tăng khả năng quan sát linh hoạt trong quá trình vận hành, hệ thống sử dụng servo motor 
+HS-5055MG
+ nhằm điều khiển góc nghiêng của camera quan sát.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.1\textwidth]{Hinhve/servo.png}
+    \caption{Servo}
+    \label{fig:system_architecture}
+\end{figure}
+
+Servo cho phép thay đổi góc nhìn theo phương thẳng đứng, giúp người vận hành có thể quan sát nhiều khu vực khác nhau mà không cần thay đổi hướng toàn bộ robot.
+
+Các chức năng chính:
+
+\begin{itemize}
+    \item Điều chỉnh góc ngẩng camera.
+    \item Tăng phạm vi quan sát môi trường.
+    \item Hỗ trợ khảo sát các khu vực phía dưới hoặc phía trước robot.
+\end{itemize}
+
+Thông số kỹ thuật chính:
+
+\begin{itemize}
+    \item Loại servo: PWM servo motor
+    \item Tốc độ quay: 0.20 s / 60°
+    \item Dải góc làm việc: $\pm90^\circ$
+    \item Khối lượng: khoảng 9.4 g
+    \item Kích thước nhỏ gọn phù hợp tích hợp trên ROV
+\end{itemize}
+
+Servo được điều khiển trực tiếp từ driver board thông qua tín hiệu PWM tiêu chuẩn.
+
+\subsection{Kiến trúc điều khiển cơ cấu chấp hành}
+
+Tất cả cơ cấu chấp hành trong hệ thống được điều khiển theo kiến trúc phân tầng nhằm đảm bảo tính ổn định và khả năng phản hồi thời gian thực.
+
+Quá trình điều khiển tổng quát được mô tả như sau:
+
+\begin{center}
+Joystick $\rightarrow$ GCS Software $\rightarrow$ Ethernet/PLC $\rightarrow$ QCS8550 $\rightarrow$ Driver Board $\rightarrow$ Actuator
+\end{center}
+
+Trong đó driver board đóng vai trò lớp điều khiển mức thấp (low-level control layer), còn máy tính nhúng chịu trách nhiệm xử lý logic điều khiển mức cao.
+
+Kiến trúc này giúp giảm tải tính toán cho hệ thống truyền thông đồng thời đảm bảo độ chính xác khi điều khiển các thiết bị công suất lớn.
+
+\subsection{Tổng hợp các cơ cấu điều khiển}
+
+Bảng \ref{tab:actuator_system} trình bày các cơ cấu chấp hành chính của hệ thống.
+
+\begin{table}[H]
+\centering
+\caption{Các cơ cấu điều khiển trong hệ thống ROV}
+\label{tab:actuator_system}
+\begin{tabular}{|p{4cm}|p{9cm}|}
+\hline
+\textbf{Thiết bị} & \textbf{Chức năng chính} \\ \hline
+
+Thruster &
+Tạo lực đẩy giúp robot di chuyển trong môi trường nước \\ \hline
+
+ESC &
+Điều chỉnh tốc độ động cơ BLDC thông qua PWM \\ \hline
+
+Driver Board &
+Điều khiển mức thấp và phân phối nguồn tới actuator \\ \hline
+
+Đèn LED &
+Chiếu sáng hỗ trợ camera trong môi trường thiếu sáng \\ \hline
+
+Gripper &
+Thực hiện thao tác vật lý với vật thể dưới nước \\ \hline
+
+Servo Camera &
+Điều chỉnh góc nhìn camera theo phương thẳng đứng \\ \hline
+
+\end{tabular}
+\end{table}
+
+Hệ thống cơ cấu điều khiển được thiết kế nhằm đảm bảo robot có khả năng di chuyển linh hoạt, thực hiện thao tác vật lý chính xác và duy trì khả năng quan sát hiệu quả trong điều kiện môi trường dưới nước phức tạp. Việc kết hợp nhiều cơ cấu chấp hành khác nhau giúp hệ thống đáp ứng tốt các nhiệm vụ khảo sát, giám sát và can thiệp kỹ thuật dưới nước.
 \section{Bộ điều khiển}
 \label{section:2.6}
-\subsection{Máy tính nhúng}
-\subsection{Driver board}
 
+Hệ thống điều khiển của robot lặn mini ROV được thiết kế theo kiến trúc điều khiển phân tán (distributed control architecture), bao gồm hai khối xử lý chính: bộ điều khiển nhúng đặt trực tiếp trên robot dưới nước và bộ điều khiển đặt tại trạm vận hành topside.
+
+Kiến trúc này được lựa chọn nhằm phân chia nhiệm vụ xử lý giữa hai môi trường hoạt động khác nhau. Trong đó, bộ điều khiển trên ROV đảm nhiệm các tác vụ xử lý thời gian thực, giao tiếp với cảm biến và điều khiển cơ cấu chấp hành. Bộ điều khiển topside đóng vai trò giao diện vận hành, cho phép người sử dụng giám sát trạng thái hệ thống và điều khiển robot từ xa thông qua phần mềm điều khiển chuyên dụng.
+
+Mô hình phân tán giúp giảm tải cho hệ thống truyền thông, đảm bảo các chức năng điều khiển quan trọng vẫn được thực hiện trực tiếp trên robot ngay cả khi đường truyền xuất hiện độ trễ hoặc nhiễu trong quá trình vận hành dưới nước.
+
+\subsection{Máy tính nhúng trên ROV}
+
+Bộ điều khiển trung tâm của robot được xây dựng dựa trên nền tảng máy tính nhúng hiệu năng cao sử dụng 
+Qualcomm QCS8550
+ đóng vai trò bộ xử lý chính (main onboard computer) của toàn bộ hệ thống dưới nước.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width = 0.9\textwidth]{Hinhve/QCS8550.png}
+    \caption{Ống thân chứa bo mạch QCS8550}
+    \label{fig:QCS8550}
+\end{figure}
+\begin{figure}[H]
+    \centering
+    \includegraphics[width = 0.9\textwidth]{Hinhve/QCS8550_2.png}
+    \caption{ QCS8550}
+    \label{fig:QCS8550}
+\end{figure}
+
+Máy tính nhúng được cài đặt hệ điều hành Ubuntu Linux, cho phép phát triển các ứng dụng xử lý dữ liệu cảm biến, xử lý video thời gian thực, giao tiếp mạng và điều khiển phần cứng ở mức cao.
+
+Việc lựa chọn nền tảng QCS8550 giúp hệ thống có đủ năng lực tính toán để xử lý đồng thời nhiều luồng dữ liệu đến từ camera, sonar, DVL và hệ thống cảm biến, đồng thời vẫn duy trì khả năng phản hồi theo thời gian thực.
+
+Thông số phần cứng chính của máy tính nhúng được trình bày trong Bảng \ref{tab:qcs8550_specification}.
+
+\begin{table}[H]
+\centering
+\caption{Thông số máy tính nhúng trên ROV}
+\label{tab:qcs8550_specification}
+\begin{tabular}{|p{5cm}|p{7cm}|}
+\hline
+\textbf{Thông số} & \textbf{Giá trị} \\ \hline
+
+SoC & Qualcomm QCS8550 \\ \hline
+
+CPU & 1x GoldPlus 3.2 GHz \\ 
+& 2x Gold 2.8 GHz \\
+& 3x Silver 2.0 GHz \\ \hline
+
+AI Engine & Dual eNPU V3, 48 INT8 TOPS \\ \hline
+
+Video Encode & Hỗ trợ tới 4K120 \\ \hline
+
+Video Decode & Hỗ trợ tới 8K60 \\ \hline
+
+RAM & 16 GB \\ \hline
+
+Storage & 128 GB \\ \hline
+
+Hệ điều hành & Ubuntu 20.04 \\ \hline
+
+Ethernet & 4 cổng 1 Gbps \\ \hline
+
+USB & USB 3.0, USB Type-C, Micro USB \\ \hline
+
+Nguồn cấp & 15 VDC \\ \hline
+
+\end{tabular}
+\end{table}
+
+Máy tính nhúng thực hiện các nhiệm vụ chính sau:
+
+\begin{itemize}
+    \item Thu nhận luồng video từ camera USB.
+    \item Thu nhận dữ liệu sonar và DVL thông qua giao tiếp Ethernet.
+    \item Đọc dữ liệu cảm biến IMU, compass, depth sensor và leak sensor.
+    \item Xử lý dữ liệu cảm biến phục vụ giám sát trạng thái robot.
+    \item Thực thi thuật toán điều khiển mức cao (high-level control).
+    \item Gửi lệnh điều khiển tới driver board để điều khiển actuator.
+    \item Đóng gói dữ liệu telemetry gửi về topside.
+    \item Nhận lệnh điều khiển từ trạm vận hành.
+\end{itemize}
+
+Trong kiến trúc tổng thể, QCS8550 đóng vai trò bộ xử lý trung tâm chịu trách nhiệm quản lý toàn bộ hệ thống phần cứng dưới nước.
+
+\subsection{Máy tính điều khiển topside}
+
+Phía topside sử dụng một máy tính công nghiệp đóng vai trò trung tâm vận hành của toàn bộ hệ thống. Máy tính này chạy phần mềm Ground Control Station (GCS), là giao diện chính cho phép người điều khiển tương tác với robot trong suốt quá trình vận hành.
+
+Máy tính topside không trực tiếp điều khiển phần cứng mà đóng vai trò xử lý giao diện người dùng, hiển thị dữ liệu nhận được từ robot và gửi lệnh điều khiển xuống ROV thông qua hệ thống truyền thông Ethernet.
+
+Cấu hình tham chiếu của máy tính topside như sau:
+
+\begin{itemize}
+    \item Kiểu loại: Industrial Portable Computer
+    \item CPU: Intel Core i5 hoặc Intel Core i7
+    \item Hệ điều hành: Windows 10 trở lên
+    \item RAM: 16 GB
+    \item Màn hình: 14 inch TFT LCD
+    \item Độ phân giải: 1920 × 1080
+    \item Nguồn cấp: 220 VAC
+\end{itemize}
+
+Phần mềm Ground Control Station (GCS) thực hiện các chức năng chính:
+
+\begin{itemize}
+    \item Hiển thị video truyền trực tiếp từ camera trên robot.
+    \item Hiển thị dữ liệu sonar phục vụ khảo sát môi trường.
+    \item Hiển thị dữ liệu vận tốc và altitude từ DVL.
+    \item Hiển thị telemetry thời gian thực từ hệ thống cảm biến.
+    \item Theo dõi trạng thái nguồn điện và trạng thái hoạt động của robot.
+    \item Ghi log dữ liệu phục vụ lưu trữ và phân tích nhiệm vụ.
+    \item Gửi lệnh điều khiển xuống robot thông qua kết nối Ethernet.
+\end{itemize}
+
+Máy tính topside đồng thời đóng vai trò Human Machine Interface (HMI), là điểm tương tác trực tiếp giữa người vận hành và toàn bộ hệ thống.
+
+\subsection{Joystick điều khiển}
+Joystick là thiết bị điều khiển đầu vào cho phép người vận hành điều khiển trực tiếp robot theo thời gian thực.
+
+Thiết bị joystick được kết nối trực tiếp với máy tính topside chạy phần mềm GCS. Phần mềm sẽ liên tục đọc trạng thái các trục analog và các nút nhấn, sau đó chuyển đổi thành các gói lệnh điều khiển gửi xuống robot.
+
+Việc sử dụng joystick cho phép người điều khiển thao tác trực quan hơn so với các phương pháp điều khiển bằng giao diện bàn phím hoặc chuột truyền thống.
+
+Hiện tại, thiết bị được sử dụng để điều khiển ROV là bộ \textbf{Thrustmaster T.Flight HOTAS 4}. Đây là một bộ điều khiển chuyên dụng bao gồm cần điều khiển (joystick) và tay ga (throttle) tích hợp, với các thông số kỹ thuật như sau:
+
+\begin{itemize}
+    \item 12 nút bấm có thể lập trình
+    \item 1 điểm nhìn (Point of View hat switch) cho phép điều hướng góc nhìn
+    \item 1 thanh trượt (Slider) điều chỉnh mức độ đầu vào liên tục
+    \item Tay ga (Throttle) tích hợp cho phép điều chỉnh tốc độ tiến/lùi
+    \item Tay cần (Joystick) với các trục chuyển động X, Y, Z hỗ trợ điều khiển đa hướng
+\end{itemize}
+
+Bộ T.Flight HOTAS 4 được lựa chọn nhờ thiết kế công thái học, độ bền cao và khả năng tương thích tốt với các nền tảng phần mềm điều khiển, giúp người vận hành thao tác chính xác và hiệu quả trong quá trình điều khiển ROV.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width = 0.9\textwidth]{Hinhve/TFIight_Hotas_4.png}
+    \caption{ThrustMaster TFlight Hotas 4}
+    \label{fig:TFlight_Hotas4}
+\end{figure}
+Joystick hỗ trợ điều khiển các chức năng chính:
+
+\begin{itemize}
+    \item Điều khiển chuyển động tiến và lùi theo trục Surge.
+    \item Điều khiển di chuyển ngang trái phải theo trục Sway.
+    \item Điều khiển nâng hạ robot theo trục Heave.
+    \item Điều khiển quay robot quanh trục Yaw.
+    \item Điều khiển đóng mở tay gắp thao tác.
+    \item Điều khiển góc nghiêng camera thông qua servo.
+    \item Điều khiển bật tắt hoặc thay đổi độ sáng đèn LED.
+\end{itemize}
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width = 0.9\textwidth]{Hinhve/Joystick_Property.png}
+    \caption{Joystick Property}
+    \label{fig:mission_control}
+\end{figure}
+Sau khi được phần mềm GCS xử lý, các lệnh điều khiển được đóng gói thành các gói dữ liệu và truyền xuống robot thông qua hệ thống Ethernet kết hợp module PLC trên dây tether.
+
+\subsection{Kiến trúc điều khiển tổng thể}
+
+Kiến trúc điều khiển của hệ thống được tổ chức theo mô hình phân tầng nhằm đảm bảo tính ổn định và khả năng phản hồi nhanh trong quá trình vận hành.
+
+Luồng điều khiển tổng quát được mô tả như sau:
+
+\begin{center}
+Joystick $\rightarrow$ GCS Software $\rightarrow$ Ethernet/PLC $\rightarrow$ QCS8550 $\rightarrow$ Driver Board $\rightarrow$ Actuator
+\end{center}
+
+Trong chiều ngược lại, dữ liệu cảm biến được truyền theo luồng:
+
+\begin{center}
+Sensor $\rightarrow$ QCS8550 $\rightarrow$ Ethernet/PLC $\rightarrow$ GCS Software $\rightarrow$ Human Operator
+\end{center}
+
+Kiến trúc này cho phép phân tách rõ ràng hai lớp xử lý:
+
+\begin{itemize}
+    \item \textbf{Topside Layer}: giao diện người dùng, giám sát và gửi lệnh điều khiển.
+    \item \textbf{Onboard Layer}: xử lý cảm biến, xử lý dữ liệu và điều khiển thời gian thực.
+\end{itemize}
+
+Cách tổ chức này giúp giảm lưu lượng truyền thông không cần thiết, đồng thời đảm bảo các tác vụ điều khiển quan trọng vẫn được thực hiện trực tiếp trên robot với độ trễ thấp.
+
+\subsection{Tổng hợp các thành phần điều khiển}
+
+Bảng \ref{tab:controller_system} trình bày các thành phần chính trong hệ thống điều khiển.
+
+\begin{table}[H]
+\centering
+\caption{Các thành phần chính của hệ thống điều khiển}
+\label{tab:controller_system}
+\begin{tabular}{|p{4cm}|p{9cm}|}
+\hline
+\textbf{Thành phần} & \textbf{Chức năng chính} \\ \hline
+
+QCS8550 &
+Bộ xử lý trung tâm trên ROV, quản lý cảm biến và actuator \\ \hline
+
+Ubuntu Linux &
+Môi trường chạy ứng dụng điều khiển trên robot \\ \hline
+
+Máy tính topside &
+Chạy phần mềm GCS và giao diện vận hành hệ thống \\ \hline
+
+GCS Software &
+Giám sát, hiển thị dữ liệu và gửi lệnh điều khiển \\ \hline
+
+Joystick &
+Thiết bị điều khiển đầu vào cho người vận hành \\ \hline
+
+Driver Board &
+Điều khiển mức thấp cho các actuator trên robot \\ \hline
+
+Ethernet + PLC &
+Truyền dữ liệu hai chiều giữa topside và ROV \\ \hline
+
+\end{tabular}
+\end{table}
+
+Hệ thống điều khiển được thiết kế nhằm đảm bảo khả năng giám sát liên tục, xử lý dữ liệu thời gian thực và điều khiển từ xa với độ tin cậy cao. Việc sử dụng kiến trúc phân tán giữa topside và robot cho phép hệ thống đạt được hiệu năng tốt, dễ dàng mở rộng và phù hợp với yêu cầu vận hành trong môi trường dưới nước phức tạp.
 \section{Truyền thông (Ethernet + PLC)}
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\label{section:2.7}
+
+Hệ thống truyền thông đóng vai trò kết nối toàn bộ kiến trúc điều khiển giữa trạm vận hành topside và robot hoạt động dưới nước. Đây là thành phần đặc biệt quan trọng bởi toàn bộ dữ liệu điều khiển, dữ liệu cảm biến và luồng video thời gian thực đều phải được trao đổi liên tục giữa hai đầu hệ thống trong quá trình vận hành.
+
+Khác với các hệ thống robot thông thường sử dụng kết nối không dây, robot lặn hoạt động trong môi trường nước nên không thể sử dụng các chuẩn truyền thông vô tuyến như WiFi hoặc GPS do khả năng suy hao tín hiệu điện từ trong nước rất lớn. Vì vậy hệ thống sử dụng dây tether vật lý kết hợp với kiến trúc Ethernet và công nghệ Power Line Communication (PLC) để truyền dữ liệu và cấp nguồn đồng thời giữa topside và robot.
+
+Kiến trúc truyền thông được thiết kế theo mô hình ba lớp chính:
+
+\begin{enumerate}
+    \item Hệ thống điều khiển và mạng tại topside.
+    \item Kênh truyền vật lý thông qua dây tether.
+    \item Hệ thống mạng Ethernet nội bộ trên ROV.
+\end{enumerate}
+
+Mô hình này cho phép duy trì kết nối dữ liệu ổn định với độ trễ thấp trong toàn bộ quá trình robot vận hành dưới nước.
+
+\subsection{Hệ thống truyền thông tại topside}
+
+Tại trạm điều khiển topside, người vận hành tương tác trực tiếp với hệ thống thông qua máy tính chạy phần mềm Ground Control Station (GCS) và thiết bị joystick điều khiển.
+
+Các thiết bị chính tại topside bao gồm:
+
+\begin{itemize}
+    \item Máy tính chạy phần mềm Ground Control Station (GCS).
+    \item Joystick phục vụ điều khiển trực tiếp robot.
+    \item Ethernet Switch làm thiết bị mạng trung tâm.
+    \item Module PLC phục vụ chuyển đổi tín hiệu Ethernet.
+    \item Hệ thống nguồn cấp điện cho toàn bộ hệ thống.
+\end{itemize}
+
+Ethernet Switch đóng vai trò trung gian kết nối giữa máy tính điều khiển và module truyền thông PLC.
+
+Các chức năng chính của hệ thống topside bao gồm:
+
+\begin{itemize}
+    \item Nhận dữ liệu telemetry từ robot.
+    \item Hiển thị video truyền trực tiếp từ camera.
+    \item Hiển thị dữ liệu sonar và dữ liệu DVL.
+    \item Nhận trạng thái hệ thống và thông tin cảm biến.
+    \item Gửi lệnh điều khiển xuống robot theo thời gian thực.
+\end{itemize}
+
+Topside là điểm giao tiếp trực tiếp giữa người vận hành và toàn bộ hệ thống ROV.
+
+\subsection{Power Line Communication (PLC)}
+
+Do dây tether đồng thời phải thực hiện truyền điện năng và truyền dữ liệu, hệ thống sử dụng công nghệ Power Line Communication (PLC) nhằm truyền tín hiệu Ethernet thông qua đường dây vật lý kết nối giữa topside và robot.
+
+PLC cho phép ghép tín hiệu dữ liệu tốc độ cao lên cùng đường truyền điện mà không cần bổ sung thêm nhiều dây dẫn riêng biệt, giúp giảm kích thước và khối lượng dây tether.
+
+Nguyên lý hoạt động của PLC bao gồm:
+
+\begin{itemize}
+    \item Chuyển đổi tín hiệu Ethernet chuẩn thành tín hiệu phù hợp truyền trên đường dây vật lý.
+    \item Ghép tín hiệu dữ liệu lên đường truyền điện.
+    \item Truyền dữ liệu hai chiều giữa topside và robot.
+    \item Giải điều chế tín hiệu tại đầu nhận để phục hồi lại khung Ethernet ban đầu.
+\end{itemize}
+
+Thông số kỹ thuật của module PLC được trình bày trong Bảng \ref{tab:plc_specification}.
+
+\begin{table}[H]
+\centering
+\caption{Thông số module PLC}
+\label{tab:plc_specification}
+\begin{tabular}{|p{6cm}|p{6cm}|}
+\hline
+\textbf{Thông số} & \textbf{Giá trị} \\ \hline
+
+Chuẩn truyền thông & Ethernet over PLC \\ \hline
+
+Tốc độ truyền dữ liệu & 80 Mbps \\ \hline
+
+Giao tiếp Ethernet & 10/100 Mbps \\ \hline
+
+Điện áp hoạt động & 7 -- 28 VDC \\ \hline
+
+Dòng tiêu thụ & 150 mA tại 12 V \\ \hline
+
+Môi trường hoạt động & Topside và subsea \\ \hline
+
+\end{tabular}
+\end{table}
+
+Việc sử dụng PLC giúp đơn giản hóa kiến trúc kết nối đồng thời tăng khả năng truyền dữ liệu khoảng cách xa thông qua dây tether.
+
+\subsection{Dây tether truyền nguồn và dữ liệu}
+
+Dây tether là liên kết vật lý giữa topside và robot dưới nước. Đây là thành phần chịu trách nhiệm vừa truyền điện năng xuống robot, vừa truyền dữ liệu hai chiều giữa hai đầu hệ thống.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=1.1\textwidth]{Hinhve/Day_tether.png}
+    \caption{Dây tether}
+    \label{fig:system_architecture}
+\end{figure}
+
+Không giống dây mạng Ethernet thông thường, tether phải được thiết kế để chịu được lực kéo cơ học lớn, môi trường nước biển ăn mòn và áp suất cao khi robot hoạt động ở độ sâu lớn.
+
+Dây tether trong hệ thống đảm nhiệm hai nhiệm vụ chính:
+
+\begin{itemize}
+    \item Truyền nguồn điện công suất cao từ topside xuống robot.
+    \item Truyền dữ liệu Ethernet hai chiều giữa topside và ROV.
+\end{itemize}
+
+Cấu trúc dây bao gồm nhiều cặp dây xoắn (twisted pair) phục vụ các mục đích khác nhau.
+
+Thông số chính của tether:
+
+\begin{itemize}
+    \item Đường kính ngoài: 9.8 mm
+    \item Khối lượng: 0.077 kg/m
+    \item Trạng thái nổi: neutral buoyancy hoặc nổi nhẹ
+    \item Cấu trúc: nhiều cặp dây xoắn UTP
+    \item Khả năng chịu lực kéo lớn khi vận hành
+\end{itemize}
+
+Việc thiết kế tether phù hợp ảnh hưởng trực tiếp tới độ ổn định và phạm vi hoạt động của robot.
+
+\subsection{Mạng Ethernet nội bộ trên ROV}
+
+Phía robot sử dụng kiến trúc mạng Ethernet nội bộ nhằm kết nối các thiết bị truyền dữ liệu tốc độ cao tới máy tính nhúng trung tâm.
+
+Máy tính nhúng sử dụng nền tảng 
+Qualcomm QCS8550
+ được tích hợp bốn cổng Ethernet tốc độ 1 Gbps, cho phép xây dựng mạng nội bộ tốc độ cao giữa các thiết bị trên robot.
+
+Các thiết bị kết nối trong mạng Ethernet nội bộ bao gồm:
+
+\begin{itemize}
+    \item Máy tính nhúng QCS8550.
+    \item Camera truyền video thời gian thực.
+    \item Sonar quét hình ảnh 
+    Ping360.
+    \item DVL đo vận tốc 
+    Water Linked DVL A125.
+    \item Module PLC phía robot.
+\end{itemize}
+
+Ethernet nội bộ cho phép các thiết bị truyền dữ liệu tốc độ cao với độ trễ thấp và đảm bảo khả năng mở rộng trong tương lai khi bổ sung thêm cảm biến mới.
+
+\subsection{Luồng dữ liệu trong hệ thống}
+
+Trong quá trình vận hành, dữ liệu được trao đổi liên tục theo hai chiều giữa topside và robot.
+
+\textbf{Chiều điều khiển từ topside xuống robot:}
+
+\begin{center}
+Joystick $\rightarrow$ GCS Software $\rightarrow$ Ethernet Switch $\rightarrow$ PLC $\rightarrow$ Tether $\rightarrow$ PLC $\rightarrow$ QCS8550
+\end{center}
+
+Các dữ liệu truyền xuống bao gồm:
+
+\begin{itemize}
+    \item Lệnh điều khiển chuyển động robot.
+    \item Lệnh điều khiển tay gắp.
+    \item Lệnh điều khiển servo camera.
+    \item Lệnh bật tắt hoặc điều chỉnh độ sáng đèn LED.
+\end{itemize}
+
+\textbf{Chiều dữ liệu từ robot về topside:}
+
+\begin{center}
+Sensor/Camera/Sonar/DVL $\rightarrow$ QCS8550 $\rightarrow$ PLC $\rightarrow$ Tether $\rightarrow$ PLC $\rightarrow$ GCS Software
+\end{center}
+
+Các dữ liệu truyền về bao gồm:
+
+\begin{itemize}
+    \item Video camera thời gian thực.
+    \item Dữ liệu sonar imaging.
+    \item Dữ liệu vận tốc và altitude từ DVL.
+    \item Telemetry từ hệ thống cảm biến.
+    \item Trạng thái hoạt động của hệ thống.
+    \item Thông tin điện áp và dòng điện nguồn.
+\end{itemize}
+
+Kiến trúc truyền hai chiều này cho phép người vận hành giám sát toàn bộ trạng thái robot gần như theo thời gian thực.
+
+\subsection{Tổng hợp thành phần truyền thông}
+
+Bảng \ref{tab:communication_system} trình bày các thành phần chính của hệ thống truyền thông.
+
+\begin{table}[H]
+\centering
+\caption{Các thành phần của hệ thống truyền thông}
+\label{tab:communication_system}
+\begin{tabular}{|p{4cm}|p{9cm}|}
+\hline
+\textbf{Thành phần} & \textbf{Chức năng chính} \\ \hline
+
+Ethernet Switch &
+Kết nối mạng tại trạm topside \\ \hline
+
+PLC Module &
+Truyền dữ liệu Ethernet qua đường dây vật lý \\ \hline
+
+Tether &
+Truyền nguồn điện và dữ liệu giữa topside và robot \\ \hline
+
+Ethernet Network &
+Kết nối các thiết bị tốc độ cao trên robot \\ \hline
+
+QCS8550 &
+Xử lý và định tuyến dữ liệu trong hệ thống \\ \hline
+
+Camera &
+Truyền luồng video thời gian thực \\ \hline
+
+Sonar &
+Truyền dữ liệu quét môi trường \\ \hline
+
+DVL &
+Truyền dữ liệu vận tốc và định vị \\ \hline
+
+\end{tabular}
+\end{table}
+
+Hệ thống truyền thông được thiết kế nhằm đảm bảo khả năng truyền dữ liệu ổn định, tốc độ cao và độ trễ thấp giữa topside và robot. Việc kết hợp Ethernet nội bộ với công nghệ PLC trên dây tether cho phép hệ thống vừa tối ưu hạ tầng kết nối, vừa đáp ứng yêu cầu vận hành liên tục trong môi trường dưới nước có điều kiện khắc nghiệt.
 
 \end{document}

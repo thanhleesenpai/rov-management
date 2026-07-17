@@ -2,53 +2,29 @@
 
 \begin{document}
 
-
-
-Vẽ biểu đồ vào chương này, ref:
-
 \section{Tổng quan kiến trúc phần mềm hệ thống ROV}
 
-Hệ thống tàu ngầm điều khiển từ xa (ROV -- Remotely Operated Vehicle)
-được thiết kế theo mô hình phân tán, bao gồm hai thành phần phần mềm
-chính: firmware nhúng chạy trực tiếp trên ROV và phần mềm điều khiển
-mặt đất Ground Control Station (GCS).
+\begin{figure}[H]
+    \centering
+    \includegraphics[width =1.1\textwidth]{Hinhve/system_structure.png}
+    \caption{Sơ đồ tổng quan hệ thống}
+    \label{fig:usecase}
+\end{figure}
 
-Firmware nhúng được triển khai trên nền tảng tính toán nhúng \texttt{QCS8550}, chạy hệ điều hành Linux và được phát triển chủ yếu
-bằng ngôn ngữ Python. Thành phần này chịu trách nhiệm giao tiếp với các
-cảm biến và cơ cấu chấp hành gắn trực tiếp trên ROV, thực hiện các thuật
-toán điều khiển thời gian thực, duy trì trạng thái ổn định của phương
-tiện dưới nước và truyền dữ liệu telemetry về trạm điều khiển.
+Hệ thống tàu ngầm điều khiển từ xa (ROV -- Remotely Operated Vehicle) được thiết kế theo mô hình phân tán, bao gồm hai thành phần phần mềm chính: firmware nhúng chạy trực tiếp trên ROV và phần mềm điều khiển mặt đất Ground Control Station (GCS).
+Firmware nhúng được triển khai trên nền tảng tính toán nhúng \texttt{QCS8550}, chạy hệ điều hành Linux và được phát triển chủ yếu bằng ngôn ngữ Python. Thành phần này chịu trách nhiệm giao tiếp với các cảm biến và cơ cấu chấp hành gắn trực tiếp trên ROV, thực hiện các thuật toán điều khiển thời gian thực, duy trì trạng thái ổn định của phương tiện dưới nước và truyền dữ liệu telemetry về trạm điều khiển.
 
-Phần mềm Ground Control Station (GCS) được phát triển trên nền tảng
-desktop sử dụng ngôn ngữ C# và framework WPF. GCS đóng vai trò trung
-tâm điều khiển, cho phép người vận hành giám sát trạng thái ROV theo
-thời gian thực, điều khiển bằng thiết bị Joystick, tiếp nhận và hiển thị
-dữ liệu video, lưu trữ dữ liệu nhiệm vụ, đồng thời hỗ trợ phân tích dữ
-liệu sau quá trình vận hành.
+Phần mềm Ground Control Station (GCS) được phát triển trên nền tảng desktop sử dụng ngôn ngữ \texttt{C\#} và framework WPF. GCS đóng vai trò trung tâm điều khiển, cho phép người vận hành giám sát trạng thái ROV theo thời gian thực, điều khiển bằng thiết bị Joystick, tiếp nhận và hiển thị dữ liệu video, lưu trữ dữ liệu nhiệm vụ, đồng thời hỗ trợ phân tích dữ liệu sau quá trình vận hành.
 
-Kiến trúc hệ thống sử dụng kết nối Ethernet thông qua dây tether nối
-giữa ROV và trạm điều khiển. Trong hệ thống tồn tại ba luồng dữ liệu
-độc lập hoạt động song song.
+Kiến trúc hệ thống sử dụng kết nối Ethernet thông qua dây tether nối giữa ROV và trạm điều khiển. Trong hệ thống tồn tại ba luồng dữ liệu độc lập hoạt động song song.
 
-Luồng thứ nhất là kênh điều khiển và telemetry giữa firmware trên ROV và
-GCS sử dụng giao thức MAVLink truyền qua UDP. Kênh này đảm nhiệm việc
-truyền lệnh điều khiển từ GCS đến ROV và truyền trạng thái cảm biến từ
-ROV ngược về GCS.
+Luồng thứ nhất là kênh điều khiển và telemetry giữa firmware trên ROV và GCS sử dụng giao thức MAVLink truyền qua UDP. Kênh này đảm nhiệm việc truyền lệnh điều khiển từ GCS đến ROV và truyền trạng thái cảm biến từ ROV ngược về GCS.
 
-Luồng thứ hai là dữ liệu video từ camera gắn trên ROV. Camera kết nối
-trực tiếp với board QCS8550, hình ảnh được mã hóa JPEG và truyền liên
-tục về GCS dưới dạng luồng MJPEG thông qua giao thức TCP nhằm đảm bảo độ
-trễ thấp trong quá trình quan sát.
+Luồng thứ hai là dữ liệu video từ camera gắn trên ROV. Camera kết nối trực tiếp với board QCS8550, hình ảnh được mã hóa JPEG và truyền liên tục về GCS dưới dạng luồng MJPEG thông qua giao thức TCP nhằm đảm bảo độ trễ thấp trong quá trình quan sát.
 
-Luồng thứ ba bao gồm các thiết bị cảm biến độc lập như sonar quét hình
-ảnh và cảm biến định vị vận tốc DVL. Các thiết bị này giao tiếp mạng độc
-lập và truyền dữ liệu trực tiếp đến GCS mà không đi qua firmware điều
-khiển chính trên board QCS8550.
+Luồng thứ ba bao gồm các thiết bị cảm biến độc lập như sonar quét hình ảnh và cảm biến định vị vận tốc DVL. Các thiết bị này giao tiếp mạng độc lập và truyền dữ liệu trực tiếp đến GCS mà không đi qua firmware điều khiển chính trên board QCS8550.
 
-Kiến trúc phân tách này giúp giảm tải cho bộ xử lý nhúng trung tâm,
-đồng thời cho phép các thiết bị chuyên dụng như sonar và DVL hoạt động
-song song với hệ thống điều khiển mà không ảnh hưởng đến vòng lặp điều
-khiển thời gian thực của ROV.
+Kiến trúc phân tách này giúp giảm tải cho bộ xử lý nhúng trung tâm, đồng thời cho phép các thiết bị chuyên dụng như sonar và DVL hoạt động song song với hệ thống điều khiển mà không ảnh hưởng đến vòng lặp điều khiển thời gian thực của ROV.
 
 \section{Kiến trúc tổng thể hệ thống}
 
@@ -280,53 +256,31 @@ thành phần forward, lateral trong vector điều khiển. \\
 
 \end{table}
 
-\subsubsection{Giữ vị trí theo Vision}
+\subsubsection{Bám giữ mục tiêu dựa trên Vision}
 
 \begin{table}[H]
-
 \centering
-
 \renewcommand{\arraystretch}{1.3}
-
-\begin{tabular}{|l|p{9cm}|}
-
+\begin{tabular}{|l|p{10.5cm}|}
 \hline
-
-\textbf{Mô tả} &
-Theo dõi và bám theo mục tiêu xác định trong khung hình camera
-bằng thuật toán Optical Flow, điều khiển ROV giữ mục tiêu 
-ở trung tâm khung hình (Track and Catch). \\
-
+\textbf{Mô tả} & 
+Theo dõi vùng mục tiêu do người vận hành lựa chọn và duy trì vị trí cùng kích thước biểu kiến của mục tiêu gần trạng thái tham chiếu ban đầu. \\
 \hline
-
-\textbf{Đầu vào} &
-Lệnh kích hoạt và vùng chọn mục tiêu từ GCS. Luồng hình ảnh
-MJPEG từ camera ROV. \\
-
+\textbf{Đầu vào} & 
+Lệnh kích hoạt Hold Vision; vị trí hoặc vùng chọn mục tiêu từ giao diện; luồng ảnh MJPEG từ camera; dữ liệu heading và độ sâu từ các cảm biến trên ROV. \\
 \hline
-
-\textbf{Xử lý} &
-Optical Flow tính vector dịch chuyển của mục tiêu giữa các
-khung hình, chuẩn hóa sai lệch ảnh thành lệnh điều khiển
-forward/lateral/yaw. \\
-
+\textbf{Xử lý} & 
+Thuật toán Optical Flow ước lượng dịch chuyển và thay đổi tỷ lệ của mục tiêu giữa các khung hình. Sai lệch ngang được chuẩn hóa để điều khiển trục sway; sai lệch tỷ lệ được dùng để điều khiển trục surge. Heading và độ sâu được duy trì bằng các vòng điều khiển cảm biến độc lập. Lệnh thị giác chỉ được sử dụng khi độ tin cậy đạt ngưỡng, dữ liệu chưa vượt timeout và người vận hành không tác động joystick. \\
 \hline
-
-\textbf{Kết quả} &
-ROV tự động di chuyển để giữ mục tiêu ở trung tâm khung hình. \\
-
+\textbf{Kết quả} & 
+ROV tự động bù chuyển động ngang và tiến--lùi để đưa mục tiêu trở lại gần trạng thái tương đối tại thời điểm lựa chọn, đồng thời duy trì hướng và độ sâu theo các chế độ được kích hoạt. Người vận hành luôn có quyền ưu tiên điều khiển thủ công. \\
 \hline
-
-\textbf{Trạng thái} & Đang phát triển (Chương 6). \\
-
+\textbf{Trạng thái} & 
+Đã triển khai ở mức nguyên mẫu; kết quả đánh giá thực nghiệm được bổ sung tại Chương 8. \\
 \hline
-
 \end{tabular}
-
-\caption{Đặc tả chức năng giữ vị trí theo Vision}
-
+\caption{Đặc tả chức năng bám giữ mục tiêu dựa trên Vision}
 \label{tab:hold_vision}
-
 \end{table}
 
 \subsection{Hiển thị dữ liệu thời gian thực từ ROV}
@@ -860,11 +814,10 @@ Toàn bộ hệ thống phần mềm GCS được chia thành sáu nhóm module 
 \item Nhóm module điều khiển
 \item Nhóm module xử lý dữ liệu thời gian thực
 \item Nhóm module ghi dữ liệu nhiệm vụ
-\item Nhóm module quản lý hệ thống
 \item Nhóm module giao diện người dùng
 \end{itemize}
 
-\subsection{Kiến trúc tổng thể phần mềm GCS}
+\subsubsection{Kiến trúc tổng thể phần mềm GCS}
 
 Phần mềm Ground Control Station tiếp nhận đồng thời ba luồng dữ liệu độc
 lập hoạt động song song trong quá trình vận hành.
@@ -886,12 +839,12 @@ Phần mềm GCS cần xử lý đồng thời toàn bộ các luồng dữ li�
 thị trực tiếp trên giao diện, đồng thời ghi lại toàn bộ dữ liệu nhiệm vụ
 phục vụ phân tích sau vận hành.
 
-\subsection{Nhóm module truyền thông}
+\subsubsection{Nhóm module truyền thông}
 
 Nhóm truyền thông đóng vai trò trung tâm của toàn bộ hệ thống GCS, chịu
 trách nhiệm thiết lập và duy trì kết nối với các thiết bị ngoài.
 
-\subsubsection{MavlinkService}
+\subsubsubsection\textbf{MavlinkService}
 
 \texttt{MavlinkService} là module quan trọng nhất trong hệ thống GCS,
 đóng vai trò cầu nối duy nhất giữa phần mềm điều khiển và firmware nhúng
@@ -941,7 +894,7 @@ Các service khác không giao tiếp trực tiếp với ROV mà bắt buộc p
 thông qua \texttt{MavlinkService}. Cách thiết kế này giúp tập trung toàn
 bộ logic mạng vào một điểm duy nhất, đơn giản hóa việc bảo trì hệ thống.
 
-\subsubsection{CameraService}
+\subsubsubsection\textbf{CameraService}
 
 \texttt{CameraService} chịu trách nhiệm tiếp nhận luồng video MJPEG từ
 camera trên ROV.
@@ -976,7 +929,7 @@ Tự động kết nối lại khi camera bị mất tín hiệu\\
 \caption{Chức năng của CameraService}
 \end{table}
 
-\subsubsection{SonarService}
+\subsubsubsection\textbf{SonarService}
 
 \texttt{SonarService} chịu trách nhiệm giao tiếp trực tiếp với sonar
 \texttt{Ping360}.
@@ -1010,7 +963,7 @@ Phát dữ liệu scan mới cho UI\\
 \caption{Chức năng của SonarService}
 \end{table}
 
-\subsubsection{DVLService}
+\subsubsubsection\textbf{DVLService}
 
 \texttt{DVLService} chịu trách nhiệm nhận dữ liệu trực tiếp từ cảm biến
 DVL.
@@ -1041,9 +994,9 @@ Theo dõi trạng thái hoạt động của DVL\\
 \caption{Chức năng của DVLService}
 \end{table}
 
-\subsection{Nhóm module điều khiển}
+\subsubsection{Nhóm module điều khiển}
 
-\subsubsection{JoystickService}
+\subsubsubsection\textbf{JoystickService}
 
 \texttt{JoystickService} chịu trách nhiệm đọc trạng thái thiết bị
 Joystick kết nối với máy tính điều khiển.
@@ -1081,9 +1034,9 @@ Kết nối lại khi joystick bị ngắt\\
 \caption{Chức năng của JoystickService}
 \end{table}
 
-\subsection{Nhóm module xử lý dữ liệu thời gian thực}
+\subsubsection{Nhóm module xử lý dữ liệu thời gian thực}
 
-\subsubsection{TelemetryService}
+\subsubsubsection\textbf{TelemetryService}
 
 \texttt{TelemetryService} đăng ký các event từ
 \texttt{MavlinkService} và cập nhật dữ liệu telemetry phục vụ giao diện
@@ -1119,12 +1072,12 @@ Kích hoạt cập nhật UI tự động\\
 \caption{Chức năng của TelemetryService}
 \end{table}
 
-\subsection{Nhóm module ghi dữ liệu nhiệm vụ}
+\subsubsection{Nhóm module ghi dữ liệu nhiệm vụ}
 
 Nhóm recording service chịu trách nhiệm ghi lại toàn bộ dữ liệu phát sinh
 trong suốt quá trình vận hành phục vụ việc phân tích sau nhiệm vụ.
 
-\subsubsection{CameraRecorderService}
+\subsubsubsection\textbf{CameraRecorderService}
 
 \texttt{CameraRecorderService} chịu trách nhiệm ghi lại luồng video nhận
 được từ CameraService.
@@ -1162,24 +1115,24 @@ Xóa dữ liệu raw sau khi convert thành công\\
 \caption{Chức năng CameraRecorderService}
 \end{table}
 
-\subsubsection{SonarRecorder}
+\subsubsubsection\textbf{SonarRecorder}
 
 Module ghi nhận toàn bộ dữ liệu sonar thô phục vụ replay hoặc tái dựng
 môi trường sau khi nhiệm vụ kết thúc.
 
 Dữ liệu được lưu kèm timestamp đồng bộ với các nguồn dữ liệu khác.
 
-\subsubsection{DVLRecorder}
+\subsubsubsection\textbf{DVLRecorder}
 
 Module ghi nhận toàn bộ dữ liệu vận tốc, altitude và trạng thái cảm biến
 DVL theo thời gian thực.
 
-\subsubsection{TelemetryRecorder}
+\subsubsubsection\textbf{TelemetryRecorder}
 
 Module ghi lại toàn bộ dữ liệu telemetry nhận được từ firmware ROV bao
 gồm orientation, depth, battery status và trạng thái điều khiển.
 
-\subsubsection{MasterRecordingService}
+\subsubsubsection\textbf{MasterRecordingService}
 
 \texttt{MasterRecordingService} là module điều phối trung tâm cho toàn bộ
 quá trình ghi dữ liệu.
@@ -1200,34 +1153,7 @@ hoạt:
 Toàn bộ dữ liệu được lưu vào cùng một thư mục nhiệm vụ nhằm đảm bảo dễ
 dàng truy xuất và đồng bộ timestamp giữa các nguồn.
 
-\subsection{Nhóm module quản lý hệ thống}
-
-\subsubsection{LogService}
-
-Module chịu trách nhiệm ghi log hoạt động của toàn bộ hệ thống phục vụ
-debug và theo dõi trạng thái vận hành.
-
-Các thông tin được lưu bao gồm trạng thái kết nối, lỗi mạng, lỗi thiết
-bị ngoại vi và các sự kiện bất thường trong quá trình hoạt động.
-
-\subsubsection{WebUploadService}
-
-Sau khi nhiệm vụ kết thúc, dữ liệu đã ghi nhận được nén và tải lên web
-server.
-
-Module chịu trách nhiệm:
-
-\begin{itemize}
-\item Upload video
-\item Upload sonar data
-\item Upload DVL data
-\item Upload telemetry logs
-\item Tạo metadata cho từng mission
-\end{itemize}
-
-Module gọi REST API của hệ thống web quản lý thông tin. Phía web tiếp nhận và lưu trữ: video/ảnh vào AWS S3 thông qua presigned URL; dữ liệu cảm biến, DVL, sonar vào MongoDB Atlas liên kết với Trip tương ứng.
-
-\subsection{Nhóm module giao diện người dùng}
+\subsubsection{Nhóm module giao diện người dùng}
 
 Tầng giao diện được xây dựng bằng WPF theo mô hình MVVM.
 
@@ -1253,7 +1179,7 @@ Giao diện bao gồm:
 
 Hệ thống web được tổ chức theo kiến trúc ba tầng: Frontend (React SPA), Backend API (Node.js/Express), và tầng dữ liệu (MongoDB Atlas, Redis, AWS S3). Tác vụ nặng như phân tích AI và nhận diện vật thể được xử lý bất đồng bộ qua Bull Queue, không block HTTP request.
 
-\subsubsection{Nhóm module Backend API}
+\subsubsubsection\textbf{Nhóm module Backend API}
 
 Mỗi tài nguyên tương ứng với một module Express gồm \texttt{model}, \texttt{controller}, \texttt{service} và \texttt{routes}. Tất cả response tuân theo cấu trúc thống nhất \texttt{\{success, message, data\}}.
 
@@ -1291,7 +1217,7 @@ Mỗi tài nguyên tương ứng với một module Express gồm \texttt{model}
 \label{tab:web_backend_modules}
 \end{table}
 
-\subsubsection{Nhóm module Frontend}
+\subsubsubsection\textbf{Nhóm module Frontend}
 
 Giao diện xây dựng bằng React 18 + Vite + Tailwind CSS theo kiến trúc SPA. Zustand quản lý trạng thái xác thực; React Query quản lý server state và cache.
 
@@ -1323,7 +1249,7 @@ Giao diện xây dựng bằng React 18 + Vite + Tailwind CSS theo kiến trúc 
 \label{tab:web_frontend_modules}
 \end{table}
 
-\subsubsection{Nhóm module xử lý bất đồng bộ}
+\subsubsubsection\textbf{Nhóm module xử lý bất đồng bộ}
 
 Tác vụ nặng (AI, phân tích video) được enqueue vào Bull Queue thay vì xử lý trong HTTP request, đảm bảo phản hồi tức thì (HTTP 202) và không block giao diện.
 
@@ -1347,7 +1273,7 @@ Tác vụ nặng (AI, phân tích video) được enqueue vào Bull Queue thay v
 \label{tab:web_async_modules}
 \end{table}
 
-\section{Quan hệ giữa các module}
+\subsection{Quan hệ giữa các module}
 
 Kiến trúc phần mềm tuân theo nguyên tắc phân tầng một chiều.
 
