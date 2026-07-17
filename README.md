@@ -14,7 +14,7 @@ Field operators upload sensor logs, GPS tracks, sonar scans, DVL trajectories, a
 
 ## Why this project
 
-Most "CRUD admin panel" portfolio projects stop at forms and tables. This one is built around a real, messy data problem: ROVs produce multiple heterogeneous file types per dive (CSV sensor logs, JSON DVL trajectories, proprietary `.sonar` binaries, video, photos, and an optional manifest file) with inconsistent naming, European-formatted CSVs, timezone quirks, and files that arrive in batches via ZIP. The interesting engineering is in reconciling and visualizing that data coherently — not just storing it.
+Most "CRUD admin panel" portfolio projects stop at forms and tables. This one is built around a real, messy data problem: ROVs produce multiple heterogeneous file types per dive (CSV sensor logs, JSON DVL trajectories, proprietary `.sonar` binaries, video, photos, and an optional manifest file) with inconsistent naming, European-formatted CSVs, and timezone quirks. The interesting engineering is in reconciling and visualizing that data coherently — not just storing it.
 
 ---
 
@@ -22,8 +22,8 @@ Most "CRUD admin panel" portfolio projects stop at forms and tables. This one is
 
 ### Data ingestion
 - **Manual upload pipeline** — CSV sensor logs, JSON DVL trajectories, `.sonar` binary scans, video/photos (via S3 presigned URLs)
-- **Batch/ZIP upload** — drop an entire dive folder; the backend classifies files by name pattern, auto-detects CSV delimiter (`,`/`;`) and decimal separator (`.`/`,` for European-format exports), and parses embedded timestamps
-- **`trip_master.json` manifest support** — if the ROV's onboard system produced a session manifest, the backend cross-references it to auto-suggest precise (millisecond) recording start times for video files, including reconnect/disconnect events
+- **Folder upload** — select an entire dive folder in one go; the backend classifies each file by name pattern, auto-detects CSV delimiter (`,`/`;`) and decimal separator (`.`/`,` for European-format exports), and parses embedded timestamps
+- **`trip.json` manifest support** — if the ROV's onboard system produced a session manifest, the backend cross-references it to auto-suggest precise (millisecond) recording start times for video files, including reconnect/disconnect events
 - Multi-file support per dive: several sensor CSVs, DVL files, or sonar scans can coexist on one trip without overwriting each other, with automatic gap-handling on charts between files
 
 ### Visualization — the "cockpit" trip view
@@ -31,11 +31,11 @@ Most "CRUD admin panel" portfolio projects stop at forms and tables. This one is
 - **Video ↔ sensor sync** — when a video's recording start time is known, a reference line sweeps across the telemetry chart in real time as the video plays, and the chart's zoom window auto-frames to match the active clip
 - **Z-score anomaly detection** on depth/temperature/pressure readings, highlighted directly on the chart and listed in an alerts panel
 - Raw Leaflet map plotting the dive's GPS fix, reverse-geocoded to a place name (OpenStreetMap Nominatim)
-- Custom sonar waveform viewer and DVL trajectory viewer (canvas-based, hand-rolled — no charting library fits sonar/trajectory data)
+- Custom sonar scan viewer (HTML canvas) and DVL trajectory viewer (hand-rolled SVG with pan/zoom) — no off-the-shelf charting library fits sonar or local-frame trajectory data
 - CSV and PNG export straight off the rendered charts
 
 ### AI & computer vision
-- **Gemini 2.5 Flash** generates a natural-language mission summary per project (trips, statuses, location, media count), run as an async Bull job so the API request isn't blocked for the 5–15s model call
+- **Gemini 2.5 Flash** generates a bilingual (VI/EN) natural-language mission summary per project (trips, statuses, location, media count), run as an async Bull job so the API request isn't blocked on the model call
 - **YOLOv8 object detection** (self-hosted Python/FastAPI microservice) runs on uploaded photos and videos — frame-sampled + object-tracked (ByteTrack) for video, with per-frame bounding boxes that move in sync with video playback
 - Configurable detection model + confidence threshold per analysis run (built to support fine-tuned marine-object models alongside general YOLOv8n)
 - **Evidence capture** — while watching footage, an operator can snapshot a still frame or mark a clip range as evidence, stored separately from the general media gallery, independently analyzable
@@ -44,7 +44,7 @@ Most "CRUD admin panel" portfolio projects stop at forms and tables. This one is
 - JWT auth (15 min access / 7 day refresh) with silent auto-refresh, plus Google OAuth2
 - Role-based access control — `admin` / `operator` / `viewer`, enforced on both API and UI
 - Real-time in-app notifications over **Server-Sent Events** (job completion, status changes) — no WebSocket infra needed
-- Redis-backed JWT blacklist (secure logout) and rate limiting
+- Redis-backed JWT blacklist for secure logout; rate limiting on auth routes in production
 - Full audit log of write operations (who did what, to what, when)
 - Dashboard with aggregate stats and activity timeline (7 parallel MongoDB aggregations)
 - CSV/PDF export on every list view
@@ -62,9 +62,9 @@ Most "CRUD admin panel" portfolio projects stop at forms and tables. This one is
 
 ## Tech stack
 
-**Frontend** — React 18 + Vite, Tailwind CSS, shadcn/ui, TanStack Query + Zustand, Recharts, Leaflet/OpenStreetMap, react-hook-form, dnd-kit
+**Frontend** — React 18 + Vite, Tailwind CSS (custom design-token theme, hand-built component library — no UI kit), TanStack Query + Zustand, Recharts, Leaflet/OpenStreetMap, react-hook-form, dnd-kit
 
-**Backend** — Node.js + Express, MongoDB Atlas + Mongoose, Redis (ioredis), Bull (Redis-backed job queues), Passport.js (Google OAuth2), JWT, AWS S3 (presigned uploads), Nodemailer
+**Backend** — Node.js + Express, MongoDB Atlas + Mongoose, Redis (ioredis), Bull (Redis-backed job queues), Passport.js (Google OAuth2), JWT, AWS S3 (presigned uploads)
 
 **AI / Computer Vision** — Google Gemini 2.5 Flash (project summaries), YOLOv8 via a self-hosted FastAPI microservice (Python, `ultralytics`, OpenCV, ByteTrack), custom Z-score anomaly detector
 
@@ -86,28 +86,28 @@ Most "CRUD admin panel" portfolio projects stop at forms and tables. This one is
 ## Architecture
 
 ```
-┌──────────────┐      HTTPS       ┌────────────────────┐
-│  React (SPA) │ ───────────────► │   Express API       │
-│  Vercel CDN  │ ◄─── JSON ────── │   (Node.js)          │
-└──────────────┘      SSE stream  └─────────┬────────────┘
+┌──────────────┐      HTTPS       ┌───────────────────────┐
+│  React (SPA) │ ───────────────► │   Express API         │
+│  Vercel CDN  │ ◄─── JSON ────── │   (Node.js)           │
+└──────────────┘      SSE stream  └──────────┬────────────┘
                                              │
                      ┌───────────────────────┼───────────────────────┐
                      ▼                       ▼                       ▼
-              ┌─────────────┐        ┌──────────────┐        ┌─────────────┐
+              ┌─────────────┐        ┌────────────────┐        ┌─────────────┐
               │ MongoDB     │        │ Redis          │        │ AWS S3      │
               │ Atlas       │        │ (blacklist,    │        │ (presigned  │
-              │             │        │  rate limit,   │        │  media       │
+              │             │        │  rate limit,   │        │  media      │
               │             │        │  Bull queues)  │        │  upload)    │
               └─────────────┘        └───────┬────────┘        └─────────────┘
-                                              │
-                              ┌───────────────┴───────────────┐
-                              ▼                                ▼
-                    ┌──────────────────┐            ┌──────────────────────┐
-                    │ Bull worker:      │            │ Bull worker:          │
-                    │ ai-summary         │            │ media-analysis        │
-                    │ → Gemini 2.5 Flash │            │ → YOLOv8 microservice │
-                    └──────────────────┘            │   (FastAPI, Python)    │
-                                                      └──────────────────────┘
+                                             │
+                              ┌──────────────┴───────────────┐
+                              ▼                              ▼
+                    ┌───────────────────┐            ┌──────────────────────┐
+                    │ Bull worker:      │            │ Bull worker:         │
+                    │ ai-summary        │            │ media-analysis       │
+                    │ → Gemini 2.5 Flash│            │ → YOLOv8 microservice│
+                    └───────────────────┘            │   (FastAPI, Python)  │
+                                                     └──────────────────────┘
 ```
 
 Async, potentially slow work (AI summary generation, video object detection) is enqueued as a Bull job and processed by a worker so the originating HTTP request returns immediately (`202 Accepted`); completion is pushed to the client over SSE rather than polled.
