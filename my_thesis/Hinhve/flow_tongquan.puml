@@ -1,0 +1,29 @@
+@startuml flow_tongquan
+skinparam backgroundColor White
+skinparam rectangle {
+  BorderColor #555
+  FontSize 12
+}
+skinparam ArrowColor #555
+skinparam ArrowFontSize 10
+skinparam shadowing false
+skinparam nodesep 40
+skinparam ranksep 40
+
+rectangle "**NGOÀI KHƠI — KHÔNG CÓ MẠNG**\n\nROV\n----\nlặn, quay video,\nđo cảm biến" as ROV #FFF7E0
+rectangle "GCS (trạm điều khiển)\n----\nghi offline:\nvideo, CSV, DVL, sonar" as GCS #FFF7E0
+rectangle "**TRÊN BỜ — CÓ KẾT NỐI MẠNG**\n\nOperator\n----\nchọn thư mục, upload" as Upload #E6F7FB
+rectangle "Backend xử lý\n----\n* Lưu MongoDB + S3\n* Phân loại theo tên file\n* Z-Score phát hiện bất thường\n* YOLOv8 nhận diện vật thể\n* Gemini tóm tắt báo cáo\n----\n(YOLO + Gemini chạy nền\nqua Bull Queue)" as Backend #E6F7FB
+rectangle "Web App\n----\nOperator / Viewer / Admin\n----\n* Video + biểu đồ đồng bộ\n* Cảnh báo bất thường\n* Bbox vật thể AI\n* Báo cáo tóm tắt tự động\n* Bản đồ vị trí GPS" as Web #E6F7FB
+
+ROV -right-> GCS : dây cáp
+GCS -right-> Upload : tàu về bờ,\ncó mạng trở lại
+Upload -right-> Backend
+Backend -right-> Web
+
+legend bottom
+  Hệ thống "post-dive analysis": mọi thứ bắt đầu từ hành động upload thủ công
+  của operator sau khi tàu về bờ — không có luồng dữ liệu tự động nào diễn ra ngoài khơi.
+end legend
+
+@enduml

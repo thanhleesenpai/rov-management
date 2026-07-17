@@ -28,6 +28,15 @@ const tripSchema = new mongoose.Schema({
     lng: { type: Number, default: null },
   },
   locationName: { type: String, default: '' },
+  // sourceFile → precise recordedAt derived from trip.json manifest (session start + asset.start_ms).
+  // Populated during batch upload; used as the preferred timestamp source over filename parsing
+  // wherever a manifest was provided (see batch.controller.js, dvl.controller.js getPath()).
+  // Plain object, not Mongoose Map: Map casting breaks on keys containing "."
+  // (every real filename has an extension), so Mixed is used and read/written as a plain object.
+  manifestTimestamps: {
+    type: mongoose.Schema.Types.Mixed,
+    default: undefined,
+  },
   gcsData: {
     raw: {
       type: mongoose.Schema.Types.Mixed,

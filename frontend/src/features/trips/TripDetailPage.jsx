@@ -1384,7 +1384,7 @@ export default function TripDetailPage() {
                             bg-red-500/90 backdrop-blur-sm text-white text-[10px] font-bold
                             ${showToolbar ? 'top-10' : 'top-3'}`}>
                 <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse shrink-0" />
-                LIVE SYNC
+                SYNC
               </div>
             )}
 

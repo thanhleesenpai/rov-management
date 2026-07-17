@@ -103,6 +103,16 @@ function baseDateFromFilename(filename) {
   return `${date.slice(0,4)}-${date.slice(4,6)}-${date.slice(6,8)}`;
 }
 
+// Format a precise Date (e.g. from trip.json manifest) as its UTC+7 wall-clock date —
+// same "YYYY-MM-DD" shape as baseDateFromFilename, so the two sources are interchangeable.
+function baseDateFromManifestTs(manifestTs) {
+  const vn = new Date(manifestTs.getTime() + 7 * 3600 * 1000);
+  const y = vn.getUTCFullYear();
+  const m = String(vn.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(vn.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 function parseTimeToDate(timeStr, baseDate) {
   // timeStr: "HH:MM:SS", baseDate: "YYYY-MM-DD"
   // Filenames/readings are recorded in UTC+7 (Vietnam local time), not UTC
@@ -110,7 +120,10 @@ function parseTimeToDate(timeStr, baseDate) {
   return new Date(`${baseDate}T${timeStr}+07:00`);
 }
 
-function parseCsvBuffer(buffer, filename = '') {
+// manifestTs (optional): precise Date for this file's session start, from trip.json.
+// Preferred over the filename-embedded date whenever available (manifest is ms-accurate,
+// filename is second-accurate at best and depends on naming convention holding up).
+function parseCsvBuffer(buffer, filename = '', manifestTs = null) {
   const text = buffer.toString('utf8');
   const rawLines = text.split(/\r?\n/);
   const lines = rawLines.filter(l => l.trim());
@@ -123,7 +136,7 @@ function parseCsvBuffer(buffer, filename = '') {
   const decimalSep = detectDecimalSep(dataRows, headers.length);
 
   const colMapping = mapHeaders(headers, delimiter); // idx → field
-  const baseDate = baseDateFromFilename(filename);
+  const baseDate = manifestTs ? baseDateFromManifestTs(manifestTs) : baseDateFromFilename(filename);
   const warnings = [];
 
   if (decimalSep === ',') {
@@ -221,8 +234,8 @@ function classifyFile(filename) {
 
 // ─── Per-type processors ──────────────────────────────────────────────────────
 
-async function processSensor(tripId, buffer, filename) {
-  const { readings, columnMapping, warnings } = parseCsvBuffer(buffer, filename);
+async function processSensor(tripId, buffer, filename, manifestTs = null) {
+  const { readings, columnMapping, warnings } = parseCsvBuffer(buffer, filename, manifestTs);
   if (readings.length === 0) return { ok: false, error: 'No valid readings found', warnings };
 
   // eslint-disable-next-line no-unused-vars
@@ -295,7 +308,7 @@ async function processDvl(tripId, buffer, filename) {
   return { ok: true, count: docs.length };
 }
 
-async function processSonar(tripId, buffer, filename) {
+async function processSonar(tripId, buffer, filename, manifestTs = null) {
   let meta;
   try { meta = parseSonarMeta(buffer); }
   catch (e) { return { ok: false, error: e.message }; }
@@ -321,7 +334,7 @@ async function processSonar(tripId, buffer, filename) {
     frameCount:    meta.frameCount,
     durationMs:    meta.durationMs,
     fileSizeBytes: buffer.length,
-    recordedAt:    recordedAtFromFilename(filename),
+    recordedAt:    manifestTs || recordedAtFromFilename(filename),
   });
 
   const newCount = await SonarFile.countDocuments({ trip: tripId });
@@ -358,19 +371,27 @@ const uploadBatch = async (req, res, next) => {
       manifest: null, unknown: [], errors: [],
     };
 
-    // Parse trip_master.json if present — builds videoSuggestions for frontend display
+    // Parse trip.json if present — builds videoSuggestions for frontend display, and
+    // assetTimestamps (filename → precise Date) applied below to sensor/dvl/sonar too,
+    // so the manifest is the primary timestamp source for ALL asset types, not just video/photo.
     const manifestEntry = files.find(f => f.filename === 'trip.json');
+    let assetTimestamps = null; // Map<filename, Date> | null
     if (manifestEntry) {
       try {
         const manifest = JSON.parse(manifestEntry.buffer.toString('utf8'));
         const videoSuggestions = [];
+        assetTimestamps = new Map();
         for (const session of manifest.sessions || []) {
           const sessionStart = parseSessionId(session.session_id);
+          if (!sessionStart) continue;
           for (const asset of session.assets || []) {
-            if ((asset.type === 'video' || asset.type === 'photo') && sessionStart) {
+            const baseName = asset.file.split('/').pop();
+            const ts = new Date(sessionStart.getTime() + (asset.start_ms || 0));
+            assetTimestamps.set(baseName, ts);
+            if (asset.type === 'video' || asset.type === 'photo') {
               videoSuggestions.push({
-                filename: asset.file.split('/').pop(),
-                recordedAt: new Date(sessionStart.getTime() + (asset.start_ms || 0)).toISOString(),
+                filename: baseName,
+                recordedAt: ts.toISOString(),
                 type: asset.type,
                 status: asset.status,
               });
@@ -378,6 +399,16 @@ const uploadBatch = async (req, res, next) => {
           }
         }
         results.manifest = { detected: true, videoSuggestions };
+
+        // Persist so later reads (DVL trajectory merge) can use precise manifest timing
+        // instead of re-guessing from filename every time.
+        if (assetTimestamps.size > 0) {
+          const merged = { ...(trip.manifestTimestamps || {}) };
+          for (const [k, v] of assetTimestamps) merged[k] = v;
+          trip.manifestTimestamps = merged;
+          trip.markModified('manifestTimestamps');
+          await trip.save();
+        }
       } catch {
         results.manifest = { detected: false, error: 'Failed to parse trip.json' };
       }
@@ -386,9 +417,10 @@ const uploadBatch = async (req, res, next) => {
     // Process each file sequentially so append/overlap logic is race-condition-free
     for (const { filename, buffer } of files) {
       const type = classifyFile(filename);
+      const manifestTs = assetTimestamps?.get(filename) || null;
       try {
         if (type === 'sensor') {
-          const r = await processSensor(tripId, buffer, filename);
+          const r = await processSensor(tripId, buffer, filename, manifestTs);
           // Accumulate multiple sensor files — keep results.sensor shape compatible with frontend
           if (!results.sensor) results.sensor = { ok: true, count: 0, files: [] };
           if (r.ok) {
@@ -409,7 +441,7 @@ const uploadBatch = async (req, res, next) => {
             results.dvl.files.push({ filename, ok: false, error: r.error });
           }
         } else if (type === 'sonar') {
-          const r = await processSonar(tripId, buffer, filename);
+          const r = await processSonar(tripId, buffer, filename, manifestTs);
           if (!results.sonar) results.sonar = { ok: true, files: [] };
           if (r.ok) {
             results.sonar.files.push({ filename: r.filename, frameCount: r.frameCount, durationMs: r.durationMs });
