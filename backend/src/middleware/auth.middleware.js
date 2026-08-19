@@ -16,7 +16,11 @@ const authenticate = async (req, res, next) => {
     try {
       const isBlacklisted = await redis.get(`blacklist:${token}`);
       if (isBlacklisted) return res.status(401).json({ message: 'Token has been revoked' });
-    } catch { /* Redis unavailable — fail open in dev */ }
+    } catch (redisErr) {
+      // Fail open (don't block requests if Redis is down) but log it —
+      // this silently re-enables any token the user had revoked/logged out while Redis was unreachable.
+      console.warn('[auth] Redis blacklist check failed, failing open:', redisErr.message);
+    }
 
     const user = await User.findById(decoded.id).select('-password -refreshToken');
 

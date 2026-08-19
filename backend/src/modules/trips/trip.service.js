@@ -6,14 +6,15 @@ const Media      = require('../media/media.model');
 const Snapshot   = require('../snapshots/snapshot.model');
 const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const s3 = require('../../config/s3');
+const { escapeRegex } = require('../../utils/query.util');
 
 const BUCKET = process.env.S3_BUCKET;
 
 const getAll = async ({ page = 1, limit = 10, search, status, projectId, fromDate, toDate } = {}) => {
   const query = {};
-  if (search) query.title = new RegExp(search, 'i');
-  if (status) query.status = status;
-  if (projectId) query.project = projectId;
+  if (search) query.title = new RegExp(escapeRegex(search), 'i');
+  if (status) query.status = String(status);
+  if (projectId) query.project = String(projectId);
   if (fromDate || toDate) {
     query.createdAt = {};
     if (fromDate) query.createdAt.$gte = new Date(fromDate);
@@ -49,8 +50,11 @@ const create = async (data) => {
   return Trip.create(data);
 };
 
+const UPDATABLE_FIELDS = ['title', 'description', 'status'];
+
 const update = async (id, data) => {
-  return Trip.findByIdAndUpdate(id, data, { new: true, runValidators: true })
+  const patch = Object.fromEntries(Object.entries(data).filter(([k]) => UPDATABLE_FIELDS.includes(k)));
+  return Trip.findByIdAndUpdate(id, patch, { new: true, runValidators: true })
     .populate('createdBy', 'fullName email');
 };
 

@@ -6,6 +6,7 @@ import api from '@/lib/axios'
 import { useAuthStore } from '@/store/auth.store'
 import { MarineButton } from '@/components/bespoke/MarineButton'
 import { MarineInput } from '@/components/bespoke/MarineInput'
+import { startGoogleOAuth } from '@/lib/oauthNonce'
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api/v1'
 const GOOGLE_AUTH_URL = `${API_BASE}/auth/google`
@@ -24,7 +25,7 @@ function GoogleButton() {
       variant="outline"
       type="button"
       icon={GoogleIcon}
-      onClick={() => { window.location.href = GOOGLE_AUTH_URL }}
+      onClick={() => startGoogleOAuth(GOOGLE_AUTH_URL)}
       className="w-full"
     >
       Continue with Google

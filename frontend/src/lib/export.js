@@ -4,7 +4,11 @@ import html2canvas from 'html2canvas'
 // ─── CSV ──────────────────────────────────────────────────────────────────
 function toCSV(headers, rows) {
   const escape = (v) => {
-    const s = v == null ? '' : String(v)
+    let s = v == null ? '' : String(v)
+    // Prevent CSV formula injection: a leading =, +, -, @ (or tab/CR) makes
+    // Excel/Sheets interpret the cell as a formula when opened. Prefixing with
+    // a single quote forces it to be read as plain text instead.
+    if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`
     return s.includes(',') || s.includes('"') || s.includes('\n')
       ? `"${s.replace(/"/g, '""')}"`
       : s

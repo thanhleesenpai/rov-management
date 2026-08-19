@@ -113,6 +113,7 @@ const changePassword = async (req, res, next) => {
 };
 
 const { generateAccessToken, generateRefreshToken } = require('../../utils/jwt.util');
+const { decodeOAuthState } = require('../../utils/oauthState.util');
 
 const googleCallback = async (req, res) => {
   try {
@@ -124,17 +125,11 @@ const googleCallback = async (req, res) => {
     user.lastLoginAt  = new Date();
     await user.save();
 
-    let clientUrl = process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',')[0] : 'http://localhost:5173';
-    if (req.query.state) {
-      try { clientUrl = Buffer.from(req.query.state, 'base64').toString('ascii'); } catch (e) {}
-    }
-    const params = new URLSearchParams({ accessToken, refreshToken });
+    const { clientUrl, nonce } = decodeOAuthState(req.query.state);
+    const params = new URLSearchParams({ accessToken, refreshToken, nonce });
     res.redirect(`${clientUrl}/auth/callback?${params}`);
   } catch (err) {
-    let clientUrl = process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',')[0] : 'http://localhost:5173';
-    if (req.query.state) {
-      try { clientUrl = Buffer.from(req.query.state, 'base64').toString('ascii'); } catch (e) {}
-    }
+    const { clientUrl } = decodeOAuthState(req.query.state);
     res.redirect(`${clientUrl}/login?error=oauth_failed`);
   }
 };
