@@ -1,16 +1,14 @@
 const ROV = require('./rov.model');
 const Project = require('../projects/project.model');
+const { escapeRegex } = require('../../utils/query.util');
 
 const getAll = async ({ page = 1, limit = 10, search, status } = {}) => {
   const query = {};
   if (search) {
-    query.$or = [
-      { name: new RegExp(search, 'i') },
-      { model: new RegExp(search, 'i') },
-      { serialNumber: new RegExp(search, 'i') }
-    ];
+    const re = new RegExp(escapeRegex(search), 'i');
+    query.$or = [{ name: re }, { model: re }, { serialNumber: re }];
   }
-  if (status) query.status = status;
+  if (status) query.status = String(status);
 
   const skip = (Number(page) - 1) * Number(limit);
   const [rovs, total] = await Promise.all([
@@ -29,8 +27,11 @@ const create = async (data) => {
   return ROV.create(data);
 };
 
+const UPDATABLE_FIELDS = ['name', 'model', 'serialNumber', 'status', 'notes'];
+
 const update = async (id, data) => {
-  return ROV.findByIdAndUpdate(id, data, { new: true, runValidators: true });
+  const patch = Object.fromEntries(Object.entries(data).filter(([k]) => UPDATABLE_FIELDS.includes(k)));
+  return ROV.findByIdAndUpdate(id, patch, { new: true, runValidators: true });
 };
 
 const remove = async (id) => {

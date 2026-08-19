@@ -5,6 +5,7 @@ from ultralytics import YOLO
 import requests
 import tempfile
 import os
+import re
 import cv2
 from pathlib import Path
 
@@ -26,6 +27,8 @@ MODEL_META = {
 _model_cache: dict[str, YOLO] = {}
 
 def get_model(name: str) -> YOLO:
+    if not re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", name):
+        raise HTTPException(status_code=400, detail="Invalid model name")
     if name not in _model_cache:
         pt_path = BASE_DIR / f"{name}.pt"
         if not pt_path.exists():
@@ -61,24 +64,33 @@ def list_models():
     return {"models": models}
 
 
+MAX_DOWNLOAD_BYTES = 500 * 1024 * 1024  # matches backend media upload cap
+
+
 @app.post("/detect")
 def detect(req: DetectRequest):
     m = get_model(req.model)
-
-    try:
-        r = requests.get(req.mediaUrl, timeout=60)
-        r.raise_for_status()
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to download media: {e}")
 
     is_video = req.mediaType.startswith("video/")
     suffix = ".mp4" if is_video else ".jpg"
 
     tmp_path = None
     try:
-        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
-            f.write(r.content)
-            tmp_path = f.name
+        try:
+            with requests.get(req.mediaUrl, timeout=60, stream=True) as r:
+                r.raise_for_status()
+                downloaded = 0
+                with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
+                    tmp_path = f.name
+                    for chunk in r.iter_content(chunk_size=1024 * 1024):
+                        downloaded += len(chunk)
+                        if downloaded > MAX_DOWNLOAD_BYTES:
+                            raise HTTPException(status_code=413, detail="Media file too large")
+                        f.write(chunk)
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Failed to download media: {e}")
 
         if is_video:
             labels = _detect_video(tmp_path, m, req.confidence, req.startTime, req.endTime)

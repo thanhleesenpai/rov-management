@@ -1,15 +1,14 @@
 const User = require('./user.model');
+const { escapeRegex } = require('../../utils/query.util');
 
 const getAllUsers = async ({ page = 1, limit = 10, search, role } = {}) => {
   const query = {};
 
   if (search) {
-    query.$or = [
-      { fullName: new RegExp(search, 'i') },
-      { email: new RegExp(search, 'i') }
-    ];
+    const re = new RegExp(escapeRegex(search), 'i');
+    query.$or = [{ fullName: re }, { email: re }];
   }
-  if (role) query.role = role;
+  if (role) query.role = String(role);
 
   const skip = (Number(page) - 1) * Number(limit);
   const [users, total] = await Promise.all([

@@ -5,7 +5,14 @@
       "Bash(tail -n 15 /tmp/backend.log 2>/dev/null; echo ---; netstat -ano 2>/dev/null | grep \":5000\" | grep LISTENING)",
       "Read(//tmp/**)",
       "Bash(kill 1810)",
-      "Bash(curl -s -o /dev/null -w \"frontend: %{http_code}\\\\n\" http://localhost:5173/)"
+      "Bash(curl -s -o /dev/null -w \"frontend: %{http_code}\\\\n\" http://localhost:5173/)",
+      "Bash(node --check src/modules/projects/project.service.js)",
+      "Bash(node --check src/modules/trips/trip.service.js)",
+      "Bash(node --check src/modules/rovs/rov.service.js)",
+      "Bash(node --check src/middleware/auth.middleware.js)",
+      "Bash(node --check src/modules/auth/auth.routes.js)",
+      "Bash(node --check src/modules/users/user.service.js)",
+      "Bash(node --check src/utils/query.util.js)"
     ]
   }
 }

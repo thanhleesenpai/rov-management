@@ -4,6 +4,11 @@ const { success, error } = require('../../utils/response.util');
 
 const YOLO_URL = process.env.YOLO_SERVICE_URL || 'http://localhost:8000';
 
+// Cache of the last successful /models response — used as fallback when the
+// YOLO service is momentarily unresponsive (e.g. busy with a heavy inference job),
+// so a transient timeout doesn't make the UI drop back to showing only yolov8n.
+let lastKnownModels = [{ name: 'yolov8n', label: 'YOLOv8n General', speed: 'fast', warning: null }];
+
 const MAX_SIZE = 500 * 1024 * 1024; // 500MB
 
 const ALLOWED_TYPES = [
@@ -149,13 +154,18 @@ const analyze = async (req, res, next) => {
 const getModels = async (req, res, next) => {
   try {
     const r = await fetch(`${YOLO_URL}/models`, {
-      signal: AbortSignal.timeout(4000),
+      signal: AbortSignal.timeout(10000),
     });
-    if (!r.ok) throw new Error('YOLO service error');
+    if (!r.ok) throw new Error(`YOLO service returned ${r.status}`);
     const data = await r.json();
-    return success(res, data.models || [{ name: 'yolov8n', label: 'YOLOv8n General', speed: 'fast', warning: null }]);
-  } catch {
-    return success(res, [{ name: 'yolov8n', label: 'YOLOv8n General', speed: 'fast', warning: null }]);
+    const models = data.models?.length
+      ? data.models
+      : [{ name: 'yolov8n', label: 'YOLOv8n General', speed: 'fast', warning: null }];
+    lastKnownModels = models;
+    return success(res, models);
+  } catch (err) {
+    console.error('[media] GET /models failed, falling back to cache:', err.message);
+    return success(res, lastKnownModels);
   }
 };
 

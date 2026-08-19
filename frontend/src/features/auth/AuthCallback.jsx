@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Anchor } from 'lucide-react'
 import { useAuthStore } from '@/store/auth.store'
 import api from '@/lib/axios'
+import { consumeOAuthNonce } from '@/lib/oauthNonce'
 
 export default function AuthCallback() {
   const [searchParams] = useSearchParams()
@@ -12,9 +13,19 @@ export default function AuthCallback() {
   useEffect(() => {
     const accessToken  = searchParams.get('accessToken')
     const refreshToken = searchParams.get('refreshToken')
+    const nonce        = searchParams.get('nonce')
     const error        = searchParams.get('error')
 
     if (error || !accessToken || !refreshToken) {
+      navigate('/login?error=oauth_failed')
+      return
+    }
+
+    // Must match the nonce this browser generated before starting the Google
+    // redirect — rejects crafted /auth/callback links an attacker sends to log
+    // a victim into the attacker's own account (login CSRF).
+    const expectedNonce = consumeOAuthNonce()
+    if (!nonce || nonce !== expectedNonce) {
       navigate('/login?error=oauth_failed')
       return
     }

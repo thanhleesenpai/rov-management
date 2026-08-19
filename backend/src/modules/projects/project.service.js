@@ -1,6 +1,7 @@
 const Project = require('./project.model');
 const Trip = require('../trips/trip.model');
 const { reverseGeocode, parseCoordString } = require('../../utils/geocode.util');
+const { escapeRegex } = require('../../utils/query.util');
 
 // If location string looks like "lat, lng", auto-geocode and fill gpsLocation + locationName.
 async function enrichLocation(data) {
@@ -20,13 +21,11 @@ const getAll = async (params = {}) => {
   const { page = 1, limit = 10, search, status, rovId, fromDate, toDate } = params
   const query = {};
   if (search) {
-    query.$or = [
-      { name: new RegExp(search, 'i') },
-      { location: new RegExp(search, 'i') }
-    ];
+    const re = new RegExp(escapeRegex(search), 'i');
+    query.$or = [{ name: re }, { location: re }];
   }
-  if (status) query.status = status;
-  if (rovId) query.rov = rovId;
+  if (status) query.status = String(status);
+  if (rovId) query.rov = String(rovId);
   if (fromDate || toDate) {
     query.startTime = {};
     if (fromDate) query.startTime.$gte = new Date(fromDate);
@@ -55,8 +54,11 @@ const create = async (data) => {
   return Project.create(await enrichLocation(data));
 };
 
+const UPDATABLE_FIELDS = ['name', 'description', 'rov', 'location', 'startTime', 'endTime', 'status', 'gpsLocation', 'locationName'];
+
 const update = async (id, data) => {
-  const enriched = await enrichLocation(data);
+  const patch = Object.fromEntries(Object.entries(data).filter(([k]) => UPDATABLE_FIELDS.includes(k)));
+  const enriched = await enrichLocation(patch);
   return Project.findByIdAndUpdate(id, enriched, { new: true, runValidators: true })
     .populate('rov', 'name model status')
     .populate('createdBy', 'fullName email');
