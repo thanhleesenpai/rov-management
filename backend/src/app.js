@@ -24,8 +24,10 @@ require('./modules/snapshots/snapshot.worker');
 
 const app = express();
 
-// Tin tưởng Proxy Nginx để lấy đúng IP thật của người dùng thay vì IP Nginx container
-app.set('trust proxy', 1);
+// Tin tưởng Proxy Nginx để lấy đúng IP thật khi chạy đằng sau Reverse Proxy
+if (process.env.TRUST_PROXY === '1' || process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
 
 // Security headers
 app.use(helmet());

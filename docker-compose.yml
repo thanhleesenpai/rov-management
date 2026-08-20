@@ -15,8 +15,7 @@ services:
       # Ghi đè các biến môi trường để dùng internal network trong Docker
       - REDIS_URL=redis://redis:6379
       - YOLO_SERVICE_URL=http://yolo:8000
-    ports:
-      - "5000:5000"
+    # Không expose port 5000 ra ngoài host — chỉ Nginx gọi tới qua mạng Docker nội bộ
     depends_on:
       - redis
     restart: unless-stopped
