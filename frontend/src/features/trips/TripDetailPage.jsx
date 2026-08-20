@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { useParams, useNavigate, Link, useLocation } from 'react-router-dom'
+import { useParams, useNavigate, Link, useLocation, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useThemeStore } from '@/store/theme.store'
 import {
@@ -176,6 +176,7 @@ export default function TripDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams] = useSearchParams()
   const { user } = useAuthStore()
   const { isDark } = useThemeStore()
   const queryClient = useQueryClient()
@@ -186,7 +187,7 @@ export default function TripDetailPage() {
     const saved = sessionStorage.getItem(`trip:${id}:mediaIdx`)
     return saved ? parseInt(saved, 10) : 0
   })
-  const [showDetections, setShowDetections] = useState(false)
+  const [showDetections, setShowDetections] = useState(() => searchParams.get('detect') === 'true')
   const [isVideoPlaying, setIsVideoPlaying] = useState(false)
   const [videoMetadataVersion, setVideoMetadataVersion] = useState(0)
   const [currentVideoTime, setCurrentVideoTime] = useState(0)
@@ -259,7 +260,7 @@ export default function TripDetailPage() {
   const [confirmBulkDeletePlaylist, setConfirmBulkDeletePlaylist] = useState(false)
 
   // Layout mode states
-  const [isSonarMode, setIsSonarMode] = useState(false)
+  const [isSonarMode, setIsSonarMode] = useState(true)
   const [statusExpanded, setStatusExpanded] = useState(false)
 
   const bulkDeletePlaylistMutation = useMutation({
