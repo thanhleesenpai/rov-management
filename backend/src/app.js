@@ -24,6 +24,9 @@ require('./modules/snapshots/snapshot.worker');
 
 const app = express();
 
+// Tin tưởng Proxy Nginx để lấy đúng IP thật của người dùng thay vì IP Nginx container
+app.set('trust proxy', 1);
+
 // Security headers
 app.use(helmet());
 
@@ -46,12 +49,12 @@ app.use(cors({
 if (process.env.NODE_ENV === 'production') {
   const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 20,
+    max: 50,
     message: { message: 'Too many requests, please try again later' }
   });
   const generalLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 100
+    max: 1000
   });
   app.use('/api', generalLimiter);
   app.use('/api/v1/auth/login', authLimiter);
