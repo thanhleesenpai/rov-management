@@ -153,11 +153,11 @@ def _cross_class_nms(dets: list, iou_thresh: float = 0.3) -> list:
 
 
 def _pick_interval(duration_sec: float) -> float:
-    if duration_sec < 30:
-        return 0.2
-    if duration_sec < 180:
-        return 0.5
-    return 1.0
+    if duration_sec < 60:
+        return 0.1   # 10 FPS cho video ngắn (< 1 phút) - cực kỳ mượt
+    if duration_sec < 300:
+        return 0.2   # 5 FPS cho video trung bình (< 5 phút) - mượt & chuẩn xác
+    return 0.4       # 2.5 FPS cho video dài (>= 5 phút) - cân bằng hiệu năng
 
 
 def _detect_video(
